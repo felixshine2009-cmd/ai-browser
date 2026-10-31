@@ -88,5 +88,119 @@
     "topic": "modern.photoelectric",
     "zh": "光电效应（示意）",
     "title": "Photoelectric effect (schematic)"
+  },
+  {
+    "id": "mod_projectile",
+    "topic": "mechanics.projectile",
+    "zh": "抛体运动（可调初速/角/高度/阻力）",
+    "title": "Projectile (all params)"
+  },
+  {
+    "id": "mod_incline",
+    "topic": "mechanics.incline",
+    "zh": "斜面与摩擦（μ₀、μ、θ）",
+    "title": "Incline & friction"
+  },
+  {
+    "id": "mod_circular",
+    "topic": "mechanics.circular",
+    "zh": "匀速圆周运动（r、ω）",
+    "title": "Circular motion"
+  },
+  {
+    "id": "mod_pendulum",
+    "topic": "oscillation.pendulum",
+    "zh": "单摆（摆长、摆角、阻尼）",
+    "title": "Pendulum"
+  },
+  {
+    "id": "mod_spring",
+    "topic": "oscillation.spring",
+    "zh": "弹簧振子（k、m、A、阻尼）",
+    "title": "Spring oscillator"
+  },
+  {
+    "id": "mod_collision",
+    "topic": "mechanics.collision",
+    "zh": "一维碰撞（恢复系数 e）",
+    "title": "1D collision"
+  },
+  {
+    "id": "mod_gravitation",
+    "topic": "mechanics.gravitation",
+    "zh": "万有引力（G、M、R、h）",
+    "title": "Gravitation"
+  },
+  {
+    "id": "mod_shm",
+    "topic": "oscillation.shm",
+    "zh": "简谐运动（A、T、φ）",
+    "title": "Simple harmonic motion"
+  },
+  {
+    "id": "mod_wave",
+    "topic": "wave.mechanical",
+    "zh": "机械波（λ、T、v）",
+    "title": "Mechanical wave"
+  },
+  {
+    "id": "mod_plates",
+    "topic": "em.plates",
+    "zh": "带电粒子（U、d、B、q、m）",
+    "title": "Charged particle in plates + B"
+  },
+  {
+    "id": "mod_circuit",
+    "topic": "em.circuit",
+    "zh": "电路（ε、r、R、C、L、ρ、交流）",
+    "title": "Circuit"
+  },
+  {
+    "id": "mod_transformer",
+    "topic": "em.transformer",
+    "zh": "变压器（匝数比）",
+    "title": "Transformer"
+  },
+  {
+    "id": "mod_induction",
+    "topic": "em.induction",
+    "zh": "电磁感应（N、S、B、ω）",
+    "title": "Induction"
+  },
+  {
+    "id": "mod_refraction",
+    "topic": "optics.refraction",
+    "zh": "折射与全反射（n₁、n₂、临界角）",
+    "title": "Refraction / TIR"
+  },
+  {
+    "id": "mod_lens",
+    "topic": "optics.lens",
+    "zh": "薄透镜成像（f、u）",
+    "title": "Thin lens"
+  },
+  {
+    "id": "mod_mirror",
+    "topic": "optics.mirror",
+    "zh": "球面镜成像（R、u）",
+    "title": "Spherical mirror"
+  },
+  {
+    "id": "mod_gas",
+    "topic": "thermal.gas",
+    "zh": "理想气体过程（等温/等压/等容/绝热）",
+    "title": "Ideal gas processes"
+  },
+  {
+    "id": "mod_photoelectric",
+    "topic": "modern.photoelectric",
+    "zh": "光电效应（ν、W₀、h、Uc）",
+    "title": "Photoelectric effect"
+  },
+  {
+    "id": "mod_decay",
+    "topic": "modern.decay",
+    "zh": "半衰期与放射性衰变",
+    "title": "Radioactive decay"
   }
 ]

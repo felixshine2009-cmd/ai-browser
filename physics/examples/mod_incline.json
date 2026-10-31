@@ -1,0 +1,14 @@
+{
+  "topic": "mechanics.incline",
+  "zh": "斜面与摩擦（μ₀、μ、θ）",
+  "meta": {
+    "zh": "斜面与摩擦（μ₀、μ、θ）",
+    "title": "Incline & friction"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "incline"
+    }
+  ]
+}

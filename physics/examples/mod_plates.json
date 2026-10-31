@@ -1,0 +1,14 @@
+{
+  "topic": "em.plates",
+  "zh": "带电粒子（U、d、B、q、m）",
+  "meta": {
+    "zh": "带电粒子（U、d、B、q、m）",
+    "title": "Charged particle in plates + B"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "plates"
+    }
+  ]
+}

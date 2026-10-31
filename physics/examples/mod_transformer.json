@@ -1,0 +1,14 @@
+{
+  "topic": "em.transformer",
+  "zh": "变压器（匝数比）",
+  "meta": {
+    "zh": "变压器（匝数比）",
+    "title": "Transformer"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "transformer"
+    }
+  ]
+}

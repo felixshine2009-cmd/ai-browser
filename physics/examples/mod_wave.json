@@ -1,0 +1,14 @@
+{
+  "topic": "wave.mechanical",
+  "zh": "机械波（λ、T、v）",
+  "meta": {
+    "zh": "机械波（λ、T、v）",
+    "title": "Mechanical wave"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "wave"
+    }
+  ]
+}

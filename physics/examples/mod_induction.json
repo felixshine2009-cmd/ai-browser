@@ -1,0 +1,14 @@
+{
+  "topic": "em.induction",
+  "zh": "电磁感应（N、S、B、ω）",
+  "meta": {
+    "zh": "电磁感应（N、S、B、ω）",
+    "title": "Induction"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "induction"
+    }
+  ]
+}
