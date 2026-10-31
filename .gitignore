@@ -5,3 +5,9 @@ dist/
 test/results.json
 *.log
 models/
+web/ggb/
+web/physics/
+web-tests/node_modules/
+web-tests/test-results/
+web-tests/shots/
+node_modules
