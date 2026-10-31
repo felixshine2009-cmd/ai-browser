@@ -19,9 +19,10 @@ const llm = require('./ai/llm');
 const features = require('./ext/features');
 const chromeExt = require('./ext/chrome');
 const dict = require('./dict/mdict');
+const selfmod = require('./selfmod');
 
 const RENDERER = path.join(__dirname, '..', 'renderer');
-const PAGES = new Set(['chrome', 'home', 'chat', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'menu', 'find', 'lookup', 'onboarding']);
+const PAGES = new Set(['chrome', 'home', 'chat', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'menu', 'find', 'lookup', 'onboarding', 'selfmod']);
 const MIME = { html: 'text/html; charset=utf-8', js: 'application/javascript', css: 'text/css', json: 'application/json', svg: 'image/svg+xml', png: 'image/png', woff2: 'font/woff2', wasm: 'application/wasm', mjs: 'application/javascript', gif: 'image/gif', jpg: 'image/jpeg', jpeg: 'image/jpeg', ico: 'image/x-icon', ttf: 'font/ttf', woff: 'font/woff', txt: 'text/plain', map: 'application/json', xml: 'text/xml', mp3: 'audio/mpeg', ogg: 'audio/ogg' };
 const mimeOf = f => MIME[path.extname(f).slice(1).toLowerCase()] || 'application/octet-stream';
 const fileResponse = (f) => new Response(fs.readFileSync(f), { headers: { 'Content-Type': mimeOf(f), 'Access-Control-Allow-Origin': '*' } });
@@ -33,9 +34,16 @@ function registerProtocols(proto = protocol) {
     let f = null;
     if (u.hostname === 'static') {
       const rel = decodeURIComponent(u.pathname).replace(/^\/+/, '');
-      const full = path.resolve(RENDERER, 'static', rel);
-      if (full.startsWith(path.join(RENDERER, 'static') + path.sep) && fs.existsSync(full)) f = full;
-    } else if (PAGES.has(u.hostname)) f = path.join(RENDERER, 'pages', u.hostname + '.html');
+      const ov = selfmod.resolveOverlay('static/' + rel) || selfmod.resolveOverlay('src/renderer/static/' + rel);
+      if (ov) f = ov;
+      else {
+        const full = path.resolve(RENDERER, 'static', rel);
+        if (full.startsWith(path.join(RENDERER, 'static') + path.sep) && fs.existsSync(full)) f = full;
+      }
+    } else if (PAGES.has(u.hostname)) {
+      const ov = selfmod.resolveOverlay('pages/' + u.hostname + '.html') || selfmod.resolveOverlay('src/renderer/pages/' + u.hostname + '.html');
+      f = ov || path.join(RENDERER, 'pages', u.hostname + '.html');
+    }
     if (!f) return new Response('Not found', { status: 404 });
     return fileResponse(f);
   });
@@ -119,6 +127,15 @@ function registerIpc() {
   // settings & AI
   handle('settings:get', () => store.publicSettings());
   handle('settings:patch', (e, patch) => { const s = store.patchSettings(patch); broadcast('settings:changed', s); tabsMod.notify(); return s; });
+  handle('selfmod:pending', () => selfmod.pending());
+  handle('selfmod:history', () => selfmod.history());
+  handle('selfmod:propose', (e, patch) => selfmod.propose(patch || {}));
+  handle('selfmod:apply', (e, id) => { const r = selfmod.apply(id); broadcast('selfmod:changed', selfmod.readState()); return r; });
+  handle('selfmod:reject', (e, id) => { const r = selfmod.reject(id); broadcast('selfmod:changed', selfmod.readState()); return r; });
+  handle('selfmod:rollback', (e, id) => { const r = selfmod.rollback(id); broadcast('selfmod:changed', selfmod.readState()); return r; });
+  handle('selfmod:state', () => selfmod.readState());
+  handle('selfmod:setSafeMode', (e, on) => { const r = selfmod.setSafeMode(on); broadcast('selfmod:changed', selfmod.readState()); return r; });
+  handle('selfmod:read', (e, rel) => ({ path: rel, content: selfmod.readCurrent(rel) }));
   handle('ai:presets', () => llm.PRESETS);
   handle('ai:test', (e, cfg) => llm.testConnection(cfg));
   handle('engines:list', () => store.ENGINES);
@@ -497,6 +514,15 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) { app.quit(); } else {
   app.on('second-instance', () => { const w = tabsMod.getWin(); if (w) { if (w.isMinimized()) w.restore(); w.focus(); } });
   app.whenReady().then(async () => {
+    try {
+      const st = selfmod.readState();
+      if (st.crashCount >= 2) selfmod.setSafeMode(true);
+      // treat this boot as clean after a short settle; a crash before that increments crashCount via uncaught handlers
+      setTimeout(() => selfmod.markCleanBoot(), 8000);
+      process.on('uncaughtException', (e) => { console.error(e); selfmod.markCrash(); });
+      process.on('unhandledRejection', (e) => { console.error(e); });
+    } catch (e) { console.error('selfmod boot', e); }
+
     try { if (process.platform === 'darwin' && app.dock) app.dock.setIcon(require('path').join(__dirname, '..', 'assets', 'icon.png')); } catch {}
     store.init();
     registerProtocols();

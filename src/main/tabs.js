@@ -8,7 +8,7 @@ const chat = require('./ai/chat');
 const CHROME_H = 88;
 const PRELOAD = path.join(__dirname, '..', 'preload', 'preload.js');
 const SCHEME = 'aibrowser';
-const INTERNAL = new Set(['home', 'chat', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'onboarding']);
+const INTERNAL = new Set(['home', 'chat', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'onboarding', 'selfmod']);
 
 let win = null;
 let chromeWc = null;

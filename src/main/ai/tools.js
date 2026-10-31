@@ -17,7 +17,7 @@ const chatMod = () => require('./chat');
 const kbMod = () => require('./kb');
 const trMod = () => require('./translate');
 
-const INTERNAL_PAGES = ['home', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'onboarding'];
+const INTERNAL_PAGES = ['home', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'onboarding', 'selfmod'];
 const tabRow = (t) => { const i = tabs().tabInfo(t); return { id: t.id, title: i.title, url: i.url, active: !!i.active, incognito: !!t.incognito, loading: !!i.loading }; };
 const needTab = (id) => { const t = id == null ? tabs().activeTab() : tabs().getTab(Number(id)); if (!t) throw new Error('no such tab' + (id != null ? ': ' + id : '')); return t; };
 const httpUrl = (u) => { u = String(u || '').trim(); if (!u) throw new Error('url required'); if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u; if (!/^(https?|aibrowser):/i.test(u)) throw new Error('only http(s) urls are allowed'); return u; };
@@ -34,6 +34,19 @@ const BUILTIN = [
     run: async (a) => { const t = needTab(a.id); tabs().activateTab(t.id); return { active: tabRow(t) }; } },
   { name: 'browser_navigate', group: 'browser', description: 'Navigate a tab (default: active) to a URL, or go back / forward / reload.', parameters: obj({ url: str('http(s) URL'), action: { type: 'string', enum: ['back', 'forward', 'reload'] }, id: { type: 'number' } }),
     run: async (a) => { const t = needTab(a.id); if (a.action === 'back') t.wc.navigationHistory.goBack(); else if (a.action === 'forward') t.wc.navigationHistory.goForward(); else if (a.action === 'reload') t.wc.reload(); else tabs().load(t, httpUrl(a.url)); return { tab: tabRow(t) }; } },
+  { name: 'code_propose_patch', group: 'browser', description: 'Propose a sandboxed code patch (renderer / builtin extensions / web / docs only). Never overwrites the app bundle; never touches passwords or secrets. Returns a diff for the user to approve in the Self-mod page.',
+    parameters: obj({ title: str('short title'), description: str('why'), files: { type: 'array', items: { type: 'object', properties: { path: str('relative path e.g. src/renderer/static/home.js'), content: str('full new file content'), action: { type: 'string', enum: ['modify','create','delete'] } }, required: ['path'] } } }, ['files']),
+    run: async (a) => { const selfmod = require('../selfmod'); const r = selfmod.propose(a || {}); tabs().openInternal('selfmod'); return r; } },
+  { name: 'code_pending_patch', group: 'browser', description: 'Show the pending patch waiting for user approval (diff preview).',
+    parameters: obj({}), run: async () => { const selfmod = require('../selfmod'); return selfmod.pending() || { empty: true }; } },
+  { name: 'code_list_patches', group: 'browser', description: 'List patch history (applied / rejected / rolled back).',
+    parameters: obj({}), run: async () => require('../selfmod').history() },
+  { name: 'code_rollback', group: 'browser', description: 'One-click rollback of an applied patch by id (restores previous overlay content). Requires the user to have applied it before.',
+    parameters: obj({ id: str('patch id') }, ['id']),
+    run: async (a) => { const r = require('../selfmod').rollback(a.id); tabs().openInternal('selfmod'); return r; } },
+  { name: 'code_safe_mode', group: 'browser', description: 'Enable or disable safe mode (disables all overlays after launch failures).',
+    parameters: obj({ enabled: { type: 'boolean' } }, ['enabled']),
+    run: async (a) => require('../selfmod').setSafeMode(!!a.enabled) },
   { name: 'vkeyboard_toggle', group: 'browser', description: 'Show, hide, or toggle the math/chemistry virtual keyboard on the home or chat page.',
     parameters: obj({ action: { type: 'string', enum: ['show','hide','toggle'] } }, ['action']),
     run: async (a) => { tabs().broadcastToActive('vkeyboard:cmd', { action: a.action || 'toggle' }); return { ok: true, action: a.action || 'toggle' }; } },
