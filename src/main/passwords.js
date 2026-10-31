@@ -25,6 +25,26 @@ const strip = (i) => ({ id: i.id, origin: i.origin, url: i.url, username: i.user
 
 // ---------------------------------------------------------------- authentication (Touch ID / system password)
 let unlockedUntil = 0;
+// Windows Hello / PIN / account-password prompt through the WinRT UserConsentVerifier (PowerShell, no native addon).
+// 'Verified' -> ok; any "not available" outcome falls back to a plain confirm dialog; anything else (cancel / retries exhausted) -> denied.
+function windowsHello(reason) {
+  const ps = `$ErrorActionPreference='Stop';Add-Type -AssemblyName System.Runtime.WindowsRuntime;` +
+    `[void][Windows.Security.Credentials.UI.UserConsentVerifier,Windows.Security.Credentials.UI,ContentType=WindowsRuntime];` +
+    `$m=([System.WindowsRuntimeSystemExtensions].GetMethods()|Where-Object{$_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation\`1'})[0];` +
+    `$a=[Windows.Security.Credentials.UI.UserConsentVerifier]::RequestVerificationAsync($env:AIB_HELLO_MSG);` +
+    `$t=$m.MakeGenericMethod([Windows.Security.Credentials.UI.UserConsentVerificationResult]).Invoke($null,@($a));[void]$t.Wait(-1);Write-Output $t.Result`;
+  return new Promise((res) => {
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps], { timeout: 120000, windowsHide: true, env: { ...process.env, AIB_HELLO_MSG: String(reason) } }, async (err, out) => {
+      const r = String(out || '').trim();
+      if (!err && r === 'Verified') return res(true);
+      if (!err && /^(DeviceNotPresent|NotConfiguredForUser|DisabledByPolicy|DeviceBusy)$/.test(r) || (err && !r)) {
+        const d = await dialog.showMessageBox({ type: 'question', buttons: [L('验证', 'Verify'), L('取消', 'Cancel')], defaultId: 0, cancelId: 1, message: reason, detail: L('此设备没有可用的 Windows Hello。', 'Windows Hello is not available on this device.') });
+        return res(d.response === 0);
+      }
+      res(false);
+    });
+  });
+}
 async function authenticate(reason) {
   if (Date.now() < unlockedUntil) return true;
   const hook = process.env.AIB_TEST_AUTH;
@@ -35,6 +55,8 @@ async function authenticate(reason) {
   } else if (process.platform === 'darwin') {
     // no Touch ID hardware: ask for the macOS account password via the system authorization dialog
     ok = await new Promise(res => execFile('/usr/bin/osascript', ['-e', `do shell script "true" with prompt ${JSON.stringify(reason)} with administrator privileges`], { timeout: 120000 }, (err) => res(!err)));
+  } else if (process.platform === 'win32') {
+    ok = await windowsHello(reason);
   } else {
     const r = await dialog.showMessageBox({ type: 'question', buttons: [L('验证', 'Verify'), L('取消', 'Cancel')], defaultId: 0, cancelId: 1, message: reason });
     ok = r.response === 0;

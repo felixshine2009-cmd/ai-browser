@@ -11,7 +11,7 @@ Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on 
 * **Incognito tabs** — *New incognito tab* is the first item in the top-right four-squares menu (⇧⌘N). It uses its own in-memory session: no shared cookies, storage, history or saved passwords, a dark-purple tab with a badge, and everything is wiped when the last incognito tab closes.
 * **Agent tool registry** — one set of function-calling tools (OpenAI / Anthropic compatible, with a grammar-constrained JSON fallback for local models): browser actions (tabs, incognito, navigate, history, extensions), search / read page, dictionary, translation + grammar analysis, knowledge base, settings (read-only, no keys), print / save as PDF, plus tools declared by any 功能拓展. New extensions register their tools automatically. Tool steps show briefly in the chat UI; the step limit is configurable.
 * **Knowledge base** — bundled **EmbeddingGemma-300M** (offline, `task: search result | query: …` prompts), chunking + local vector store, add files / web pages / text, search test, optional custom embedding API.
-* **Hunyuan translation** — bundled **HY-MT1.5-1.8B**, loaded only while translating (sentence / article / page / `translate_text` tool) and unloaded after ~2.5 min idle. It is never used for chat or the dictionary. A custom API or any model assigned to the *translate* role can replace it.
+* **Hunyuan translation** — **HY-MT1.5-1.8B** (not bundled since 1.1.1 — about 1.1 GB, downloaded on first translation from hf-mirror with progress and resume), loaded only while translating (sentence / article / page / `translate_text` tool) and unloaded after ~2.5 min idle. It is never used for chat or the dictionary. A custom API or any model assigned to the *translate* role can replace it.
 * **Local models, reworked** — engine selector (llama.cpp GGUF / MLX on Apple Silicon), downloads go through **hf-mirror.com** by default (switch to huggingface.co or a custom URL; automatic fallback), **search Hugging Face** or paste a repo, resumable downloads with sha256 check, custom models usable for chat / dictionary / translate / embedding. Models are **grouped by family** (Qwen3, Qwen2.5, Gemma 4, Gemma 3n, Gemma 3, Hunyuan-MT, EmbeddingGemma …) in collapsible groups.
 * **Local frameworks** — auto-detects **LM Studio** (:1234), **Ollama** (:11434, native API), **oMLX** (:8000), MLX-LM / llama.cpp server (:8080), vLLM, Jan, LocalAI or any OpenAI-compatible server; custom host/port, connection tests with specific reasons, streaming, native tool calling with JSON fallback.
 * **MLX engine** (Apple Silicon) — spawns a local OpenAI-compatible `mlx_lm.server`, lazy start / idle stop, falls back to llama.cpp with a visible reason. Needs `pip3 install mlx-lm` (not bundled).
@@ -26,7 +26,9 @@ Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on 
 | File | Description |
 |---|---|
 | `AI-Browser-mac-arm64.dmg` | Disk image with the drag-to-Applications layout (app + Applications shortcut). Built on Linux, so it has not been mounted on a real Mac yet — use the zip if it won't open |
-| `AI-Browser-mac-arm64.zip` | Unsigned `AI Browser.app` (macOS arm64) — includes the EmbeddingGemma and HY-MT models, so it works offline |
+| `AI-Browser-mac-arm64.zip` | Unsigned `AI Browser.app` (macOS arm64) — includes EmbeddingGemma (knowledge base); the HY-MT translation model downloads on first use |
+| `AI-Browser-win-x64-setup.exe` | Windows installer (x64, NSIS wizard: pick a folder, desktop + Start-menu shortcuts). Unsigned, so SmartScreen may warn — *More info → Run anyway* |
+| `AI-Browser-win-x64-portable.zip` | Windows portable build (x64): unzip anywhere and run `AI Browser.exe` |
 | `install.command` / `install.sh` | Unzip → copy to `/Applications` → `xattr -cr` → launch |
 | `AI-Browser-source.zip` | Source (no `node_modules`, no model files) |
 | `README.md` / `README-zh.md` | English / Chinese README |
@@ -38,6 +40,8 @@ Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on 
 1. Put `AI-Browser-mac-arm64.zip` and `install.command` in the same folder.
 2. Double-click `install.command` (or run `bash install.sh`).
 3. If macOS says the developer cannot be verified: System Settings → Privacy & Security → Open Anyway, or run `xattr -cr "/Applications/AI Browser.app" && open "/Applications/AI Browser.app"`.
+
+**Windows:** run `AI-Browser-win-x64-setup.exe` (or unzip the portable zip and start `AI Browser.exe`). The Windows build bundles EmbeddingGemma only (same as macOS since 1.1.1) (llama.cpp CPU + Vulkan backends); the Hunyuan translation model (HY-MT, ~1.1 GB) is downloaded the first time you translate — from hf-mirror by default, with progress and resume. MLX is Apple-only and is hidden there; revealing a saved password asks for Windows Hello (or your PIN / password); shortcuts use Ctrl instead of ⌘. It was built on Linux and hasn't been run on real Windows yet — please report anything odd.
 
 ## First run
 

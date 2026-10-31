@@ -54,7 +54,7 @@ function getTitle(rec, fallback) {
 
 // ---- dictionaries are COPIED into <userData>/dictionaries/<name>/ so deleting / moving the originals never breaks them
 function dictRoot() { return path.join(process.env.AIB_USER_DATA || electronApp.getPath('userData'), 'dictionaries'); }
-const insideRoot = (p) => { const r = path.resolve(dictRoot()) + path.sep; return path.resolve(p).startsWith(r); };
+const insideRoot = (p) => { let r = path.resolve(dictRoot()) + path.sep, q = path.resolve(p); if (process.platform === 'win32') { r = r.toLowerCase(); q = q.toLowerCase(); } return q.startsWith(r); }; // Windows paths are case-insensitive
 const slug = (n) => String(n).replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) || 'dictionary';
 let progressState = { active: false };
 const getProgress = () => progressState;

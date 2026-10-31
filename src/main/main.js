@@ -369,7 +369,7 @@ function registerIpc() {
     fs.writeFileSync(dest, csv, { mode: 0o600 }); return { path: dest };
   });
   handle('pw:lock', () => { pw().lock(); return true; });
-  handle('pw:info', () => ({ touchId: process.platform === 'darwin' && systemPreferences.canPromptTouchID && systemPreferences.canPromptTouchID(), cfg: pw().cfg() }));
+  handle('pw:info', () => ({ hello: process.platform === 'win32', touchId: process.platform === 'darwin' && systemPreferences.canPromptTouchID && systemPreferences.canPromptTouchID(), cfg: pw().cfg() }));
 
   // ---- print / save as PDF (the AI may open the print dialog; it can never read passwords)
   const printActive = (id) => {

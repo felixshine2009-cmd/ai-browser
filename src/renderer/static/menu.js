@@ -5,6 +5,8 @@
     ['incognito', 'menu.incognito', '⇧⌘N'], ['sep'], ['history', 'menu.history', '⌘Y'], ['downloads', 'menu.downloads', '⇧⌘J'], ['extensions', 'menu.extensions', ''], ['passwords', 'menu.passwords', ''], ['bookmarks', 'menu.bookmarks', '⇧⌘O'],
     ['sep'], ['find', 'menu.find', '⌘F'], ['print', 'menu.print', '⌘P'], ['zoom'], ['devtools', 'menu.devtools', '⌥⌘I'], ['sep'], ['settings', 'menu.settings', '⌘,']
   ];
+  const IS_MAC = /Mac/i.test(navigator.platform || navigator.userAgent);
+  const keyHint = (k) => (IS_MAC || !k) ? k : k.replace('⇧', 'Shift+').replace('⌥', 'Alt+').replace('⌘', 'Ctrl+');
   let zoomPct = 100;
   function render() {
     const m = document.createElement('div'); m.className = 'overflow-menu'; m.id = 'menu';
@@ -14,7 +16,7 @@
       if (it[0] === 'zoom') {
         r.classList.add('zoomrow');
         r.innerHTML = `<span>${t('menu.zoom')}</span><span class="zc"><button data-z="out">−</button><span id="zv">${zoomPct}%</span><button data-z="in">+</button><button data-z="reset" title="100%">⟲</button></span>`;
-      } else r.innerHTML = `<span>${t(it[1])}</span><span class="kbd">${it[2]}</span>`;
+      } else r.innerHTML = `<span>${t(it[1])}</span><span class="kbd">${keyHint(it[2])}</span>`;
       m.appendChild(r);
     }
     if (!entered) { m.classList.add('enter'); entered = true; }
