@@ -1,8 +1,8 @@
-# AI 浏览器（AI Browser）v1.0
+# AI 浏览器（AI Browser）v1.0.1
 
 Electron（Chromium）桌面浏览器 + Chat 模式 AI 能力：查词（MDX/MDD）、句子成分分析、长文翻译、智能体搜索作答、GeoGebra 作图；支持 OpenAI 兼容 / Anthropic API，以及内嵌本地 GGUF 模型（Apple Silicon Metal）。
 
-面向 **Apple Silicon（M1/M2/M3）macOS 12+**。本仓库在 Linux 上用 xvfb + Playwright 做过端到端自动化测试；**尚未在真实 Mac 上实测**，请以本机运行为准。
+面向 **Apple Silicon（M1/M2/M3）macOS 12+**。本仓库在 Linux 上用 xvfb + Playwright 做过端到端自动化测试；已在 Apple M1 上做过一轮真机反馈并发布 v1.0.1（字体/关闭按钮/动画/本地模型点选/AI 词条等）。
 
 ---
 
@@ -38,7 +38,7 @@ open "/Applications/AI Browser.app"
 
 ## 首次运行与配置
 
-1. 打开后首页问候为「Felix，今天想做什么？」（通用 → 语言可切 English）。
+1. 打开后首页问候为「Felix，今天想做什么？」；**设置 → 通用** 可改显示名称与问候语（支持 `{name}`，留空为默认）、切换 中文 / English。
 2. **右上角四格菜单 → 设置 → AI 模型**：
    - **自定义 API**：选预设或填 Base URL / Key / 模型 / 温度；格式可选 OpenAI 或 Anthropic；点「测试连接」。
    - **本地模型**：从列表下载 GGUF（支持断点续传），或「选择本地文件」。Key **只存本机、加密**，主进程调用，页面与日志看不到明文。
@@ -80,9 +80,9 @@ npm run dist:mac
 | 单词 | 词典拓展（MDX）优先；否则 AI 生成词条并标注「AI 生成」 |
 | 句子 | 翻译 + 主谓宾定状着色与结构拆解 |
 | 长文 / 多段 | 仅翻译（原文 / 译文双栏） |
-| 问题 | LLM 改写查询（可编辑）→ 搜索 → Readability 抽正文 → 流式作答带 `[n]` 引用；可调用 GeoGebra 工具 |
+| 问题 | **智能体搜索**：API 模型用工具调用循环（`web_search` 用你选的搜索引擎 → `open_page` 读取 → 必要时换词再搜 → 带 `[n]` 引用作答，只引用真正读过的页面；最多 4 次搜索 / 8 个页面 / 90 秒）；本地模型用固定流水线（改写查询 → 搜索 → 读取 → 作答）。改写查询可编辑后重新搜索；可调用 GeoGebra 工具 |
 
-默认搜索失败时会回退 DuckDuckGo HTML。
+所选引擎不可用或结果与问题无关时，会按 百度 → Bing → DuckDuckGo 回退（状态行会提示），并对结果做相关性过滤。详见 [`docs/AGENT_SEARCH.md`](docs/AGENT_SEARCH.md)。
 
 ---
 
@@ -112,7 +112,7 @@ npm test                 # 或：xvfb-run -a node test/run-all.js
 3. 本地模型：**无工具调用**（Chat 的 GeoGebra / 搜索工具环仅 API 后端完整）；首启下载体积大。
 4. Chrome 扩展 API 覆盖受 Electron 限制；无完整工具栏 popup。
 5. GeoGebra 面板为浅色主题；打印、原生右键「查词」菜单未做 UI 自动化。
-6. v1 **无动画**、**使用系统鼠标指针**（自定义蓝光标已取消）。
+6. 使用系统鼠标指针（自定义蓝光标已取消）；界面动画为克制的 120–220ms 过渡，开启系统「减少动态效果」时自动关闭。
 
 ---
 

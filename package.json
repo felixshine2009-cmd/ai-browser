@@ -1,8 +1,8 @@
 {
   "name": "ai-browser",
-  "productName": "AI浏览器",
-  "version": "1.0.0",
-  "description": "AI 浏览器 — Electron (Chromium) + AI 搜索/词典/GeoGebra",
+  "productName": "AI\u6d4f\u89c8\u5668",
+  "version": "1.0.1",
+  "description": "AI \u6d4f\u89c8\u5668 \u2014 Electron (Chromium) + AI \u641c\u7d22/\u8bcd\u5178/GeoGebra",
   "main": "src/main/main.js",
   "author": "Felix",
   "license": "MIT",

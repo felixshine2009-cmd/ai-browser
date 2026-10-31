@@ -48,6 +48,13 @@ function createLlmServer({ key = 'test-key' } = {}) {
     if (req.method === 'POST' && url.pathname === '/__reset') { requests.length = 0; res.end('ok'); return; }
     let body = ''; for await (const c of req) body += c;
     let j = {}; try { j = JSON.parse(body); } catch {}
+    if (req.method === 'GET' && /\/models$/.test(url.pathname)) {
+      const a = req.headers['x-api-key'] || (req.headers.authorization || '').replace('Bearer ', '');
+      requests.push({ path: url.pathname, auth: a, method: 'GET', anthropicVersion: req.headers['anthropic-version'] });
+      if (a !== key) { res.writeHead(401, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: { message: 'Incorrect API key provided' } })); }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ object: 'list', data: ['mock-1', 'mock-2-mini', 'gpt-4o-mini', 'embed-small'].map(id => ({ id, object: 'model' })) }));
+    }
     const isAnth = url.pathname.endsWith('/v1/messages');
     const auth = isAnth ? req.headers['x-api-key'] : (req.headers.authorization || '').replace('Bearer ', '');
     requests.push({ path: url.pathname, auth, stream: j.stream, model: j.model, temperature: j.temperature, tools: (j.tools || []).map(t => t.function ? t.function.name : t.name), messages: j.messages, system: j.system });
@@ -62,13 +69,39 @@ function createLlmServer({ key = 'test-key' } = {}) {
     const hasToolResult = msgs.some(m => m.role === 'tool' || (Array.isArray(m.content) && m.content.some(c => c.type === 'tool_result')));
     let reply = { text: 'ok' };
     if (/pong/.test(lastUser) && /single word/.test(lastUser)) reply = { text: 'pong' };
+    else if (/web-research agent/.test(system)) {
+      // Tool-calling agent: search -> open top pages -> answer; same ggb / echo tools as before
+      const tools = (j.tools || []).map(t => t.function ? t.function.name : t.name);
+      const toolMsgs = msgs.filter(m => m.role === 'tool' || (Array.isArray(m.content) && m.content.some(c => c.type === 'tool_result')));
+      const toolTexts = toolMsgs.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content));
+      const lastTool = toolTexts[toolTexts.length - 1] || '';
+      const q0 = lastUser;
+      if (/画|plot|graph/i.test(q0) && tools.includes('ggb_eval') && !toolMsgs.length) reply = { toolCalls: [{ name: 'ggb_eval', args: { commands: ['f(x)=sin(x)', 'g(x)=x^2/4', 'A=Intersect(f,g,(0.5,0.5))', 'SetColor(f,"Blue")'] } }] };
+      else if (/echo/i.test(q0) && tools.includes('sample_echo') && !toolMsgs.length) reply = { toolCalls: [{ name: 'sample_echo', args: { text: 'hello-tool' } }] };
+      else if (/画|plot|graph|echo/i.test(q0) && toolMsgs.length) reply = { text: '已通过工具完成：f(x)=sin(x) 与 g(x)=x²/4 已绘制在右侧面板。' };
+      else if (/hello|你好|hi$/i.test(q0.trim())) reply = { text: '你好！这是一个直接回答（没有搜索）。' };
+      else if (!toolMsgs.length) reply = { toolCalls: [{ name: 'web_search', args: { query: q0 } }, { name: 'web_search', args: { query: q0 + ' 对比' } }] };
+      else if (state.agentMode === 'refine' && toolMsgs.length === 1 && /"results":\[\]/.test(lastTool)) reply = { toolCalls: [{ name: 'web_search', args: { query: q0 + ' 简介' } }] };
+      else if (/"results":\[\{/.test(lastTool) && !toolTexts.some(t => /"n":\d/.test(t))) {
+        let urls = []; try { urls = JSON.parse(lastTool).results.map(r => r.url).slice(0, 3); } catch {}
+        reply = urls.length ? { toolCalls: urls.map(u => ({ name: 'open_page', args: { url: u } })) } : { text: '没有找到相关来源。' };
+      }
+      else if (/"n":\d/.test(toolTexts.join(' '))) reply = { text: 'Apple 的 M1 采用 5nm 工艺，M2 为增强版 [1]。M2 的内存带宽更高 [2]。\n\n**总结**：M2 在 CPU/GPU 上均小幅提升 [1][2]。' };
+      else reply = { text: '没有找到相关来源，以下为一般性回答。' };
+    }
     else if (/search-query planner/.test(system)) {
       if (/画|plot|graph|sin/i.test(lastUser)) reply = { text: JSON.stringify({ direct: true, queries: [] }) };
       else if (/echo/i.test(lastUser)) reply = { text: JSON.stringify({ direct: true, queries: [] }) };
       else reply = { text: JSON.stringify({ direct: false, queries: ['apple m1 vs m2 comparison', 'apple m series chip differences'] }) };
     }
     else if (/grammar teacher/.test(system)) reply = { text: JSON.stringify(SENT_JSON) };
-    else if (/learner's dictionary/.test(system)) reply = { text: JSON.stringify(ENTRY_JSON) };
+    else if (/learner's dictionary|bilingual English-Chinese dictionary|Worked example for input/.test(system)) {
+      // Produce a real apple entry when asked; otherwise the generic serendipity fixture
+      const w = (lastUser || 'serendipity').trim().split(/\s+/)[0].toLowerCase();
+      if (w === 'apple') reply = { text: JSON.stringify({ word:'apple', ipa_uk:'', ipa_us:'', pos:[{pos:'n.',defs:[{zh:'苹果',en:'a round fruit with red, green or yellow skin',ex_en:'She ate an apple for breakfast.',ex_zh:'她早饭吃了一个苹果。'}]}], phrases:[{en:'apple pie',zh:'苹果派'},{en:'the apple of one\'s eye',zh:'掌上明珠'}] }) };
+      else if (w === 'run') reply = { text: JSON.stringify({ word:'run', ipa_uk:'', ipa_us:'', pos:[{pos:'v.',defs:[{zh:'跑；奔跑',en:'to move quickly on foot',ex_en:'He runs every morning.',ex_zh:'他每天早上跑步。'}]},{pos:'n.',defs:[{zh:'跑步；奔跑',en:'an act of running',ex_en:'She went for a run.',ex_zh:'她去跑了跑步。'}]}], phrases:[{en:'run out of',zh:'用完'}] }) };
+      else reply = { text: JSON.stringify(ENTRY_JSON) };
+    }
     else if (/Translate the user text|翻译成流畅/.test(system)) reply = { text: '第一段的译文。\n\n第二段的译文，内容更长一些。\n\n第三段译文。' };
     else if (/feature extensions" for the AI Browser/.test(system)) {
       const manifest = { standard: 'aib-feature/1', id: 'user.ai-greeter', name: 'AI Greeter', version: '1.0.0', description: 'says hi', update_url: '', permissions: [], entry: 'main.js', contributes: { inputHandlers: [{ id: 'hi', types: ['word'], priority: 300 }], tools: [], panels: [] } };
@@ -133,6 +166,11 @@ function createWebServer({ llm } = {}) {
     }
     if (url.pathname.startsWith('/page/')) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(articleHtml(url.pathname.split('/')[2])); }
     if (url.pathname === '/download.bin') { res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="test-file.bin"', 'Content-Length': 2048 }); return res.end(Buffer.alloc(2048, 7)); }
+    if (url.pathname === '/slow.bin') {
+      res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="slow-file.bin"', 'Content-Length': 6 * 1024 * 1024 });
+      for (let i = 0; i < 24 && !res.destroyed; i++) { res.write(Buffer.alloc(256 * 1024, 3)); await new Promise(r => setTimeout(r, 400)); }
+      return res.end();
+    }
     if (url.pathname === '/words') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       return res.end('<!doctype html><title>Words page</title><body style="font-size:28px"><p>Please <span id="w">abandon</span> all hope. Find the needle here. Needle needle.</p><p id="plain">second paragraph needle</p></body>');

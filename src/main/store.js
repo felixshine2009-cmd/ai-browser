@@ -11,12 +11,15 @@ const DEFAULTS = {
   ai: {
     source: 'api', // 'api' | 'local'
     api: { preset: 'openai', format: 'openai', baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini', temperature: 0.3 },
-    local: { modelPath: '', modelId: '', hfMirror: false, contextSize: 4096 }
+    local: { modelPath: '', modelId: '', translateModelId: '', hfMirror: false, contextSize: 4096 }
   },
   dicts: [], // {id,name,mdx,mdd:[],enabled}
   extensions: {}, // id -> {enabled, settings}
   chromeExtensions: [], // {id?, path, enabled}
-  selectionLookup: true
+  selectionLookup: true,
+  displayName: 'Felix', // home greeting: {name}
+  greeting: '', // '' = localized default
+  hideSpark: false
 };
 
 const ENGINES = {

@@ -191,8 +191,13 @@ function closeOverlay(kind) {
   const v = overlays[kind];
   if (!v) return;
   overlays[kind] = null;
-  try { win.contentView.removeChildView(v); } catch {}
-  try { if (!v.webContents.isDestroyed()) v.webContents.close(); } catch {}
+  const remove = () => {
+    try { win.contentView.removeChildView(v); } catch {}
+    try { if (!v.webContents.isDestroyed()) v.webContents.close(); } catch {}
+  };
+  // menu: let the page play its short leave animation (view stays only ~140ms, state is already cleared)
+  if (kind === 'menu' && !v.webContents.isDestroyed() && !(win && win.isDestroyed())) { try { v.webContents.send('overlay:leave'); } catch {} setTimeout(remove, 150); }
+  else remove();
   if (kind === 'find') { const t = activeTab(); if (t) { try { t.wc.stopFindInPage('clearSelection'); } catch {} } }
 }
 function toggleMenu() { if (overlays.menu) closeOverlay('menu'); else openOverlay('menu', menuBounds()); }

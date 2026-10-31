@@ -17,14 +17,18 @@
     const out = []; let list = null, para = [];
     const flushPara = () => { if (para.length) { out.push('<p>' + inline(para.join('<br>'), cites).replace(/&lt;br&gt;/g, '<br>') + '</p>'); para = []; } };
     const flushList = () => { if (list) { out.push(`<${list.t}>` + list.items.map(i => '<li>' + inline(i, cites) + '</li>').join('') + `</${list.t}>`); list = null; } };
+    let fence = null;
     for (const ln of lines) {
       let m;
+      if (/^\s*```/.test(ln)) { if (fence) { out.push('<pre><code>' + esc(fence.join('\n')) + '</code></pre>'); fence = null; } else { flushPara(); flushList(); fence = []; } continue; }
+      if (fence) { fence.push(ln); continue; }
       if ((m = ln.match(/^\s*[-*•]\s+(.*)/))) { flushPara(); if (!list || list.t !== 'ul') { flushList(); list = { t: 'ul', items: [] }; } list.items.push(m[1]); }
       else if ((m = ln.match(/^\s*\d+[.)]\s+(.*)/))) { flushPara(); if (!list || list.t !== 'ol') { flushList(); list = { t: 'ol', items: [] }; } list.items.push(m[1]); }
       else if ((m = ln.match(/^(#{1,4})\s+(.*)/))) { flushPara(); flushList(); out.push(`<h4>${inline(m[2], cites)}</h4>`); }
       else if (!ln.trim()) { flushPara(); flushList(); }
       else { flushList(); para.push(ln); }
     }
+    if (fence) out.push('<pre><code>' + esc(fence.join('\n')) + '</code></pre>');
     flushPara(); flushList();
     return out.join('');
   }

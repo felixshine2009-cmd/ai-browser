@@ -21,6 +21,68 @@ function getLocal() { if (!local) local = require('./local'); return local; }
 
 function joinUrl(base, p) { return base.replace(/\/+$/, '') + p; }
 
+// ---------- readable, localized error reasons (used by 测试连接 and by chat-time failures)
+const API_TIMEOUT = () => Number(process.env.AIB_API_TIMEOUT_MS) || 15000; // test hook
+const lang = () => (store.getSettings().lang === 'en' ? 'en' : 'zh');
+const L = (zh, en) => (lang() === 'en' ? en : zh);
+function maskSecrets(text, key) {
+  let t = String(text == null ? '' : text);
+  if (key && key.length > 4) t = t.split(key).join('***');
+  return t.replace(/\b(sk-[A-Za-z0-9_-]{8,}|Bearer\s+[A-Za-z0-9._-]{8,}|[A-Za-z0-9_-]{32,})\b/g, m => (/^[a-z]+$/i.test(m) ? m : '***'));
+}
+function serverMessage(body) {
+  if (!body) return '';
+  let m = String(body).trim();
+  try { const j = JSON.parse(m); m = (j.error && (j.error.message || j.error.msg || (typeof j.error === 'string' ? j.error : ''))) || j.message || j.msg || j.detail || m; if (typeof m !== 'string') m = JSON.stringify(m); } catch {}
+  return m.replace(/\s+/g, ' ').slice(0, 200);
+}
+function validateBase(baseUrl) {
+  let u; try { u = new URL(String(baseUrl || '').trim()); } catch { u = null; }
+  if (!u || !/^https?:$/.test(u.protocol) || !u.hostname) {
+    const e = new Error(L('Base URL 格式无效：请填写以 http:// 或 https:// 开头的完整地址，例如 https://api.openai.com/v1', 'Invalid Base URL: use a full address starting with http:// or https://, e.g. https://api.openai.com/v1'));
+    e.apiCode = 'invalid_url'; throw e;
+  }
+  return u;
+}
+// Turn any thrown error (network / HTTP / parse) into an Error whose message is a clear, localized reason.
+function friendly(e, key, baseUrl) {
+  if (e && e.friendly) return e;
+  let host = ''; try { host = new URL(baseUrl).host; } catch {}
+  const cause = (e && e.cause) || {};
+  const code = String(cause.code || e.code || '');
+  const msg = String(e && e.message || e);
+  let apiCode = 'unknown', text;
+  if (e && e.apiCode === 'invalid_url' && !e.status) { e.friendly = true; return e; }
+  if (e && e.status) {
+    const st = e.status, sm = maskSecrets(serverMessage(e.body), key);
+    const tail = sm ? ` — ${sm}` : '';
+    if (st === 401 || st === 403) { apiCode = 'auth'; text = L(`HTTP ${st}：API Key 无效、已过期或没有权限${tail}`, `HTTP ${st}: API key is invalid, expired or not authorized${tail}`); }
+    else if (st === 404) { apiCode = 'notfound'; text = L(`HTTP 404：接口路径不存在。请检查 Base URL：多数 OpenAI 兼容服务需以 /v1 结尾（已含 /v1 时请尝试去掉）；模型名错误也会返回 404${tail}`, `HTTP 404: endpoint not found. Check the Base URL — most OpenAI-compatible services need it to end with /v1 (if it already does, try removing it); a wrong model name can also give 404${tail}`); }
+    else if (st === 429) { apiCode = 'ratelimit'; text = L(`HTTP 429：请求过于频繁，或额度/配额已用尽${tail}`, `HTTP 429: rate limited or quota exhausted${tail}`); }
+    else if (st >= 500) { apiCode = 'server'; text = L(`HTTP ${st}：服务器内部错误，请稍后重试${tail}`, `HTTP ${st}: server error, try again later${tail}`); }
+    else { apiCode = 'http'; text = L(`HTTP ${st}：请求被服务器拒绝${tail}`, `HTTP ${st}: request rejected by the server${tail}`); }
+  } else if (e && e.apiCode === 'badformat') {
+    apiCode = 'badformat'; text = L(`返回内容不是预期的格式（应为 OpenAI 兼容的 JSON）：${maskSecrets(e.snippet || msg, key).slice(0, 120)}。请确认 Base URL 指向 API 而不是网页，以及接口格式（OpenAI / Anthropic）选择正确`, `Unexpected response format (expected OpenAI-compatible JSON): ${maskSecrets(e.snippet || msg, key).slice(0, 120)}. Make sure the Base URL points to the API (not a web page) and the API format (OpenAI / Anthropic) is right`);
+  } else if (e && (e.name === 'TimeoutError' || /timed? ?out|UND_ERR_(HEADERS|CONNECT|BODY)_TIMEOUT|ETIMEDOUT/i.test(code + msg))) {
+    apiCode = 'timeout'; const sec = e.timeoutSec || 15;
+    text = L(`请求超时（${sec} 秒）：服务器无响应，请检查网络、代理或稍后重试`, `Request timed out (${sec} s): the server did not respond. Check your network/proxy or try again later`);
+  } else if (/ENOTFOUND|EAI_AGAIN/.test(code)) {
+    apiCode = 'dns'; text = L(`无法解析域名 ${host}（DNS 失败）：请检查网址拼写与网络连接`, `Cannot resolve host ${host} (DNS failure): check the URL spelling and your network`);
+  } else if (/ECONNREFUSED/.test(code)) {
+    apiCode = 'refused'; text = L(`连接被拒绝（${host}）：服务未启动或端口错误`, `Connection refused (${host}): the service is not running or the port is wrong`);
+  } else if (/CERT|SSL|TLS|ALTNAME|SELF_SIGNED|UNABLE_TO_VERIFY/i.test(code + msg)) {
+    apiCode = 'tls'; text = L(`TLS/证书错误（${code || 'TLS'}）：证书无效、过期或为自签名；请检查网址（http/https）与系统时间`, `TLS/certificate error (${code || 'TLS'}): invalid, expired or self-signed certificate; check the URL (http/https) and your system clock`);
+  } else if (/ENETUNREACH|EHOSTUNREACH|ECONNRESET|EPIPE|EADDRNOTAVAIL|UND_ERR_SOCKET|fetch failed/.test(code + msg)) {
+    apiCode = 'unreachable'; text = L(`网络不可达或连接中断（${code || 'network'}）：请检查网络、代理或防火墙（${host}）`, `Network unreachable or connection dropped (${code || 'network'}): check your network, proxy or firewall (${host})`);
+  } else if (/Invalid URL|ERR_INVALID_URL/i.test(code + msg)) {
+    apiCode = 'invalid_url'; text = L('Base URL 格式无效：请填写以 http:// 或 https:// 开头的完整地址', 'Invalid Base URL: use a full http:// or https:// address');
+  } else text = maskSecrets(msg, key).slice(0, 300);
+  const err = new Error(text);
+  err.apiCode = apiCode; err.status = e && e.status; err.friendly = true;
+  if (e && e.code && !e.status) err.code = e.code;
+  return err;
+}
+
 async function* sseLines(res, signal) {
   const reader = res.body.getReader();
   const dec = new TextDecoder();
@@ -44,7 +106,7 @@ async function httpError(res) {
   let body = '';
   try { body = (await res.text()).slice(0, 400); } catch {}
   const e = new Error(`HTTP ${res.status} ${res.statusText}${body ? ' — ' + body : ''}`);
-  e.status = res.status;
+  e.status = res.status; e.body = body;
   return e;
 }
 
@@ -61,7 +123,9 @@ async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, sig
   const calls = [];
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('event-stream')) { // server ignored stream:true
-    const j = await res.json();
+    const raw = await res.text();
+    let j; try { j = JSON.parse(raw); } catch { const e = new Error('not json'); e.apiCode = 'badformat'; e.snippet = raw.replace(/\s+/g, ' ').slice(0, 120); throw e; }
+    if (!j || !Array.isArray(j.choices)) { const e = new Error('no choices'); e.apiCode = 'badformat'; e.snippet = raw.replace(/\s+/g, ' ').slice(0, 120); throw e; }
     const m = j.choices?.[0]?.message || {};
     if (m.content) { content = m.content; onDelta && onDelta(content); }
     for (const tc of m.tool_calls || []) calls.push({ id: tc.id, name: tc.function.name, arguments: tc.function.arguments || '{}' });
@@ -143,12 +207,13 @@ function currentConfig() {
 async function chat(opts) {
   const c = currentConfig();
   if (c.source === 'local') {
-    return getLocal().chat(c.local, opts);
+    return getLocal().chat(opts._localOverride || c.local, opts);
   }
   if (!c.api.baseUrl || !c.api.model) throw Object.assign(new Error('API 未配置：请在 设置 → AI 模型 中填写 Base URL 与模型'), { code: 'NO_CONFIG' });
   const key = store.getApiKey();
   const fn = c.api.format === 'anthropic' ? chatAnthropic : chatOpenAI;
-  return fn(c.api, key, opts);
+  try { validateBase(c.api.baseUrl); return await fn(c.api, key, opts); }
+  catch (e) { if (opts.signal && opts.signal.aborted) throw e; throw friendly(e, key, c.api.baseUrl); }
 }
 
 async function complete(messages, opts = {}) {
@@ -175,19 +240,78 @@ async function completeJson(messages, opts = {}) {
   return extractJson(txt);
 }
 
+// ---------- model list (OpenAI GET {base}/models, Anthropic GET /v1/models)
+function parseModels(j) {
+  const arr = Array.isArray(j) ? j : Array.isArray(j && j.data) ? j.data : Array.isArray(j && j.models) ? j.models : null;
+  if (!arr) { const e = new Error('no model array'); e.apiCode = 'badformat'; e.snippet = JSON.stringify(j).slice(0, 120); throw e; }
+  const ids = arr.map(m => (typeof m === 'string' ? m : (m && (m.id || m.name || m.model)) || '')).filter(Boolean).map(String);
+  return Array.from(new Set(ids)).sort((x, y) => x.localeCompare(y)).slice(0, 1000);
+}
+async function getJson(url, headers, timeoutMs) {
+  let res;
+  try { res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs), redirect: 'follow' }); }
+  catch (e) {
+    if (e && (e.name === 'TimeoutError' || e.name === 'AbortError' || /timed? ?out|TimeoutError|AbortError/i.test(String(e && e.message)))) {
+      const err = new Error(e.message || 'timeout'); err.name = 'TimeoutError'; err.timeoutSec = Math.round(timeoutMs / 1000); err.cause = e; throw err;
+    }
+    throw e;
+  }
+  if (!res.ok) throw await httpError(res);
+  const txt = await res.text();
+  try { return JSON.parse(txt); } catch { const e = new Error('not json'); e.apiCode = 'badformat'; e.snippet = txt.replace(/\s+/g, ' ').slice(0, 120); throw e; }
+}
+async function fetchModels(cfg, key, timeoutMs = 15000) {
+  let base = String(cfg.baseUrl || '').trim().replace(/\/+$/, '').replace(/\/(chat\/completions|models|messages)$/, '');
+  validateBase(base);
+  if (cfg.format === 'anthropic') {
+    const b = base.replace(/\/v1$/, '');
+    const j = await getJson(b + '/v1/models?limit=1000', { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, timeoutMs);
+    return { models: parseModels(j), baseUrl: base };
+  }
+  const headers = key ? { Authorization: 'Bearer ' + key } : {};
+  const tries = [base];
+  if (/\/v\d+$/.test(base)) tries.push(base.replace(/\/v\d+$/, '')); else tries.push(base + '/v1');
+  let firstErr = null;
+  for (const b of tries) {
+    try { const j = await getJson(b + '/models', headers, timeoutMs); return { models: parseModels(j), baseUrl: b }; }
+    catch (e) { firstErr = firstErr || e; if (!(e.status === 404 || e.status === 405)) throw e; }
+  }
+  throw firstErr;
+}
+
 async function testConnection(override) {
   // override: full api config from the settings form (key '' => use stored)
   const cur = store.getSettings().ai.api;
   const cfg = { ...cur, ...(override || {}) };
   const key = override && override.apiKey ? override.apiKey : store.getApiKey();
   const t0 = Date.now();
+  const out = (o) => ({ ms: Date.now() - t0, ...o });
+  try { validateBase(cfg.baseUrl); } catch (e) { return out({ ok: false, code: e.apiCode, error: e.message }); }
+  let modelsErr = null;
+  try {
+    const r = await fetchModels(cfg, key, API_TIMEOUT());
+    const has = !!cfg.model && r.models.includes(cfg.model);
+    return out({ ok: true, via: 'models', models: r.models, count: r.models.length, baseUrl: r.baseUrl, modelFound: has });
+  } catch (e) { modelsErr = e; }
+  // The /models call failed. Auth / network / rate-limit errors are final; otherwise the service may simply not offer /models,
+  // so fall back to a minimal chat completion.
+  const final = modelsErr.status === 401 || modelsErr.status === 403 || modelsErr.status === 429 || (modelsErr.status >= 500) ||
+    (!modelsErr.status && modelsErr.apiCode !== 'badformat');
+  if (final) { const f = friendly(modelsErr, key, cfg.baseUrl); return out({ ok: false, code: f.apiCode, status: f.status, error: f.message }); }
+  if (!cfg.model) { const f = friendly(modelsErr, key, cfg.baseUrl); return out({ ok: false, code: f.apiCode, status: f.status, error: f.message + L('（且未填写模型名，无法用对话接口测试）', ' (and no model name is set, so the chat endpoint could not be tested)') }); }
   try {
     const fn = cfg.format === 'anthropic' ? chatAnthropic : chatOpenAI;
-    const r = await fn(cfg, key, { messages: [{ role: 'user', content: 'Reply with the single word: pong' }], maxTokens: 16, temperature: 0 });
-    return { ok: true, ms: Date.now() - t0, sample: (r.content || '').slice(0, 60) };
+    const signal = AbortSignal.timeout(API_TIMEOUT() + 5000);
+    const r = await fn(cfg, key, { messages: [{ role: 'user', content: 'Reply with the single word: pong' }], maxTokens: 16, temperature: 0, signal });
+    return out({ ok: true, via: 'chat', models: [], count: 0, chatOnly: true, sample: (r.content || '').slice(0, 60),
+      note: L('该服务不支持获取模型列表，但对话接口可用（请手动填写模型名）', 'This service does not provide a model list, but the chat endpoint works (type the model name manually)') });
   } catch (e) {
-    return { ok: false, error: String(e.message || e).replace(key || '\u0000', '***').slice(0, 300) };
+    if (e && e.name !== 'TimeoutError' && /timed? ?out|TimeoutError|AbortError/i.test(String(e && (e.name+' '+e.message)))) {
+      const err = new Error(e.message || 'timeout'); err.name = 'TimeoutError'; err.timeoutSec = Math.round((API_TIMEOUT() + 5000) / 1000); e = err;
+    } else if (e && e.name === 'TimeoutError' && !e.timeoutSec) e.timeoutSec = Math.round((API_TIMEOUT() + 5000) / 1000);
+    const f = friendly(e, key, cfg.baseUrl);
+    return out({ ok: false, code: f.apiCode, status: f.status, error: f.message });
   }
 }
 
-module.exports = { chat, complete, completeJson, extractJson, testConnection, PRESETS };
+module.exports = { chat, complete, completeJson, extractJson, testConnection, fetchModels, friendly, maskSecrets, PRESETS };

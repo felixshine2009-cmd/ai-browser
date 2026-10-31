@@ -20,14 +20,14 @@
     qbar.innerHTML = `<div class="q selectable" id="q"></div><div class="ai-label" id="qlabel" style="margin-top:8px;display:none"></div><div class="query-rewrites" id="rewrites"></div>`;
     const body = el('div', 'ai-body');
     const main = el('div', 'ai-main');
-    main.innerHTML = `<div class="ai-label" id="alabel"></div><div id="status" class="status-line"></div><div class="ai-answer selectable" id="answer"></div><div id="toolsrow"></div><div id="pngs"></div><div id="err"></div>`;
+    main.innerHTML = `<div class="ai-label" id="alabel"></div><div id="status" class="status-line"></div><div id="trace" class="trace"></div><div class="ai-answer selectable" id="answer"></div><div id="toolsrow"></div><div id="pngs"></div><div id="err"></div>`;
     const side = el('div', 'ai-side');
     side.style.display = 'none';
     side.innerHTML = `<div class="ai-label" id="plabel"></div><div class="pages-read" id="pages"></div><div class="ai-label" id="slabel"></div><div id="sources"></div>`;
     body.append(main, side);
     page.append(qbar, body);
     root.appendChild(page);
-    els = { q: qs('q'), qlabel: qs('qlabel'), rewrites: qs('rewrites'), alabel: qs('alabel'), status: qs('status'), answer: qs('answer'), toolsrow: qs('toolsrow'), pngs: qs('pngs'), err: qs('err'), side, plabel: qs('plabel'), pages: qs('pages'), slabel: qs('slabel'), sources: qs('sources'), body, main };
+    els = { q: qs('q'), qlabel: qs('qlabel'), rewrites: qs('rewrites'), alabel: qs('alabel'), status: qs('status'), trace: qs('trace'), answer: qs('answer'), toolsrow: qs('toolsrow'), pngs: qs('pngs'), err: qs('err'), side, plabel: qs('plabel'), pages: qs('pages'), slabel: qs('slabel'), sources: qs('sources'), body, main };
     els.q.textContent = st.input;
     els.alabel.textContent = t('chat.answer');
     els.plabel.textContent = t('chat.pagesRead');
@@ -62,10 +62,12 @@
         st.kind = ev.kind;
         ({ word: buildWord, sentence: buildSentence, article: buildArticle }[ev.kind] || buildQuestion)();
         break;
-      case 'queries': st.queries = ev.queries; st.direct = ev.direct; renderQueries(); setStatus(ev.direct ? t('chat.generating') : t('chat.searching')); break;
+      case 'queries': st.queries = ev.queries; st.direct = ev.direct; renderQueries(); if (ev.direct) setStatus(t('chat.generating')); else if (!ev.queries.length) setStatus(t('chat.thinking')); break;
       case 'search-start': break;
+      case 'status': setStatus(ev.text); addTrace(ev.text); break;
+      case 'answer-reset': st.answer = ''; queueRender(); break;
       case 'serp': break;
-      case 'pages': st.pages = ev.pages; els.side.style.display = ''; renderPages(); setStatus(t('chat.reading')); break;
+      case 'pages': st.pages = ev.pages; els.side.style.display = ''; renderPages(); break;
       case 'page-update': { const p = st.pages.find(x => x.n === ev.n); if (p) { p.status = ev.status; if (ev.title) p.title = ev.title; renderPages(); } break; }
       case 'sources': st.sources = ev.sources; st.cites = {}; ev.sources.forEach(s => st.cites[s.n] = s); renderSources(); setStatus(t('chat.generating')); break;
       case 'answer-delta': st.answer += ev.text; setStatus(''); queueRender(); break;
@@ -73,6 +75,8 @@
       case 'handler-result': renderHandlerResult(ev); break;
       case 'ai-entry-pending': els.dwrap.innerHTML = `<div class="status-line" style="padding:0 40px">${esc(t('dict.aiGenerating'))}</div>`; break;
       case 'ai-entry': {
+        // Single headword: clear the pending title so DictView owns the only big word
+        if (els.dtitle) els.dtitle.innerHTML = '';
         els.dwrap.innerHTML = '';
         const box = el('div', 'dict-body selectable'); box.style.overflow = 'auto';
         box.innerHTML = `<span class="ai-note">${esc(t('dict.aiNote'))}</span>`;
@@ -85,6 +89,10 @@
       case 'error': showError(ev); break;
       case 'done': st.done = true; setStatus(''); if (st.kind === 'question') finalizeQuestion(); break;
     }
+  }
+  function addTrace(text) {
+    if (!els.trace || !/^(用 |Searching |阅读：|Reading: |.*(不可用|没有找到相关结果|没有相关结果|已改用|nothing relevant|unavailable|had nothing))/.test(text || '')) return;
+    const d = el('div', 'trace-line'); d.textContent = text; els.trace.appendChild(d);
   }
   function setStatus(s) { if (els.status) els.status.textContent = s || ''; }
   function showError(ev) {
@@ -106,7 +114,7 @@
     a.appendChild(copy); els.main.appendChild(a);
   }
   function renderQueries() {
-    if (!els.rewrites || st.direct) { if (els.qlabel) els.qlabel.style.display = 'none'; if (els.rewrites) els.rewrites.innerHTML = ''; return; }
+    if (!els.rewrites || st.direct || !(st.queries || []).length) { if (els.qlabel) els.qlabel.style.display = 'none'; if (els.rewrites) els.rewrites.innerHTML = ''; return; }
     els.qlabel.style.display = ''; els.qlabel.textContent = t('chat.queries');
     els.rewrites.innerHTML = '';
     st.queries.forEach(q => { const c = el('span', 'chip'); const i = el('input'); i.value = q; i.className = 'q-edit'; i.size = Math.max(8, q.length); i.addEventListener('input', () => { i.size = Math.max(8, i.value.length); }); i.addEventListener('keydown', (e) => { if (e.key === 'Enter') rerun(); }); c.appendChild(i); els.rewrites.appendChild(c); });
@@ -129,7 +137,8 @@
     els.sources.innerHTML = '';
     st.sources.forEach(s => {
       const c = el('div', 'source-card'); c.innerHTML = `<div class="num">${s.n}</div><div class="meta"><div class="site">${esc(s.site)}</div><div class="t"><a href="${esc(s.url)}">${esc(s.title)}</a></div></div>`;
-      c.onclick = () => window.aib.invoke('nav:openUrl', s.url);
+      // Don't also fire the document-level <a> handler (would open the URL twice)
+      c.onclick = (e) => { e.preventDefault(); e.stopPropagation(); window.aib.invoke('nav:openUrl', s.url); };
       els.sources.appendChild(c);
     });
     if (!st.sources.length && !st.pages.length) els.side.style.display = 'none';

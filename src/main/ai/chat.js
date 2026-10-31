@@ -8,6 +8,9 @@ const search = require('./search');
 const { classify } = require('../classify');
 const features = require('../ext/features');
 const store = require('../store');
+const P = require('./prompts');
+const ipa = require('./ipa');
+const agent = require('./agent');
 
 const sessions = new Map();
 
@@ -72,13 +75,77 @@ async function run(s) {
 function finish(s) { if (s.done) return; s.done = true; emit(s, { type: 'done' }); }
 
 // ---------- word
-const ENTRY_SYS = `You are a bilingual (English-Chinese) learner's dictionary. Reply with ONLY a JSON object:
-{"word":"","ipa_uk":"","ipa_us":"","pos":[{"pos":"n.|v.|adj.|adv.|...","defs":[{"zh":"中文释义","en":"short English gloss","ex_en":"example sentence","ex_zh":"例句翻译"}]}],"phrases":[{"en":"","zh":""}]}
-Give 1-3 parts of speech, 1-3 senses each, up to 4 phrases. No markdown.`;
+const isLocal = () => store.getSettings().ai.source === 'local';
+
+// Placeholders that small models often copy verbatim from poorly-written prompts / schemas
+const ZH_PLACEHOLDERS = /^(中文释义|中文意思|汉语释义|释义|例句翻译|短释义|chinese meaning|definition|gloss)$/i;
+const EN_PLACEHOLDERS = /^(short English gloss|english gloss|english definition|definition|gloss|example sentence)$/i;
+const EX_PLACEHOLDERS = /^(example|example sentence|例句|例句翻译|an example)$/i;
+
+function looksPlaceholder(s) { return !s || ZH_PLACEHOLDERS.test(String(s).trim()) || EN_PLACEHOLDERS.test(String(s).trim()) || EX_PLACEHOLDERS.test(String(s).trim()); }
+
+function sanitizeEntry(word, raw) {
+  const e = (raw && typeof raw === 'object') ? JSON.parse(JSON.stringify(raw)) : {};
+  e.word = String(e.word || word || '').trim() || word;
+  const merged = ipa.merge(e.word, e.ipa_uk, e.ipa_us);
+  e.ipa_uk = merged.ipa_uk; e.ipa_us = merged.ipa_us;
+  const posIn = Array.isArray(e.pos) ? e.pos : [];
+  const posOut = [];
+  let placeholderHits = 0, droppedPos = 0;
+  for (const p of posIn) {
+    const tag = String(p && p.pos || '').trim();
+    if (!tag || /placeholder|词性/i.test(tag)) { droppedPos++; continue; }
+    const defs = [];
+    for (const d of (Array.isArray(p.defs) ? p.defs : [])) {
+      const zh = String(d && d.zh || '').trim();
+      const en = String(d && d.en || '').trim();
+      let ex_en = String(d && d.ex_en || '').trim();
+      let ex_zh = String(d && d.ex_zh || '').trim();
+      if (looksPlaceholder(zh) || looksPlaceholder(en)) { placeholderHits++; continue; }
+      if (looksPlaceholder(ex_en)) ex_en = '';
+      if (looksPlaceholder(ex_zh)) ex_zh = '';
+      // Drop senses whose example clearly doesn't use the headword (hallucinated sense)
+      const hw = e.word.toLowerCase();
+      if (ex_en && hw && !ex_en.toLowerCase().includes(hw.split(/\s+/)[0]) && ex_en.length < 80) {
+        // allow if multi-word phrase headword; otherwise soft-drop example only
+        ex_en = ''; ex_zh = '';
+      }
+      if (!zh && !en) continue;
+      defs.push({ zh, en, ex_en, ex_zh });
+    }
+    if (!defs.length) { droppedPos++; continue; }
+    posOut.push({ pos: tag, defs });
+  }
+  e.pos = posOut;
+  e.phrases = (Array.isArray(e.phrases) ? e.phrases : [])
+    .map(p => ({ en: String(p && p.en || '').trim(), zh: String(p && p.zh || '').trim() }))
+    .filter(p => p.en && !looksPlaceholder(p.en) && !looksPlaceholder(p.zh));
+  e._meta = { placeholderHits, droppedPos, ok: posOut.length > 0 && placeholderHits === 0 };
+  return e;
+}
 
 async function aiEntry(word, signal) {
-  const j = await llm.completeJson([{ role: 'system', content: ENTRY_SYS }, { role: 'user', content: word }], { signal });
-  return j;
+  const sys = P.wordEntry({ local: isLocal() });
+  let j = await llm.completeJson([{ role: 'system', content: sys }, { role: 'user', content: word }], { signal });
+  let e = sanitizeEntry(word, j);
+  if (!e._meta.ok) {
+    // One correction retry: tell the model what went wrong, demand real glosses
+    try {
+      j = await llm.completeJson([
+        { role: 'system', content: sys },
+        { role: 'user', content: word },
+        { role: 'assistant', content: JSON.stringify(j) },
+        { role: 'user', content: 'Your JSON used placeholder text (e.g. 中文释义) or invented senses, or had no valid definitions. Reply again with ONLY corrected JSON for "' + word + '": real Chinese glosses, real English definitions, only attested parts of speech. Leave ipa_uk/ipa_us as "".' }
+      ], { signal, maxTokens: 1200 });
+      e = sanitizeEntry(word, j);
+    } catch (err) { if (signal && signal.aborted) throw err; }
+  }
+  if (!e.pos.length) {
+    // Last resort: keep a minimal honest stub so the UI is not blank
+    e.pos = [{ pos: '—', defs: [{ zh: '未能生成可靠词条，请重试或导入 MDX 词典。', en: 'Could not build a reliable entry. Retry or import an MDX dictionary.', ex_en: '', ex_zh: '' }] }];
+  }
+  delete e._meta;
+  return e;
 }
 
 async function runWord(s, word, ctx) {
@@ -90,15 +157,8 @@ async function runWord(s, word, ctx) {
 }
 
 // ---------- sentence
-const SENT_SYS = `You are an English grammar teacher for Chinese-speaking learners. Analyze the given English sentence.
-Reply with ONLY a JSON object:
-{"translation":"自然流畅的中文翻译",
- "tokens":[{"text":"...","role":"subj|pred|obj|attr|adv|comp|other"}],
- "breakdown":[{"role":"subj|pred|obj|attr|adv|comp","text":"成分原文","note":"中文简要说明"}]}
-Rules: "tokens" must be consecutive chunks of the original sentence which, concatenated, reproduce it exactly (keep spaces/punctuation; punctuation uses role "other"). Roles: subj=主语, pred=谓语, obj=宾语, attr=定语, adv=状语, comp=补语/表语. Keep "breakdown" in reading order. No markdown.`;
-
 async function runSentence(s) {
-  const j = await llm.completeJson([{ role: 'system', content: SENT_SYS }, { role: 'user', content: s.input }], { signal: s.ac.signal });
+  const j = await llm.completeJson([{ role: 'system', content: P.sentence({ local: isLocal() }) }, { role: 'user', content: s.input }], { signal: s.ac.signal });
   emit(s, { type: 'sentence', data: j });
 }
 
@@ -106,92 +166,35 @@ async function runSentence(s) {
 async function runArticle(s, target) {
   const paras = s.input.split(/\n\s*\n|\n/).map(x => x.trim()).filter(Boolean);
   emit(s, { type: 'article-src', paragraphs: paras, target });
-  const sys = target === 'en'
-    ? 'Translate the user text into fluent English. Output ONLY the translation. Keep the same paragraph structure: one translated paragraph per original paragraph, separated by a blank line. No commentary.'
-    : '将用户给出的英文文章翻译成流畅自然的简体中文。只输出译文，不要任何解释；保持段落结构：每个原文段落对应一个译文段落，段落之间空一行。';
-  await llm.chat({ messages: [{ role: 'system', content: sys }, { role: 'user', content: paras.join('\n\n') }], temperature: 0.2, signal: s.ac.signal,
-    onDelta: t => emit(s, { type: 'translation-delta', text: t }) });
-}
-
-// ---------- question: agentic search
-const PLAN_SYS = () => `You are a search-query planner. Today is ${today()}. Reply with ONLY JSON: {"direct":boolean,"queries":["..."]}.
-direct=true when no web search is needed (maths, plotting/drawing functions or geometry, pure reasoning, translation, small talk) — then queries=[].
-Otherwise give 1-3 concise, diverse search queries (any language) that together cover the question.`;
-
-const ANSWER_SYS = () => `You are a careful research assistant inside a browser. Today is ${today()}.
-- When numbered web sources are provided, base the answer on them and cite with [n] right after the claim (e.g. "... [1][3]"). Never invent sources or numbers; say so if the sources are insufficient.
-- Answer in the same language as the user's question. Use concise Markdown (short paragraphs, **bold**, lists).
-- When the user wants a function/graph/geometry drawn, call the ggb_eval tool with GeoGebra commands (e.g. "f(x)=sin(x)") instead of describing it, then explain the result briefly.`;
-
-async function planQueries(question, signal) {
-  try {
-    const j = await llm.completeJson([{ role: 'system', content: PLAN_SYS() }, { role: 'user', content: question }], { signal, maxTokens: 300 });
-    const qs = (Array.isArray(j.queries) ? j.queries : []).map(x => String(x).trim()).filter(Boolean).slice(0, 3);
-    return { direct: !!j.direct, queries: qs };
-  } catch (e) {
-    if (e.code === 'NO_CONFIG' || e.code === 'NO_LOCAL_MODEL' || signal.aborted) throw e;
-    console.error('planner failed, using raw question:', e.message);
-    return { direct: false, queries: [question.slice(0, 120)] };
-  }
-}
-
-async function gatherSources(s, queries) {
-  emit(s, { type: 'search-start', queries });
-  const serps = await Promise.all(queries.map(q => search.serp(q).catch(() => ({ query: q, results: [], via: 'error' }))));
-  const seen = new Set(); const merged = [];
-  const maxLen = Math.max(...serps.map(x => x.results.length), 0);
-  for (let i = 0; i < maxLen; i++) for (const sr of serps) { const r = sr.results[i]; if (r && !seen.has(r.url)) { seen.add(r.url); merged.push(r); } }
-  const top = merged.slice(0, 6);
-  emit(s, { type: 'serp', via: serps.map(x => x.via), count: merged.length });
-  const pages = top.map((r, i) => ({ n: i + 1, url: r.url, title: r.title, site: search.siteOf(r.url), snippet: r.snippet, status: 'loading' }));
-  emit(s, { type: 'pages', pages: pages.map(p => ({ ...p })) });
-  await Promise.all(pages.map(async p => {
-    try {
-      const r = await search.readPage(p.url);
-      if (r.text.length < 200 && !p.snippet) throw new Error('empty');
-      p.text = r.text; p.title = r.title || p.title; p.status = 'ok';
-    } catch (e) { p.status = 'fail'; p.text = ''; }
-    emit(s, { type: 'page-update', n: p.n, status: p.status, title: p.title });
-  }));
-  // keep numbering stable for display but only feed readable pages (or snippets) to the model
-  const usable = pages.filter(p => p.status === 'ok' || p.snippet);
-  return usable;
-}
-
-async function runQuestion(s, ctx) {
-  const q = s.input;
-  let queries = s.queriesOverride;
-  let direct = false;
-  if (!queries) {
-    const plan = await planQueries(q, s.ac.signal);
-    direct = plan.direct; queries = plan.queries;
-    if (!direct && !queries.length) queries = [q.slice(0, 120)];
-  }
-  emit(s, { type: 'queries', queries, direct });
-  let sources = [];
-  if (!direct && queries.length) sources = await gatherSources(s, queries);
-  emit(s, { type: 'sources', sources: sources.map(p => ({ n: p.n, url: p.url, title: p.title, site: p.site })) });
-
-  let userContent = q;
-  if (sources.length) {
-    userContent = 'Web sources:\n' + sources.map(p => `[${p.n}] ${p.title} (${p.url})\n${(p.text || p.snippet || '').slice(0, 3800)}`).join('\n\n') + `\n\nQuestion: ${q}`;
-  }
-  const messages = [{ role: 'system', content: ANSWER_SYS() }, { role: 'user', content: userContent }];
-  const tools = store.getSettings().ai.source === 'local' ? [] : features.listTools().map(t => ({ name: t.name, description: t.description, parameters: t.parameters }));
-
-  for (let round = 0; round < 5; round++) {
-    const r = await llm.chat({ messages, tools, signal: s.ac.signal, onDelta: t => emit(s, { type: 'answer-delta', text: t }) });
-    if (!r.toolCalls.length) return;
-    messages.push({ role: 'assistant', content: r.content || null, tool_calls: r.toolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: tc.arguments } })) });
-    for (const tc of r.toolCalls) {
-      let args = {}; try { args = JSON.parse(tc.arguments || '{}'); } catch {}
-      let result;
-      try { result = await features.callTool(tc.name, args, ctx); emit(s, { type: 'tool', name: tc.name, args, result }); }
-      catch (e) { result = { error: String(e.message || e) }; emit(s, { type: 'tool', name: tc.name, args, error: result.error }); }
-      messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result).slice(0, 4000) });
+  let overrideLocal = null, hint = '';
+  if (isLocal()) {
+    const L = store.getSettings().ai.local;
+    if (L.translateModelId) {
+      const localMod = require('./local');
+      const m = localMod.listModels(L).find(x => x.id === L.translateModelId && x.downloaded);
+      if (m) { overrideLocal = { ...L, modelPath: m.path, modelId: m.id }; hint = m.promptHint || ''; }
     }
   }
+  // Specialist translation models want their own prompt shape (no long system prompt)
+  let messages;
+  const text = paras.join('\n\n');
+  if (hint === 'seed-x') {
+    const tag = target === 'en' ? '<en>' : '<zh>';
+    const dir = target === 'en' ? 'Chinese sentence into English' : 'English sentence into Chinese';
+    messages = [{ role: 'user', content: `Translate the following ${dir}:\n${text} ${tag}` }];
+  } else if (hint === 'translate-only') {
+    const lang = target === 'en' ? 'English' : 'Chinese';
+    messages = [{ role: 'user', content: `Translate the following segment into ${lang}, without additional explanation.\n\n${text}` }];
+  } else {
+    messages = [{ role: 'system', content: P.article({ target, local: isLocal() }) }, { role: 'user', content: text }];
+  }
+  const opts = { messages, temperature: 0.2, signal: s.ac.signal, onDelta: t => emit(s, { type: 'translation-delta', text: t }) };
+  if (overrideLocal) await llm.chat({ ...opts, _localOverride: overrideLocal });
+  else await llm.chat(opts);
 }
+
+// ---------- question: agentic search (see agent.js)
+function runQuestion(s, ctx) { return agent.run(s, ctx, { emit, isLocal, today }); }
 
 // Re-run a question with user-edited queries
 function rerun(sid, queries) {
@@ -199,7 +202,7 @@ function rerun(sid, queries) {
   if (!old) return null;
   const nsid = create(old.input);
   const ns = sessions.get(nsid);
-  ns.queriesOverride = queries.map(x => String(x).trim()).filter(Boolean).slice(0, 3);
+  ns.queriesOverride = queries.map(x => String(x).trim()).filter(Boolean).slice(0, 4);
   ns.kindOverride = 'question';
   return nsid;
 }

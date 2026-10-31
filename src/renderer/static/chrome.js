@@ -6,11 +6,15 @@
   const SPARK = '<svg class="spark-inline" viewBox="0 0 100 100" width="14" height="14"><defs><linearGradient id="fgc" gradientUnits="userSpaceOnUse" x1="14" y1="10" x2="86" y2="92"><stop offset="0" stop-color="#fde047"/><stop offset="0.28" stop-color="#fb923c"/><stop offset="0.62" stop-color="#22d3ee"/><stop offset="1" stop-color="#2563eb"/></linearGradient></defs><path d="M50 2 C54 30 70 46 98 50 C70 54 54 70 50 98 C46 70 30 54 2 50 C30 46 46 30 50 2 Z" fill="url(#fgc)"/></svg>';
   const LOCK = '<svg width="12" height="12" viewBox="0 0 16 16"><rect x="4" y="7" width="8" height="7" rx="1.5" fill="none" stroke="currentColor"/><path d="M6 7V5a2 2 0 0 1 4 0v2" fill="none" stroke="currentColor"/></svg>';
 
+  const seen = new Set(); let firstRender = true; let prevEls = new Map();
   function render() {
+    const prevIds = [...prevEls.keys()];
+    const nextEls = new Map();
     tabsEl.innerHTML = '';
     for (const tb of state.tabs) {
       const el = document.createElement('div');
-      el.className = 'tab' + (tb.active ? ' active' : '');
+      el.className = 'tab' + (tb.active ? ' active' : '') + (!firstRender && !seen.has(tb.id) ? ' enter' : '');
+      seen.add(tb.id);
       el.dataset.id = tb.id;
       const fav = document.createElement('div'); fav.className = 'favicon' + (tb.icon === 'spark' ? ' fav-spark' : '');
       if (tb.icon === 'spark') fav.innerHTML = SPARK;
@@ -18,10 +22,23 @@
       else fav.textContent = (tb.title || tb.url || '·').replace(/^https?:\/\//, '').slice(0, 1).toUpperCase();
       const ti = document.createElement('div'); ti.className = 'title';
       ti.textContent = tb.kind === 'home' ? I18N.t('tab.newtab') : (tb.kind === 'chat' ? (tb.display || tb.title) : (tb.title || tb.url));
-      const x = document.createElement('div'); x.className = 'close-tab'; x.textContent = '×'; x.dataset.close = tb.id;
+      const x = document.createElement('div'); x.className = 'close-tab'; x.textContent = '×'; x.dataset.close = tb.id; x.title = I18N.t('tab.close');
       el.append(fav, ti, x);
+      nextEls.set(tb.id, el);
       tabsEl.appendChild(el);
     }
+    // closing animation: a non-interactive ghost of each tab that just disappeared collapses in place
+    if (!firstRender) {
+      prevIds.filter(id => !nextEls.has(id)).forEach(id => {
+        const old = prevEls.get(id); if (!old) return;
+        const g = document.createElement('div'); g.className = 'tab-ghost';
+        g.innerHTML = old.innerHTML; g.querySelectorAll('[data-close]').forEach(n => n.removeAttribute('data-close'));
+        const idx = Math.min(prevIds.indexOf(id), tabsEl.children.length);
+        tabsEl.insertBefore(g, tabsEl.children[idx] || null);
+        setTimeout(() => g.remove(), 260);
+      });
+    }
+    prevEls = nextEls; firstRender = false;
     const add = document.createElement('div'); add.className = 'tab-add'; add.id = 'tabadd'; add.textContent = '+';
     tabsEl.appendChild(add);
     const a = state.tabs.find(t => t.active);
@@ -35,7 +52,19 @@
       if (document.activeElement !== addr) addr.value = a.display || '';
     }
     document.querySelectorAll('#modeseg .seg').forEach(s => s.classList.toggle('active', s.dataset.mode === state.mode));
+    placeIndicator();
   }
+  // sliding indicator behind the active Chat/Search segment
+  const seg = $('modeseg'); let indReady = false;
+  function placeIndicator() {
+    const a = seg.querySelector('.seg.active'); if (!a || !a.offsetWidth) return;
+    seg.dataset.mode = state.mode;
+    seg.style.setProperty('--ind-x', a.offsetLeft + 'px');
+    seg.style.setProperty('--ind-w', a.offsetWidth + 'px');
+    seg.classList.add('has-ind');
+    if (!indReady) { indReady = true; requestAnimationFrame(() => requestAnimationFrame(() => seg.classList.add('anim'))); }
+  }
+  window.addEventListener('resize', placeIndicator);
   tabsEl.addEventListener('click', (e) => {
     const c = e.target.closest('[data-close]');
     if (c) return window.aib.invoke('tab:close', Number(c.dataset.close));
@@ -48,7 +77,21 @@
   $('reload').onclick = () => window.aib.invoke('nav:reload');
   $('bookmark').onclick = () => window.aib.invoke('bm:toggle');
   $('menu').onclick = () => window.aib.invoke('menu:toggle');
-  document.querySelectorAll('#modeseg .seg').forEach(s => s.onclick = () => window.aib.invoke('mode:set', s.dataset.mode));
+  document.querySelectorAll('#modeseg .seg').forEach(s => s.onclick = async () => {
+    const next = s.dataset.mode;
+    // Prefer what the user is currently typing in the address bar; fall back to main reading the chat session
+    let q = '';
+    if (document.activeElement === addr) q = addr.value;
+    else {
+      const a = state.tabs.find(t => t.active);
+      if (a && a.kind === 'chat') q = a.display || a.title || '';
+      else if (a && a.kind === 'home') {
+        try { q = await window.aib.invoke('home:query'); } catch {}
+      } else if (a && a.kind !== 'web' && addr.value) q = addr.value;
+      else if (addr.value && !/^https?:\/\//i.test(addr.value) && addr.value !== (a && a.display)) q = addr.value;
+    }
+    await window.aib.invoke('mode:set', next, q);
+  });
   addr.addEventListener('focus', () => { const a = state.tabs.find(t => t.active); if (a && a.kind !== 'chat') addr.value = a.kind === 'home' ? '' : a.url; setTimeout(() => addr.select(), 0); });
   addr.addEventListener('blur', () => { const a = state.tabs.find(t => t.active); addr.value = a ? a.display || '' : ''; });
   addr.addEventListener('keydown', (e) => {

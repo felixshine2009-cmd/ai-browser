@@ -1,7 +1,9 @@
 'use strict';
 // Agentic-search helpers: SERP scraping in a hidden window (default engine), DuckDuckGo html fallback,
 // readable-text extraction with Mozilla Readability.
-const { BrowserWindow, net } = require('electron');
+let BrowserWindow = null, net = null;
+try { ({ BrowserWindow, net } = require('electron')); } catch {}
+if (typeof BrowserWindow !== 'function') { BrowserWindow = null; net = null; }
 const store = require('../store');
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
@@ -47,7 +49,7 @@ function extractSerp(doc, engineId, baseHref) {
   } else if (engineId === 'duckduckgo') {
     q('a.result__a, a[data-testid="result-title-a"]').forEach(a => { const r = a.closest('.result, article, li'); push(a, text(a), text(r && r.querySelector('.result__snippet, [data-result="snippet"]'))); });
   }
-  if (!out.length) { // generic fallback (custom engines): external links with sentence-like text
+  if (!out.length && !['bing', 'google', 'baidu', 'duckduckgo'].includes(engineId)) { // generic fallback (custom engines only): external links with sentence-like text
     let host = ''; try { host = new URL(baseHref).hostname; } catch {}
     q('h3 a, h2 a, a').forEach(a => {
       const h = a.getAttribute('href') || '';
@@ -61,6 +63,12 @@ function extractSerp(doc, engineId, baseHref) {
   return out.slice(0, 10);
 }
 
+// --- network layer: Electron (net / hidden BrowserWindow) in the app, plain fetch in node (live tests)
+const electronNet = net || null;
+const doFetch = (u, o) => (electronNet ? electronNet.fetch(u, o) : fetch(u, o));
+const nodeFetch = (u, o) => fetch(u, o); // undici: serves the plain SSR result pages of bing / baidu / ddg reliably
+const HAS_WINDOW = !!BrowserWindow;
+
 function loadHidden(url, timeoutMs = 12000) {
   return new Promise((resolve, reject) => {
     const win = new BrowserWindow({ show: false, width: 1200, height: 900, webPreferences: { sandbox: true, contextIsolation: true, partition: 'persist:serp' } });
@@ -69,7 +77,7 @@ function loadHidden(url, timeoutMs = 12000) {
     const finish = (err, val) => { if (done) return; done = true; clearTimeout(t); try { win.destroy(); } catch {} err ? reject(err) : resolve(val); };
     const t = setTimeout(async () => {
       // still try to extract whatever has loaded
-      try { finish(null, await win.webContents.executeJavaScript('document.documentElement.outerHTML')); } catch (e) { finish(new Error('timeout')); }
+      try { finish(null, { html: await win.webContents.executeJavaScript('document.documentElement.outerHTML'), href: win.webContents.getURL() }); } catch (e) { finish(new Error('timeout')); }
     }, timeoutMs);
     win.webContents.once('did-finish-load', async () => {
       setTimeout(async () => {
@@ -78,7 +86,7 @@ function loadHidden(url, timeoutMs = 12000) {
       }, 700);
     });
     win.webContents.once('did-fail-load', (e, code, desc, u, isMain) => { if (isMain) finish(new Error('load failed: ' + desc)); });
-    win.loadURL(url).catch(() => {});
+    win.loadURL(url, { userAgent: UA, extraHeaders: 'Accept-Language: zh-CN,zh;q=0.9,en;q=0.7\n' }).catch(() => {});
   });
 }
 
@@ -89,31 +97,120 @@ async function decodeBody(res) {
   try { return new TextDecoder((cs || 'utf-8').toLowerCase()).decode(buf); } catch { return buf.toString('utf8'); }
 }
 
-async function ddgFallback(query) {
-  const { JSDOM } = require('jsdom');
-  const res = await net.fetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query), { headers: { 'User-Agent': UA, 'Accept-Language': 'en,zh-CN;q=0.8' } });
-  const html = await decodeBody(res);
-  const dom = new JSDOM(html, { url: 'https://html.duckduckgo.com/html/' });
-  return extractSerp(dom.window.document, 'duckduckgo', 'https://html.duckduckgo.com/html/');
+async function fetchHtml(url, timeoutMs = 12000, f = doFetch) {
+  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await f(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.7', Accept: 'text/html,application/xhtml+xml,*/*' }, signal: ac.signal, redirect: 'follow' });
+    return { html: await decodeBody(res), href: res.url || url, status: res.status };
+  } finally { clearTimeout(t); }
 }
 
-async function serp(query) {
-  const info = store.searchEngineInfo();
-  const url = store.searchUrl(query);
-  let results = [];
-  try {
-    const r = await loadHidden(url);
-    const { JSDOM } = require('jsdom');
-    const html = typeof r === 'string' ? r : r.html;
-    const href = typeof r === 'string' ? url : r.href;
-    const dom = new JSDOM(html, { url: href });
-    results = extractSerp(dom.window.document, info.id, href);
-  } catch (e) { console.error('serp failed:', e.message); }
-  let via = info.id;
-  if (!results.length) {
-    try { results = await ddgFallback(query); via = 'duckduckgo-html'; } catch (e) { console.error('ddg fallback failed:', e.message); }
+// ---------------------------------------------------------------- query terms / relevance
+const CJK = /[\u3400-\u9fff\uf900-\ufaff]/;
+const STOP = new Set(['the', 'a', 'an', 'of', 'to', 'in', 'on', 'for', 'and', 'or', 'is', 'are', 'what', 'how', 'why', 'with', 'vs', 'by', 'at', 'from', 'about']);
+// Latin words + CJK bigrams (a lone CJK char counts as a term). Used to decide whether a hit is about the query at all.
+function queryTerms(q) {
+  const terms = new Set();
+  String(q || '').toLowerCase().replace(/[a-z0-9][a-z0-9.+#_-]*/g, w => { if (w.length >= 2 && !STOP.has(w)) terms.add(w); return ' '; })
+    .split(/[^\u3400-\u9fff\uf900-\ufaff]+/).forEach(run => {
+      if (!run) return;
+      if (run.length === 1) terms.add(run); else for (let i = 0; i < run.length - 1; i++) terms.add(run.slice(i, i + 2));
+    });
+  return [...terms];
+}
+function relevanceScore(r, q) {
+  const terms = queryTerms(q); if (!terms.length) return 1;
+  let u = r.url || ''; try { u = decodeURIComponent(u); } catch {}
+  const hay = ((r.title || '') + ' ' + (r.snippet || '') + ' ' + u).toLowerCase();
+  let hit = 0; for (const t of terms) if (hay.includes(t)) hit++;
+  return hit / terms.length;
+}
+function isRelevant(r, q) {
+  const terms = queryTerms(q); if (!terms.length) return true;
+  // short queries (names): every term must appear; longer ones: at least a third (min 2)
+  const need = terms.length <= 2 ? terms.length : Math.max(2, Math.ceil(terms.length * 0.34));
+  return relevanceScore(r, q) * terms.length + 1e-9 >= need;
+}
+const BAD_HOST = /(^|\.)(roblox\.com|login\.live\.com|accounts\.google\.com)$/;
+function isNavJunk(r) { try { const u = new URL(r.url); if (/^(image|video|map|v|xue|tieba)\.baidu\.com$/.test(u.hostname)) return true; if (/(^|\.)baidu\.com$/.test(u.hostname) && (u.pathname === '/baidu.php' || u.pathname === '/s' || u.pathname === '/')) return true; return BAD_HOST.test(u.hostname) || /\/(login|signin|sign-in|passport)(\/|$)/i.test(u.pathname); } catch { return true; } }
+
+// ---------------------------------------------------------------- engines
+function engineTemplate(id, custom) {
+  if (id === 'custom') return custom || '';
+  return (store.ENGINES[id] || store.ENGINES.bing).url;
+}
+// URL with locale parameters so CJK queries get Chinese results (bing mkt/setlang, google hl, ddg kl)
+function engineUrl(id, q, custom) {
+  let url = engineTemplate(id, custom).replace('%s', encodeURIComponent(q));
+  const cjk = CJK.test(q);
+  const add = (k, v) => { if (!new RegExp('[?&]' + k + '=').test(url)) url += (url.includes('?') ? '&' : '?') + k + '=' + v; };
+  if (id === 'bing') { if (cjk) { add('mkt', 'zh-CN'); add('setlang', 'zh-Hans'); } else add('setlang', 'en'); }
+  else if (id === 'google') add('hl', cjk ? 'zh-CN' : 'en');
+  else if (id === 'duckduckgo') add('kl', cjk ? 'cn-zh' : 'wt-wt');
+  return url;
+}
+const FALLBACKS = ['bing', 'duckduckgo', 'baidu'];
+
+async function resolveBaiduLinks(results) {
+  await Promise.all(results.map(async r => {
+    if (!/^https?:\/\/(www\.)?baidu\.com\/link\?/.test(r.url)) return;
+    try {
+      const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 5000);
+      const res = await nodeFetch(r.url.replace(/^http:/, 'https:'), { method: 'GET', redirect: 'manual', headers: { 'User-Agent': UA, Referer: 'https://www.baidu.com/', 'Accept-Language': 'zh-CN,zh;q=0.9' }, signal: ac.signal }); clearTimeout(t);
+      const loc = res.headers.get('location'); if (loc) r.url = loc;
+      else if (res.url && !/baidu\.com\/link/.test(res.url)) r.url = res.url;
+    } catch {}
+  }));
+}
+
+function looksBlocked(html, href) {
+  return /captcha|verify|wappass\.baidu|安全验证|unusual traffic|are you a robot/i.test((href || '') + ' ' + (html || '').slice(0, 3000)) && (html || '').length < 20000;
+}
+
+// One engine, one query -> parsed + junk-filtered results (relevance applied by caller). Throws on network/blocked.
+const lastReq = {};
+async function searchOnce(id, query, custom) {
+  const url = engineUrl(id, query, custom);
+  const { JSDOM, VirtualConsole } = require('jsdom');
+  const parse = (page) => {
+    if (looksBlocked(page.html, page.href)) throw new Error('blocked (captcha / verification page)');
+    const dom = new JSDOM(page.html, { url: page.href, virtualConsole: new VirtualConsole() });
+    return extractSerp(dom.window.document, id, page.href);
+  };
+  let parsed = []; let lastErr = null;
+  const attempts = [];
+  // gentle pacing per engine (baidu answers bursts with a captcha page)
+  const gap = id === 'baidu' ? 1500 : 0; const wait = gap - (Date.now() - (lastReq[id] || 0)); lastReq[id] = Date.now() + Math.max(0, wait); if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  if (id === 'custom' || id === 'google') { if (HAS_WINDOW) attempts.push(() => loadHidden(url)); attempts.push(() => fetchHtml(url, 12000, nodeFetch)); }
+  else { attempts.push(() => fetchHtml(url, 12000, nodeFetch)); if (electronNet) attempts.push(() => fetchHtml(url, 12000, doFetch)); if (HAS_WINDOW && id !== 'duckduckgo') attempts.push(() => loadHidden(url)); }
+  let attemptNo = 0;
+  if (id === 'baidu') attempts.push(async () => { await new Promise(r => setTimeout(r, 2500)); return fetchHtml(url, 12000, nodeFetch); });
+  for (const get of attempts) {
+    attemptNo++;
+    try { const pg = await get(); if (process.env.AIB_DEBUG_SEARCH) { console.error('[serp-attempt]', id, pg.href.slice(0, 60), (pg.html || '').length); } parsed = parse(pg); lastErr = null; if (parsed.length) break; } catch (e) { lastErr = e; if (process.env.AIB_DEBUG_SEARCH) console.error('[serp-attempt-err]', id, e.message); }
   }
-  return { query, via, results };
+  if (!parsed.length && lastErr) throw lastErr;
+  if (id === 'baidu') await resolveBaiduLinks(parsed);
+  return parsed.filter(r => !isNavJunk(r));
+}
+
+// serp(query, {engine}) -> { query, via, tried:[{engine,count,error?}], results }
+// Chain: selected engine -> bing -> duckduckgo. A hit list only counts if enough of it is ABOUT the query.
+async function serp(query, opts = {}) {
+  let s = {}; try { s = store.getSettings().search || {}; } catch {}
+  const selected = opts.engine || s.engine || 'bing';
+  const fb = (CJK.test(query) ? ['baidu', 'bing', 'duckduckgo'] : FALLBACKS).filter(e => e !== selected);
+  const chain = [selected, ...fb];
+  const tried = [];
+  for (const id of chain) {
+    try {
+      const all = await searchOnce(id, query, s.custom);
+      const rel = all.filter(r => isRelevant(r, query));
+      tried.push({ engine: id, count: all.length, relevant: rel.length });
+      if (rel.length) return { query, via: id, selected, fallback: id !== selected, tried, results: rel.slice(0, 10) };
+    } catch (e) { tried.push({ engine: id, count: 0, error: String(e.message || e).slice(0, 120) }); }
+  }
+  return { query, via: 'none', selected, fallback: false, tried, results: [] };
 }
 
 function siteOf(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } }
@@ -124,7 +221,7 @@ async function readPage(url, { maxChars = 5000, timeoutMs = 9000 } = {}) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const res = await net.fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8', Accept: 'text/html,*/*' }, signal: ac.signal, redirect: 'follow' });
+    const res = await doFetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8', Accept: 'text/html,*/*' }, signal: ac.signal, redirect: 'follow' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const ct = res.headers.get('content-type') || '';
     if (!/html|text|xml/i.test(ct)) throw new Error('unsupported type ' + ct);
@@ -138,4 +235,4 @@ async function readPage(url, { maxChars = 5000, timeoutMs = 9000 } = {}) {
   } finally { clearTimeout(t); }
 }
 
-module.exports = { serp, readPage, extractSerp, siteOf };
+module.exports = { serp, readPage, extractSerp, siteOf, queryTerms, isRelevant, relevanceScore, engineUrl, searchOnce };

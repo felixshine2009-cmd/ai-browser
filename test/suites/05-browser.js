@@ -130,7 +130,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     assert(!a2.exited);
   });
   await test('模型目录 + 引擎状态（引擎在本机可加载或给出可读错误）', async () => {
-    const l = await inv2('lm:list'); eq(l.length, 3); assert(l[0].file === 'qwen2.5-7b-instruct-q4_k_m.gguf' && l[0].repo === 'Qwen/Qwen2.5-7B-Instruct-GGUF' && !l[0].downloaded);
+    const l = await inv2('lm:list'); assert(l.length >= 3 && l.some(x => x.id.includes('qwen2.5-7b')), JSON.stringify(l.map(x=>x.id))); assert(l[0].file === 'qwen2.5-7b-instruct-q4_k_m.gguf' && l[0].repo === 'Qwen/Qwen2.5-7B-Instruct-GGUF' && !l[0].downloaded);
     const st = await inv2('lm:status'); assert(st.engine === 'ok' || (st.engine === 'error' && st.engineError), JSON.stringify(st));
     console.log('      engine status:', JSON.stringify(st).slice(0, 200));
   });
@@ -146,7 +146,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   await test('设置页“本地模型”：模型列表 + 下载进度条 + 取消/完成（本地模拟 HF 服务）', async () => {
     await a2.submit('aibrowser://settings'); const sp = await a2.waitPage('aibrowser://settings');
     await sp.click('[data-src="local"]');
-    await until(async () => (await sp.locator('.model-row').count()) === 3, 8000, 'rows');
+    await until(async () => (await sp.locator('.model-row').count()) >= 3, 8000, 'rows');
     assert((await sp.locator('.model-row').first().innerText()).includes('Qwen2.5-7B-Instruct'));
     const row = sp.locator('.model-row[data-model="qwen2.5-1.5b-instruct-q4_k_m"]');
     await row.locator('[data-act="dl"]').click();
@@ -161,12 +161,15 @@ module.exports = async ({ test, group, assert, eq, until }) => {
 
   group('静态检查');
   await test('i18n：所有界面字符串键在 zh/en 中均存在', () => { const r = cp.spawnSync('node', ['scripts/check-i18n.js'], { cwd: ROOT, encoding: 'utf8' }); assert(r.status === 0, r.stdout); });
-  await test('v1 无动画 / 无自定义鼠标指针（使用系统光标），样式使用 CSS 变量', () => {
+  await test('无自定义鼠标指针（使用系统光标）；样式使用 CSS 变量；动画时长集中在 CSS 变量；支持减少动态效果', () => {
     const files = []; (function walk(d) { for (const f of fs.readdirSync(d)) { const p = path.join(d, f); fs.statSync(p).isDirectory() ? walk(p) : /\.(css|html|js)$/.test(f) && files.push(p); } })(path.join(ROOT, 'src', 'renderer'));
     const bad = [];
-    for (const f of files) { const s = fs.readFileSync(f, 'utf8'); if (/@keyframes|animation\s*:|transition\s*:(?!\s*none)/.test(s)) bad.push(f + ' anim'); if (/cursor\s*:\s*url\(/.test(s)) bad.push(f + ' cursor-url'); }
+    for (const f of files) { const s = fs.readFileSync(f, 'utf8'); if (/cursor\s*:\s*url\(/.test(s)) bad.push(f + ' cursor-url'); }
     assert(!bad.length, bad.join(', '));
     const css = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'static', 'shared.css'), 'utf8'); assert(css.includes('--green-text') && css.includes(':root'));
+    assert(/--dur-fast:/.test(css) && /--dur:/.test(css) && /--ease:/.test(css), 'motion tokens');
+    const app = fs.readFileSync(path.join(ROOT, 'src', 'renderer', 'static', 'app.css'), 'utf8'); assert(/prefers-reduced-motion:\s*reduce/.test(app), 'reduced motion');
+    assert(!/-webkit-font-smoothing:\s*antialiased/.test(css + app), 'no antialiased smoothing');
     assert(!fs.existsSync(path.join(ROOT, 'src', 'renderer', 'static', 'cursors')), 'no cursor assets');
   });
   await test('SERP 解析器：Bing(含 /ck/a 跳转解码) / Google / 百度 / DuckDuckGo / 通用', () => {
