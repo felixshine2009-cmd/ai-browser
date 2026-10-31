@@ -35,6 +35,7 @@ const WEB_TOOLS = [
 function makeBoard(s, emit, local) {
   const pages = []; const byUrl = new Map();
   const maxChars = local ? 1400 : 5000;
+  let partition; try { const t = require('../tabs').allTabs().find(x => x.wc.id === s.wcId); if (t && t.incognito) partition = 'aib-incognito'; } catch {}
   return {
     pages, byUrl,
     add(r) {
@@ -48,7 +49,7 @@ function makeBoard(s, emit, local) {
       if (p.status === 'ok') return p;
       try {
         emit(s, { type: 'status', text: L('阅读：', 'Reading: ') + (p.title || p.url).slice(0, 60) });
-        const r = await search.readPage(p.url, { maxChars });
+        const r = await search.readPage(p.url, { maxChars, partition });
         if (r.text.length < 200 && !p.snippet) throw new Error('empty');
         p.text = r.text || p.snippet; p.title = r.title || p.title; p.status = 'ok';
       } catch (e) { p.status = 'fail'; p.error = String(e.message || e).slice(0, 80); }

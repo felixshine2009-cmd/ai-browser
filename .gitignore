@@ -5,3 +5,4 @@ dist/
 test/results.json
 *.log
 models/
+node_modules

@@ -72,7 +72,82 @@ const BUILTIN = [
     run: async (a) => ({ hits: await kbMod().search(String(a.query || ''), Number(a.k) || 5) }) },
   { name: 'kb_add_text', group: 'knowledge', description: 'Save a note / passage into the knowledge base.', parameters: obj({ title: str('short title'), text: str('content') }, ['text']),
     run: async (a) => kbMod().addText(String(a.title || '笔记'), String(a.text || ''), { source: 'agent' }) },
-  { name: 'kb_list', group: 'knowledge', description: 'List documents stored in the knowledge base.', parameters: obj({}), run: async () => kbMod().list() }
+  { name: 'kb_list', group: 'knowledge', description: 'List documents stored in the knowledge base.', parameters: obj({}), run: async () => kbMod().list() },
+  // ---- bookmarks / downloads / find / zoom
+  { name: 'bookmarks_list', group: 'browser', description: 'List saved bookmarks (title, url, time).', parameters: obj({ query: str('optional title/URL filter'), limit: { type: 'number' } }),
+    run: async (a) => ({ bookmarks: store.listBookmarks(String(a.query || '')).slice(0, Math.min(100, Number(a.limit) || 30)) }) },
+  { name: 'bookmark_add', group: 'browser', description: 'Bookmark a URL (default: the active tab).', parameters: obj({ url: str('http(s) URL; default = active tab'), title: str('optional title') }),
+    run: async (a) => { let url = a.url, title = a.title; if (!url) { const t = tabs().activeTab(); if (!t) throw new Error('no active tab'); url = t.wc.getURL(); title = title || t.wc.getTitle(); }
+      url = httpUrl(url); if (!store.isBookmarked(url)) store.toggleBookmark(url, title || url); tabs().notify(); return { bookmarked: true, url, title: title || url }; } },
+  { name: 'bookmark_remove', group: 'browser', description: 'Remove a bookmark by URL.', parameters: obj({ url: str('exact bookmark URL') }, ['url']),
+    run: async (a) => { store.removeBookmark(httpUrl(a.url)); tabs().notify(); return { removed: a.url }; } },
+  { name: 'downloads_list', group: 'browser', description: 'List recent downloads (id, name, path, state, received/total bytes).', parameters: obj({ limit: { type: 'number' } }),
+    run: async (a) => ({ downloads: store.downloads().slice(0, Math.min(100, Number(a.limit) || 30)).map(d => ({ id: d.id, name: d.name, path: d.path, state: d.state, received: d.received, total: d.total, url: d.url })) }) },
+  { name: 'download_open', group: 'browser', description: 'Open a finished download by id (in the OS file manager or default app).', parameters: obj({ id: str('download id'), showFolder: { type: 'boolean', description: 'if true, reveal in folder instead of opening' } }, ['id']),
+    run: async (a) => { const { shell } = require('electron'); const r = store.downloads().find(x => x.id === a.id); if (!r) throw new Error('download not found'); if (a.showFolder) shell.showItemInFolder(r.path); else shell.openPath(r.path); return { ok: true, path: r.path }; } },
+  { name: 'download_clear', group: 'browser', description: 'Clear the downloads list (does not delete files).', parameters: obj({}),
+    run: async () => { const a = store.downloads(); a.splice(0, a.length); store.saveDownloads(); return { cleared: true }; } },
+  { name: 'find_in_page', group: 'browser', description: 'Find text in the active tab; opens the find bar. Pass next=true to jump to the next match.', parameters: obj({ text: str('search text'), next: { type: 'boolean' }, forward: { type: 'boolean' } }, ['text']),
+    run: async (a) => { const t = needTab(); tabs().showFind(); t.wc.findInPage(String(a.text), { forward: a.forward !== false, findNext: !!a.next }); return { query: a.text }; } },
+  { name: 'find_stop', group: 'browser', description: 'Close the find-in-page bar.', parameters: obj({}),
+    run: async () => { tabs().closeOverlay('find'); return { closed: true }; } },
+  { name: 'zoom_set', group: 'browser', description: 'Change page zoom: dir = +1 zoom in, -1 zoom out, 0 reset to 100%.', parameters: obj({ dir: { type: 'number', description: '+1 / -1 / 0' } }, ['dir']),
+    run: async (a) => ({ zoom: tabs().zoom(Number(a.dir)) }) },
+  { name: 'zoom_get', group: 'browser', description: 'Get the current zoom factor (1 = 100%).', parameters: obj({}),
+    run: async () => ({ zoom: tabs().zoom(null) }) },
+  // ---- settings (safe subset — never passwords / API keys)
+  { name: 'settings_set', group: 'settings', description: 'Change safe browser settings. Allowed keys: lang ("zh"|"en"), mode ("chat"|"search"), displayName, greeting, search.engine ("bing"|"google"|"baidu"|"duckduckgo"|"custom"), search.custom, agent.maxSteps, translate.engine ("auto"|"hunyuan"|"role"). API keys, passwords and vault data are rejected.',
+    parameters: obj({ patch: { type: 'object', description: 'partial settings object' } }, ['patch']),
+    run: async (a) => {
+      const patch = a.patch || {}; const safe = {};
+      if (patch.lang === 'zh' || patch.lang === 'en') safe.lang = patch.lang;
+      if (patch.mode === 'chat' || patch.mode === 'search') safe.mode = patch.mode;
+      if (typeof patch.displayName === 'string') safe.displayName = patch.displayName.slice(0, 40);
+      if (typeof patch.greeting === 'string') safe.greeting = patch.greeting.slice(0, 120);
+      if (patch.search && typeof patch.search === 'object') {
+        const se = {}; if (['bing','google','baidu','duckduckgo','custom'].includes(patch.search.engine)) se.engine = patch.search.engine;
+        if (typeof patch.search.custom === 'string') se.custom = patch.search.custom.slice(0, 300);
+        if (Object.keys(se).length) safe.search = se;
+      }
+      if (patch.agent && typeof patch.agent.maxSteps === 'number') safe.agent = { maxSteps: Math.max(4, Math.min(40, patch.agent.maxSteps|0)) };
+      if (patch.translate && typeof patch.translate === 'object') {
+        const te = {}; if (['auto','hunyuan','role'].includes(patch.translate.engine)) te.engine = patch.translate.engine;
+        if (Object.keys(te).length) safe.translate = te;
+      }
+      if (!Object.keys(safe).length) throw new Error('no allowed fields in patch (refusing secrets / unknown keys)');
+      const s = store.patchSettings(safe); return { applied: safe, lang: s.lang, mode: s.mode, search: s.search, agent: s.agent, translate: s.translate };
+    } },
+  // ---- Chrome extensions
+  { name: 'chrome_ext_list', group: 'extensions', description: 'List installed Chrome / Chromium extensions (id, name, enabled, version).', parameters: obj({}),
+    run: async () => ({ chrome: require('../ext/chrome').list() }) },
+  { name: 'chrome_ext_set_enabled', group: 'extensions', description: 'Enable or disable a Chrome extension by id.', parameters: obj({ id: str('chrome extension id'), enabled: { type: 'boolean' } }, ['id', 'enabled']),
+    run: async (a) => { await require('../ext/chrome').setEnabled(a.id, !!a.enabled); return { id: a.id, enabled: !!a.enabled }; } },
+  { name: 'chrome_ext_remove', group: 'extensions', description: 'Uninstall a Chrome extension by id.', parameters: obj({ id: str('chrome extension id') }, ['id']),
+    run: async (a) => { await require('../ext/chrome').remove(a.id); return { removed: a.id }; } },
+  { name: 'chrome_ext_install_store', group: 'extensions', description: 'Install a Chrome extension from the Chrome Web Store by extension id or store URL.', parameters: obj({ input: str('extension id or chromewebstore URL') }, ['input']),
+    run: async (a) => require('../ext/chrome').installFromStore(String(a.input || '')) },
+  // ---- knowledge base delete
+  { name: 'kb_delete', group: 'knowledge', description: 'Delete a document from the knowledge base by id (from kb_list).', parameters: obj({ id: str('document id') }, ['id']),
+    run: async (a) => kbMod().remove(String(a.id)) },
+  { name: 'kb_clear', group: 'knowledge', description: 'Delete ALL documents from the knowledge base. Irreversible.', parameters: obj({ confirm: { type: 'boolean', description: 'must be true' } }, ['confirm']),
+    run: async (a) => { if (!a.confirm) throw new Error('pass confirm=true'); return kbMod().clear(); } },
+  // ---- model management (local catalog; never touches passwords)
+  { name: 'models_list', group: 'models', description: 'List local-model catalog entries (id, family, name, engine, downloaded, size).', parameters: obj({}),
+    run: async () => ({ models: require('./local').listModels(store.getSettings().ai.local).map(m => ({ id: m.id, family: m.family, name: m.name || m.display, engine: m.engine, downloaded: !!m.downloaded, size: m.size, path: m.path || '' })) }) },
+  { name: 'model_download', group: 'models', description: 'Start downloading a local model by catalog id (runs in background; progress appears in Settings).', parameters: obj({ id: str('model id from models_list') }, ['id']),
+    run: async (a) => { require('./local').download(a.id, () => {}).catch(() => {}); return { started: a.id }; } },
+  { name: 'model_cancel', group: 'models', description: 'Cancel an in-progress model download.', parameters: obj({ id: str('model id') }, ['id']),
+    run: async (a) => { require('./local').cancelDownload(a.id); return { cancelled: a.id }; } },
+  { name: 'model_delete', group: 'models', description: 'Delete a downloaded local model file by id.', parameters: obj({ id: str('model id') }, ['id']),
+    run: async (a) => { require('./local').deleteModel(a.id); return { deleted: a.id }; } },
+  { name: 'model_select', group: 'models', description: 'Select a downloaded local model as the chat model (sets ai.source=local).', parameters: obj({ id: str('model id') }, ['id']),
+    run: async (a) => {
+      const local = require('./local'); const ent = local.findEntry(a.id); if (!ent) throw new Error('unknown model');
+      const path = local.modelPathOf(ent); if (!path || !require('fs').existsSync(path)) throw new Error('model not downloaded yet');
+      const s = store.patchSettings({ ai: { source: 'local', local: { modelId: a.id, modelPath: path } } });
+      return { selected: a.id, path, source: s.ai.source };
+    } }
+
 ];
 
 // Declared here so every provider sees the same list; executed by agent.js with the page board.

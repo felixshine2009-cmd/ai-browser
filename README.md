@@ -1,15 +1,23 @@
 [**English**](README.md) | [中文](README_zh.md)
 
-# AI Browser v2.0.0
+# AI Browser v2.1.0
 
 A desktop browser (Electron / Chromium) with an AI **Chat mode** built in: dictionary lookup (MDX/MDD), sentence analysis, translation, **agentic web search** with cited answers, a local knowledge base, and GeoGebra plotting. An AI agent can drive the browser itself through a single tool registry.
 
+**Web version (PWA):** https://felixshine2009-cmd.github.io/ai-browser/ — chat via your own API key, GeoGebra, physics; desktop-only features are grayed out. Add to Home Screen on iPhone Safari.
+
 Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on Linux (xvfb + Playwright); things that need a real Mac are listed under *Known limitations*.
+
+## What's new in 2.1.0
+
+* **High-school physics visualizer**: deterministic 2D engine for mechanics, oscillation / waves, electromagnetism, optics, thermal and modern topics; scene JSON is validated before loading (the AI retries on errors); play / pause / step / speed, vectors, trails, live plots; 15 example scenes; agent tools `phys_validate`, `phys_load`, `phys_play`, `phys_pause`, `phys_step`, `phys_reset`, `phys_set_speed`, `phys_state`, `phys_list_examples`, `phys_load_example`.
+* **More agent tools**: bookmarks, downloads, find-in-page, zoom, safe settings changes, Chrome extension management, knowledge-base delete / clear, local model management (never passwords).
+* Incognito page reading uses the private session.
+* Translation-model download failures show a clear reason in the chat UI.
 
 ## What's new in 2.0.0
 
 * **Full GeoGebra Math Apps**, offline: graphing / geometry / 3D / CAS / scientific / suite, on-screen math keyboard (123 / f(x) / ABC / symbols), save/open `.ggb`, PNG export, AI control via `ggb_*` tools.
-* **High-school physics visualizer**: deterministic 2D engine for mechanics, oscillation / waves, electromagnetism, optics, thermal and modern topics; scene JSON validated before loading (AI retries on errors); play / pause / step / speed, vectors, trails, live plots; 15 example scenes; `phys_*` agent tools.
 * **New app icon** (ring + aurora).
 * Removed the greeting decoration glyph.
 
@@ -33,8 +41,6 @@ Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on 
 | File | Description |
 |---|---|
 | `AI-Browser-mac-arm64.zip` | Unsigned `AI Browser.app` (macOS arm64) — includes EmbeddingGemma (knowledge base); the HY-MT translation model downloads on first use |
-| `AI-Browser-win-x64-setup.exe` | Windows installer (x64, NSIS wizard: pick a folder, desktop + Start-menu shortcuts). Unsigned, so SmartScreen may warn — *More info → Run anyway* |
-| `AI-Browser-win-x64-portable.zip` | Windows portable build (x64): unzip anywhere and run `AI Browser.exe` |
 | `install.command` / `install.sh` | Unzip → copy to `/Applications` → `xattr -cr` → launch |
 | `AI-Browser-source.zip` | Source (no `node_modules`, no model files) |
 | `README.md` / `README-zh.md` | English / Chinese README |
@@ -45,7 +51,7 @@ Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on 
 2. Double-click `install.command` (or run `bash install.sh`).
 3. If macOS says the developer cannot be verified: System Settings → Privacy & Security → Open Anyway, or run `xattr -cr "/Applications/AI Browser.app" && open "/Applications/AI Browser.app"`.
 
-**Windows:** run `AI-Browser-win-x64-setup.exe` (or unzip the portable zip and start `AI Browser.exe`). The Windows build bundles EmbeddingGemma only (same as macOS since 1.1.1) (llama.cpp CPU + Vulkan backends); the Hunyuan translation model (HY-MT, ~1.1 GB) is downloaded the first time you translate — from hf-mirror by default, with progress and resume. MLX is Apple-only and is hidden there; revealing a saved password asks for Windows Hello (or your PIN / password); shortcuts use Ctrl instead of ⌘. It was built on Linux and hasn't been run on real Windows yet — please report anything odd.
+**Windows:** paused — no Windows build since v1.1.1 (last Windows assets: [v1.1.1](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/v1.1.1)). Windows builds will return in a later release.
 
 ## First run
 
@@ -74,7 +80,7 @@ Without a configured model, asking gives a friendly error — the app does not c
 
 ## Extensions
 
-* **Feature extensions** (`aib-feature/1`, see [`docs/EXTENSION_STANDARD.md`](docs/EXTENSION_STANDARD.md)): Dictionary and GeoGebra are pre-installed; extensions can declare agent tools in `manifest.contributes.tools`.
+* **Feature extensions** (`aib-feature/1`, see [`docs/EXTENSION_STANDARD.md`](docs/EXTENSION_STANDARD.md)): Dictionary, GeoGebra and Physics are pre-installed; extensions can declare agent tools in `manifest.contributes.tools`.
 * **Chrome extensions** (MV3): installed from the Chrome Web Store inside the browser. Coverage is limited by Electron's extension API support (content scripts, service workers and `chrome.storage` are tested; toolbar popups are limited).
 * GeoGebra is bundled for **non-commercial** use under the [GeoGebra license](https://www.geogebra.org/license).
 
@@ -102,11 +108,12 @@ xvfb-run -a node test/run-all.js 16       # one suite, e.g. passwords + print
 4. Search engines may show captchas to scripted requests; the fallback chain and relevance filter mitigate this.
 5. `mlx-lm` is not bundled (`pip3 install mlx-lm`), or use oMLX through *Local frameworks*.
 
-## Coming in v2
+## Roadmap
 
-* Full GeoGebra (all apps, web math keyboard, offline bundle) driven by the agent.
-* A 2D physics engine so the AI can visualise solution steps (mechanics, waves, E&M, optics, thermal, modern physics).
-* English GitHub Wiki.
+* **Web version (PWA)** is live on GitHub Pages — next batch adds WebGPU local models (WebLLM / transformers.js).
+* **v3**: first-install onboarding setup screen.
+* Windows builds return in a later release.
+* English GitHub Wiki (source in `docs/wiki`).
 * v3 idea: the AI edits the browser's own code to add features.
 
 License: MIT. Author: Felix.

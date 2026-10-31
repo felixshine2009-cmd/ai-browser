@@ -219,24 +219,32 @@ async function serp(query, opts = {}) {
 
 function siteOf(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } }
 
-async function readPage(url, { maxChars = 5000, timeoutMs = 9000 } = {}) {
+async function readPage(url, { maxChars = 5000, timeoutMs = 9000, partition } = {}) {
   const { JSDOM, VirtualConsole } = require('jsdom');
   const { Readability } = require('@mozilla/readability');
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), timeoutMs);
-  try {
-    const res = await doFetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8', Accept: 'text/html,*/*' }, signal: ac.signal, redirect: 'follow' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const ct = res.headers.get('content-type') || '';
-    if (!/html|text|xml/i.test(ct)) throw new Error('unsupported type ' + ct);
-    const html = (await decodeBody(res)).slice(0, 2_000_000);
-    const vc = new VirtualConsole();
-    const dom = new JSDOM(html, { url: res.url || url, virtualConsole: vc });
-    const doc = dom.window.document;
-    const art = new Readability(doc).parse();
-    let text = (art && art.textContent || doc.body?.textContent || '').replace(/\s+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/[ \t]+/g, ' ').trim();
-    return { url, title: (art && art.title) || doc.title || url, text: text.slice(0, maxChars), site: siteOf(url) };
-  } finally { clearTimeout(t); }
+  // Incognito: load through the private partition (cookies / HSTS / cache stay out of the shared jar).
+  // Non-private: keep the fast net.fetch path.
+  let html, finalUrl = url;
+  if (partition) {
+    const pg = await loadHidden(url, timeoutMs, partition);
+    html = (pg.html || '').slice(0, 2_000_000); finalUrl = pg.href || url;
+  } else {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), timeoutMs);
+    try {
+      const res = await doFetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8', Accept: 'text/html,*/*' }, signal: ac.signal, redirect: 'follow' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const ct = res.headers.get('content-type') || '';
+      if (!/html|text|xml/i.test(ct)) throw new Error('unsupported type ' + ct);
+      html = (await decodeBody(res)).slice(0, 2_000_000); finalUrl = res.url || url;
+    } finally { clearTimeout(t); }
+  }
+  const vc = new VirtualConsole();
+  const dom = new JSDOM(html, { url: finalUrl, virtualConsole: vc });
+  const doc = dom.window.document;
+  const art = new Readability(doc).parse();
+  let text = (art && art.textContent || doc.body?.textContent || '').replace(/\s+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/[ \t]+/g, ' ').trim();
+  return { url: finalUrl, title: (art && art.title) || doc.title || url, text: text.slice(0, maxChars), site: siteOf(finalUrl) };
 }
 
 module.exports = { serp, readPage, extractSerp, siteOf, queryTerms, isRelevant, relevanceScore, engineUrl, searchOnce };
