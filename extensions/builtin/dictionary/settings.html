@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="aibrowser://static/shared.css">
+<style>html,body{width:100%;height:auto;overflow:auto;background:transparent}.row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:.5px solid var(--separator-light)}
+.row .nm{flex:1;min-width:0}.row .nm b{font-weight:500}.row .nm small{display:block;color:var(--text-tertiary);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list{border:.5px solid var(--separator);border-radius:8px;margin:10px 0}.tg{width:36px;height:22px;border-radius:11px;background:#3f3f46;position:relative;cursor:pointer}.tg.on{background:var(--success)}
+.tg::after{content:"";position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:2px;left:2px}.tg.on::after{left:auto;right:2px}
+button.s{padding:3px 9px;border-radius:6px;background:var(--bg-input);border:.5px solid var(--separator);color:var(--text-primary);cursor:pointer}</style></head>
+<body style="padding:0"><div id="hint" style="color:var(--text-secondary);font-size:12px"></div>
+<div id="list" class="list"></div><button class="btn-primary" id="add" style="cursor:pointer"></button><div id="msg" style="margin-top:8px;font-size:12px;color:var(--text-secondary)"></div>
+<script src="aibext://aib.dictionary/__sdk.js"></script>
+<script>
+const S={zh:{hint:'导入 .mdx（同目录下同名 .mdd 自动加载）。可启用/停用与排序；顺序即查词标签页顺序。',add:'添加词典 (.mdx)…',empty:'尚未添加词典。',err:'添加失败：',ok:'已添加：'},
+en:{hint:'Import .mdx files (a same-named .mdd in the folder is loaded automatically). Order = tab order.',add:'Add dictionary (.mdx)…',empty:'No dictionaries yet.',err:'Failed: ',ok:'Added: '}};
+let L='zh';const $=id=>document.getElementById(id);
+async function render(){const l=await aibExt.call('list');const el=$('list');el.innerHTML='';if(!l.length){el.innerHTML='<div class="row" style="color:var(--text-tertiary)">'+S[L].empty+'</div>';}
+l.forEach((d,i)=>{const r=document.createElement('div');r.className='row';r.dataset.id=d.id;
+r.innerHTML='<div class="nm"><b></b><small></small></div><button class="s up">↑</button><button class="s dn">↓</button><div class="tg"></div><button class="s rm">✕</button>';
+r.querySelector('b').textContent=d.name;r.querySelector('small').textContent=d.mdx+(d.mdd&&d.mdd.length?'  + '+d.mdd.length+' mdd':'');
+const tg=r.querySelector('.tg');if(d.enabled!==false)tg.classList.add('on');
+tg.onclick=async()=>{await aibExt.call('setEnabled',{id:d.id,enabled:d.enabled===false});render()};
+r.querySelector('.up').onclick=async()=>{await aibExt.call('move',{id:d.id,delta:-1});render()};
+r.querySelector('.dn').onclick=async()=>{await aibExt.call('move',{id:d.id,delta:1});render()};
+r.querySelector('.rm').onclick=async()=>{await aibExt.call('remove',{id:d.id});render()};el.appendChild(r)})}
+aibExt.ready.then(info=>{L=info.lang==='en'?'en':'zh';$('hint').textContent=S[L].hint;$('add').textContent=S[L].add;render()});
+$('add').onclick=async()=>{try{const r=await aibExt.call('pickAndAdd');$('msg').textContent=r&&r.added&&r.added.length?S[L].ok+r.added.join(', '):(r&&r.errors&&r.errors.length?S[L].err+r.errors.join('; '):'');render()}catch(e){$('msg').textContent=S[L].err+e.message}};
+</script></body></html>

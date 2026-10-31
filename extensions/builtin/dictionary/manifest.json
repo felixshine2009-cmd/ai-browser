@@ -1,0 +1,22 @@
+{
+  "standard": "aib-feature/1",
+  "id": "aib.dictionary",
+  "name": "词典",
+  "version": "1.0.0",
+  "description": "支持 MDX/MDD 词典；多词典、划词查词、释义与例句。",
+  "update_url": "https://example.invalid/aib/aib.dictionary/update.json",
+  "permissions": ["host.dictionary"],
+  "entry": "main.js",
+  "i18n": {
+    "zh": { "name": "词典", "description": "支持 MDX/MDD 词典；划词查词、释义与例句。" },
+    "en": { "name": "Dictionary", "description": "MDX/MDD dictionaries; lookups, definitions, and examples." }
+  },
+  "contributes": {
+    "inputHandlers": [
+      { "id": "lookup", "types": ["word"], "priority": 100 }
+    ],
+    "tools": [],
+    "settingsPage": "settings.html",
+    "panels": []
+  }
+}

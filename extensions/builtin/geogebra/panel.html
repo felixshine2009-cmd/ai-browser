@@ -1,0 +1,27 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>html,body{margin:0;height:100%;background:#0b1416;overflow:hidden}#ggb{width:100%;height:100%}#err{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:#a1a1aa;font:13px sans-serif;text-align:center;padding:24px}</style>
+<script src="ggb/deployggb.js"></script></head><body>
+<div id="ggb"></div><div id="err"></div>
+<script>
+var applet=null, readyRes, readyRej; var ready=new Promise(function(a,b){readyRes=a;readyRej=b});
+function size(){return {w:Math.max(200,innerWidth),h:Math.max(200,innerHeight)}}
+function init(){
+  var s=size();
+  var params={appName:'graphing',width:s.w,height:s.h,showToolBar:false,showAlgebraInput:false,showMenuBar:false,showResetIcon:false,enableRightClick:false,
+    enableShiftDragZoom:true,useBrowserForJS:true,borderColor:'#0b1416',showFullscreenButton:false,perspective:'G',showAlgebraView:false,language:'en',scaleContainerClass:'',
+    appletOnLoad:function(api){applet=api;try{api.setCoordSystem(-8,8,-5,5)}catch(e){}readyRes(api);try{parent.postMessage({aibPanelEvent:'ready'},'*')}catch(e){}}};
+  var a=new GGBApplet(params,true);a.setHTML5Codebase('ggb/HTML5/5.0/web/');a.inject('ggb');
+}
+window.addEventListener('resize',function(){if(applet&&applet.setSize){var s=size();try{applet.setSize(s.w,s.h)}catch(e){}}});
+setTimeout(function(){if(!applet){var e=document.getElementById('err');e.style.display='flex';e.textContent='GeoGebra failed to load';readyRej(new Error('GeoGebra 加载超时'))}},45000);
+var methods={
+  eval:async function(a){var api=await ready;var res=[];(a.commands||[]).forEach(function(c){var ok=false,scripting=/^\s*(Set|Show|Hide|Zoom|Pan|Rename|Delete|Execute|Update|Center|Start|Pause|Run|Select|Deselect|Unlink|Lock)[A-Za-z]*\s*\(/i.test(String(c));try{ok=api.evalCommand(String(c));if(!ok&&scripting)ok=true}catch(e){ok=false}res.push({cmd:c,ok:!!ok})});
+    return {results:res,objects:api.getAllObjectNames(),count:api.getObjectNumber()}},
+  clear:async function(){var api=await ready;api.newConstruction();try{api.setCoordSystem(-8,8,-5,5)}catch(e){}return {ok:true,count:api.getObjectNumber()}},
+  exportPng:async function(){var api=await ready;var b=api.getPNGBase64(1,true,72);window.__lastPng=b;try{parent.postMessage({aibPanelEvent:'png',data:'data:image/png;base64,'+b},'*')}catch(e){}return {ok:true,bytes:Math.floor(b.length*3/4)}},
+  state:async function(){var api=await ready;var names=api.getAllObjectNames();return {objects:names.map(function(n){return {name:n,type:api.getObjectType(n),def:api.getCommandString(n)}})}}
+};
+window.addEventListener('message',function(ev){var m=ev.data;if(ev.source!==parent||!m||!m.aibPanelCall)return;
+  Promise.resolve().then(function(){return methods[m.method]((m.args)||{})}).then(function(r){parent.postMessage({aibPanelReply:m.aibPanelCall,result:r},'*')},function(e){parent.postMessage({aibPanelReply:m.aibPanelCall,error:String(e&&e.message||e)},'*')});});
+init();
+</script></body></html>

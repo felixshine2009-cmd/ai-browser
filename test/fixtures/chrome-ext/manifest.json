@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "Test MV3 Extension",
+  "version": "1.2.3",
+  "description": "content script + service worker test",
+  "permissions": ["storage"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [ { "matches": ["http://127.0.0.1/*", "http://localhost/*"], "js": ["content.js"], "run_at": "document_idle" } ]
+}

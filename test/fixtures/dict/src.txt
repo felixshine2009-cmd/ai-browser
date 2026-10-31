@@ -1,0 +1,12 @@
+abandon
+<head><link rel="stylesheet" type="text/css" href="test.css"/></head><body><span class="hw">abandon</span> <a class="snd" href="sound://beep.wav">▶ uk</a> <img src="logo.png"/> <span class="def">v. 离弃，遗弃；放弃</span> see also <a href="entry://abandonment">abandonment</a></body>
+</>
+abandoned
+@@@LINK=abandon
+</>
+abandonment
+<head><link rel="stylesheet" type="text/css" href="test.css"/></head><body><span class="hw">abandonment</span> <span class="def">n. 放弃，遗弃</span></body>
+</>
+run
+<head><link rel="stylesheet" type="text/css" href="test.css"/></head><body><span class="hw">run</span> <span class="def">v. 跑，奔跑</span></body>
+</>
