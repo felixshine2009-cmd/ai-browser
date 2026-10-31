@@ -44,7 +44,7 @@
         <textarea id="q" rows="3" data-i18n-ph="askPlaceholder" placeholder="Ask…"></textarea>
         <div class="row-actions">
           <button type="button" class="primary" id="btnSend" data-i18n="send">Send</button>
-          <button type="button" class="disabled" data-desktop-only data-i18n="localModels">Local models</button>
+          <button type="button" id="btnLocal" data-i18n="localModels">Local models</button>
         </div>
       </div>
       <div id="tools" class="status"></div>
@@ -83,10 +83,29 @@
     <div class="form-row"><label data-i18n="apiKey">API Key</label><div class="keyrow"><input id="apiKey" name="aib-api-secret" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"><button type="button" id="btnShowKey" aria-label="Show / hide key" data-i18n="show">Show</button></div></div>
     <div class="form-row"><label data-i18n="apiModel">Model</label><input id="apiModel" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <p class="hint" data-i18n="corsHint"></p>
-    <div class="form-row"><label data-i18n="searchEngine">Engine</label>
+    <div class="form-row"><label data-i18n="engineKind">Chat engine</label>
+      <select id="engKind"><option value="api" data-i18n="engineApi">Custom API</option><option value="local" data-i18n="engineLocal">Local WebGPU</option></select>
+      <span id="webgpuBadge" class="hint"></span>
+    </div>
+    <div id="localBlock" class="form-row" style="display:none">
+      <label data-i18n="localModels">Local</label>
+      <select id="localModel"></select>
+      <p class="hint" data-i18n="localHint"></p>
+      <p id="localWarn" class="hint warn" style="display:none"></p>
+      <div class="row-actions">
+        <button type="button" id="btnLoadLocal" data-i18n="localLoad">Load</button>
+        <button type="button" id="btnUnloadLocal" data-i18n="localUnload">Unload</button>
+      </div>
+      <div id="localProg" class="status" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
+      <div id="localCache" class="hint"></div>
+    </div>
+    <div class="form-row"><label data-i18n="searchEngine">Search</label>
       <select id="engine"><option value="baidu">Baidu</option><option value="bing">Bing</option><option value="google">Google</option><option value="custom">Custom</option></select>
     </div>
     <div class="form-row"><label>Custom URL (%s)</label><input id="customEng"></div>
+    <div class="form-row"><label data-i18n="kbEmbed">KB</label>
+      <select id="kbEmbed"><option value="text" data-i18n="kbEmbedText">Text</option><option value="vector" data-i18n="kbEmbedVector">Vector (EmbeddingGemma)</option></select>
+    </div>
     <div class="row-actions">
       <button type="button" class="primary" id="btnSave" data-i18n="save">Save</button>
       <button type="button" id="btnTest" data-i18n="testConn">Test</button>
