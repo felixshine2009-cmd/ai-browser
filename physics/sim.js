@@ -1,0 +1,229 @@
+// Deterministic 2D physics simulator for Chinese high-school topics.
+// Scene JSON is validated by schema.js (panel loads both). Pure functions; no DOM.
+(function (root) {
+  'use strict';
+  const G = 9.8;
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function mag(v) { return Math.hypot(v.x || 0, v.y || 0); }
+  function norm(v) { const m = mag(v) || 1; return { x: (v.x || 0) / m, y: (v.y || 0) / m }; }
+  function add(a, b) { return { x: (a.x || 0) + (b.x || 0), y: (a.y || 0) + (b.y || 0) }; }
+  function scale(v, s) { return { x: (v.x || 0) * s, y: (v.y || 0) * s }; }
+  function sub(a, b) { return { x: (a.x || 0) - (b.x || 0), y: (a.y || 0) - (b.y || 0) }; }
+  function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
+
+  function validate(scene) {
+    const err = [];
+    if (!scene || typeof scene !== 'object') return { ok: false, errors: ['scene must be an object'] };
+    if (!scene.topic) err.push('missing topic');
+    if (!Array.isArray(scene.bodies)) err.push('bodies[] required');
+    else scene.bodies.forEach((b, i) => {
+      if (!b.id) err.push('bodies[' + i + '].id required');
+      if (b.mass != null && !(b.mass > 0)) err.push('bodies[' + i + '].mass must be > 0');
+    });
+    if (scene.dt != null && !(scene.dt > 0 && scene.dt <= 0.05)) err.push('dt must be in (0, 0.05]');
+    return { ok: !err.length, errors: err };
+  }
+
+  function defaults(scene) {
+    const s = clone(scene);
+    s.dt = s.dt || 1 / 120;
+    s.g = s.g == null ? G : s.g;
+    s.t = s.t || 0;
+    s.world = Object.assign({ xmin: -10, xmax: 10, ymin: -2, ymax: 12, air: 0 }, s.world || {});
+    s.bodies = (s.bodies || []).map(b => Object.assign({
+      x: 0, y: 0, vx: 0, vy: 0, ax: 0, ay: 0, mass: 1, radius: 0.25, q: 0,
+      color: '#3d9b6e', label: b.id, trail: [], fixed: false, shape: 'circle'
+    }, b));
+    s.forces = s.forces || [];
+    s.springs = s.springs || [];
+    s.fields = s.fields || []; // {type:'E'|'B', Ex,Ey,Bz, region?}
+    s.walls = s.walls || [];   // {x1,y1,x2,y2, bounce:1}
+    s.optics = s.optics || null; // {rays:[{x,y,angle,n}], mirrors:[], lenses:[]}
+    s.plots = s.plots || [];   // {id, of:'body.vx', history:[]}
+    s.meta = Object.assign({ title: s.topic || 'scene', zh: s.zh || s.topic || '' }, s.meta || {});
+    s.history = s.history || {};
+    return s;
+  }
+
+  function forceOn(s, b) {
+    let fx = 0, fy = 0;
+    if (!b.fixed && s.g) fy -= b.mass * s.g * (b.gravity == null ? 1 : b.gravity);
+    // drag
+    const air = s.world.air || 0;
+    if (air) { fx -= air * b.vx; fy -= air * b.vy; }
+    // springs
+    for (const sp of s.springs) {
+      if (sp.a !== b.id && sp.b !== b.id) continue;
+      const other = s.bodies.find(x => x.id === (sp.a === b.id ? sp.b : sp.a));
+      if (!other) continue;
+      const d = sub(other, b); const L = mag(d) || 1e-9; const n = scale(d, 1 / L);
+      const rest = sp.rest == null ? 1 : sp.rest; const k = sp.k == null ? 20 : sp.k;
+      const f = k * (L - rest);
+      fx += n.x * f; fy += n.y * f;
+      if (sp.damping) { const rel = sub({ x: other.vx, y: other.vy }, { x: b.vx, y: b.vy }); fx += sp.damping * rel.x; fy += sp.damping * rel.y; }
+    }
+    // EM fields on charged bodies
+    if (b.q) {
+      for (const f of s.fields) {
+        if (f.type === 'E') { fx += b.q * (f.Ex || 0); fy += b.q * (f.Ey || 0); }
+        if (f.type === 'B') { // F = q v × B (Bz out of page): Fx=q vy Bz, Fy=-q vx Bz
+          const Bz = f.Bz || 0; fx += b.q * b.vy * Bz; fy += -b.q * b.vx * Bz;
+        }
+      }
+    }
+    // custom force scripts (simple named)
+    for (const f of s.forces) {
+      if (f.body && f.body !== b.id) continue;
+      if (f.type === 'const') { fx += f.fx || 0; fy += f.fy || 0; }
+      if (f.type === 'gravity_point') {
+        const o = s.bodies.find(x => x.id === f.center); if (!o) continue;
+        const d = sub(o, b); const L2 = Math.max(1e-6, d.x * d.x + d.y * d.y); const L = Math.sqrt(L2);
+        const F = (f.G || 1) * o.mass * b.mass / L2; fx += F * d.x / L; fy += F * d.y / L;
+      }
+    }
+    return { x: fx, y: fy };
+  }
+
+  function collideWalls(s, b) {
+    const w = s.world;
+    const r = b.radius || 0;
+    if (b.x - r < w.xmin) { b.x = w.xmin + r; b.vx = Math.abs(b.vx) * (b.bounce == null ? 0.0 : b.bounce); }
+    if (b.x + r > w.xmax) { b.x = w.xmax - r; b.vx = -Math.abs(b.vx) * (b.bounce == null ? 0.0 : b.bounce); }
+    if (b.y - r < w.ymin) { b.y = w.ymin + r; b.vy = Math.abs(b.vy) * (b.bounce == null ? 0.0 : b.bounce); }
+    if (b.y + r > w.ymax) { b.y = w.ymax - r; b.vy = -Math.abs(b.vy) * (b.bounce == null ? 0.0 : b.bounce); }
+    for (const wall of s.walls) {
+      // axis-aligned segments only for v1 of engine
+      if (Math.abs(wall.y1 - wall.y2) < 1e-9) { // horizontal
+        const y = wall.y1, x1 = Math.min(wall.x1, wall.x2), x2 = Math.max(wall.x1, wall.x2);
+        if (b.x >= x1 && b.x <= x2 && Math.abs(b.y - y) < r + 0.01) {
+          b.y = y + (b.y >= y ? r : -r); b.vy *= -(wall.bounce == null ? 0.9 : wall.bounce);
+        }
+      }
+      if (Math.abs(wall.x1 - wall.x2) < 1e-9) {
+        const x = wall.x1, y1 = Math.min(wall.y1, wall.y2), y2 = Math.max(wall.y1, wall.y2);
+        if (b.y >= y1 && b.y <= y2 && Math.abs(b.x - x) < r + 0.01) {
+          b.x = x + (b.x >= x ? r : -r); b.vx *= -(wall.bounce == null ? 0.9 : wall.bounce);
+        }
+      }
+    }
+  }
+
+  function collideBodies(s) {
+    for (let i = 0; i < s.bodies.length; i++) for (let j = i + 1; j < s.bodies.length; j++) {
+      const a = s.bodies[i], b = s.bodies[j];
+      if (a.fixed && b.fixed) continue;
+      const d = sub(b, a); const dist = mag(d); const min = (a.radius || 0) + (b.radius || 0);
+      if (dist >= min || dist < 1e-9) continue;
+      const n = scale(d, 1 / dist); const overlap = min - dist;
+      if (!a.fixed && !b.fixed) { a.x -= n.x * overlap / 2; a.y -= n.y * overlap / 2; b.x += n.x * overlap / 2; b.y += n.y * overlap / 2; }
+      else if (a.fixed) { b.x += n.x * overlap; b.y += n.y * overlap; }
+      else { a.x -= n.x * overlap; a.y -= n.y * overlap; }
+      // 1D elastic along normal
+      const rv = sub({ x: b.vx, y: b.vy }, { x: a.vx, y: a.vy });
+      const vn = rv.x * n.x + rv.y * n.y; if (vn > 0) continue;
+      const e = (a.e != null ? a.e : 1) * (b.e != null ? b.e : 1);
+      const jimp = -(1 + e) * vn / ((a.fixed ? 0 : 1 / a.mass) + (b.fixed ? 0 : 1 / b.mass));
+      if (!a.fixed) { a.vx -= jimp / a.mass * n.x; a.vy -= jimp / a.mass * n.y; }
+      if (!b.fixed) { b.vx += jimp / b.mass * n.x; b.vy += jimp / b.mass * n.y; }
+    }
+  }
+
+  function stepOptics(s) {
+    if (!s.optics || !s.optics.rays) return;
+    // Ray marching: reflection (mirrors) + Snell's law (interfaces)
+    s.optics.paths = (s.optics.rays || []).map(ray => {
+      const path = [{ x: ray.x, y: ray.y }];
+      let x = ray.x, y = ray.y, ang = ray.angle || 0, n = ray.n || 1;
+      for (let k = 0; k < 40; k++) {
+        const dx = Math.cos(ang) * 0.15, dy = Math.sin(ang) * 0.15;
+        x += dx; y += dy;
+        let hit = false;
+        for (const m of (s.optics.mirrors || [])) {
+          // horizontal/vertical mirrors
+          if (Math.abs(m.y1 - m.y2) < 1e-9 && Math.abs(y - m.y1) < 0.08 && x >= Math.min(m.x1, m.x2) && x <= Math.max(m.x1, m.x2)) {
+            ang = -ang; y = m.y1; hit = true; break;
+          }
+          if (Math.abs(m.x1 - m.x2) < 1e-9 && Math.abs(x - m.x1) < 0.08 && y >= Math.min(m.y1, m.y2) && y <= Math.max(m.y1, m.y2)) {
+            ang = Math.PI - ang; x = m.x1; hit = true; break;
+          }
+        }
+        for (const L of (s.optics.lenses || [])) {
+          // thin lens on vertical line x=L.x : 1/u+1/v=1/f approximated by angle bend
+          if (Math.abs(x - L.x) < 0.1 && y > L.y - L.h / 2 && y < L.y + L.h / 2) {
+            const f = L.f || 2; const h = y - L.y; ang = Math.atan(Math.tan(ang) - h / f); x = L.x + 0.11; hit = true; break;
+          }
+        }
+        for (const iface of (s.optics.interfaces || [])) {
+          // vertical interface at x with n1->n2
+          if (Math.abs(x - iface.x) < 0.08) {
+            const n2 = iface.n2 || 1.5; const s1 = Math.sin(ang), c1 = Math.cos(ang);
+            const s2 = (n / n2) * s1;
+            if (Math.abs(s2) > 1) { ang = Math.PI - ang; } // TIR
+            else { ang = Math.asin(s2) * Math.sign(c1 || 1); if (c1 < 0) ang = Math.PI - ang; n = n2; }
+            x = iface.x + 0.1 * Math.sign(Math.cos(ray.angle) || 1); hit = true; break;
+          }
+        }
+        path.push({ x, y });
+        if (x < s.world.xmin - 1 || x > s.world.xmax + 1 || y < s.world.ymin - 1 || y > s.world.ymax + 1) break;
+        if (hit) { /* continue */ }
+      }
+      return path;
+    });
+  }
+
+  function record(s) {
+    for (const b of s.bodies) {
+      if (!b.trail) b.trail = [];
+      b.trail.push({ x: b.x, y: b.y }); if (b.trail.length > 400) b.trail.shift();
+    }
+    for (const p of s.plots) {
+      if (!p.history) p.history = [];
+      let v = 0; const m = /^(\w+)\.(\w+)$/.exec(p.of || '');
+      if (m) { const b = s.bodies.find(x => x.id === m[1]); if (b) v = b[m[2]]; }
+      else if (p.of === 't') v = s.t;
+      p.history.push({ t: s.t, v }); if (p.history.length > 600) p.history.shift();
+    }
+  }
+
+  function step(scene, n) {
+    const s = scene; const steps = n == null ? 1 : n;
+    for (let k = 0; k < steps; k++) {
+      for (const b of s.bodies) {
+        if (b.fixed) { b.vx = b.vy = 0; continue; }
+        const f = forceOn(s, b); b.ax = f.x / b.mass; b.ay = f.y / b.mass;
+        // semi-implicit Euler (deterministic)
+        b.vx += b.ax * s.dt; b.vy += b.ay * s.dt;
+        b.x += b.vx * s.dt; b.y += b.vy * s.dt;
+        collideWalls(s, b);
+      }
+      collideBodies(s);
+      // circuits (simple RC / AC source readout)
+      if (s.circuit) {
+        const c = s.circuit;
+        c.t = (c.t || 0) + s.dt;
+        if (c.type === 'RC') {
+          const R = c.R || 1000, C = c.C || 1e-3, V = c.V || 5;
+          c.Vc = c.Vc || 0;
+          const I = (V - c.Vc) / R; c.Vc += I * s.dt / C; c.I = I;
+        } else if (c.type === 'AC') {
+          const V0 = c.V0 || 5, w = c.w || 2 * Math.PI * 50;
+          c.V = V0 * Math.sin(w * c.t); c.I = c.V / (c.R || 100);
+        }
+      }
+      s.t += s.dt;
+      if ((k % 2) === 0) record(s);
+    }
+    stepOptics(s);
+    return s;
+  }
+
+  function vectors(s) {
+    // for renderer: per-body force / velocity arrows
+    return s.bodies.map(b => {
+      const f = forceOn(s, b);
+      return { id: b.id, x: b.x, y: b.y, v: { x: b.vx, y: b.vy }, f, q: b.q };
+    });
+  }
+
+  root.PhysSim = { validate, defaults, step, vectors, clone, G };
+})(typeof window !== 'undefined' ? window : globalThis);

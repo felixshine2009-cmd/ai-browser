@@ -1,0 +1,42 @@
+{
+  "topic": "em.charge_E",
+  "zh": "电场中的带电粒子",
+  "meta": {
+    "title": "Charge in uniform E field",
+    "zh": "匀强电场中的带电粒子"
+  },
+  "world": {
+    "xmin": -1,
+    "xmax": 10,
+    "ymin": -4,
+    "ymax": 4
+  },
+  "g": 0,
+  "bodies": [
+    {
+      "id": "q",
+      "x": 0,
+      "y": 0,
+      "vx": 4,
+      "vy": 0,
+      "mass": 1,
+      "q": 1,
+      "radius": 0.2,
+      "color": "#22d3ee",
+      "label": "+q",
+      "gravity": 0
+    }
+  ],
+  "fields": [
+    {
+      "type": "E",
+      "Ey": -2
+    }
+  ],
+  "plots": [
+    {
+      "id": "y",
+      "of": "q.y"
+    }
+  ]
+}
