@@ -25,7 +25,6 @@
 
 | 文件 | 说明 |
 |---|---|
-| `AI-Browser-mac-arm64.dmg` | 磁盘映像，打开后把应用拖进“应用程序”即可。在 Linux 上制作，还没有在真实 Mac 上挂载验证 — 打不开请用 zip |
 | `AI-Browser-mac-arm64.zip` | 未签名的 `AI Browser.app`（macOS arm64）— 已含 EmbeddingGemma（知识库）；HY-MT 翻译模型在第一次使用时下载 |
 | `AI-Browser-win-x64-setup.exe` | Windows 安装程序（x64，NSIS 向导：选目录、桌面 / 开始菜单快捷方式）。未签名，SmartScreen 可能提示 — 点“更多信息 → 仍要运行” |
 | `AI-Browser-win-x64-portable.zip` | Windows 便携版（x64）：解压到任意位置，运行 `AI Browser.exe` |
@@ -33,9 +32,7 @@
 | `AI-Browser-source.zip` | 源码（不含 `node_modules` 和模型文件） |
 | `README.md` / `README-zh.md` | 英文 / 中文说明 |
 
-**macOS 最简单：** 打开 `.dmg`，把 *AI Browser* 拖到 *应用程序*。
-
-**macOS 用脚本：**
+**macOS：**
 
 1. 把 `AI-Browser-mac-arm64.zip` 和 `install.command` 放在同一文件夹。
 2. 双击 `install.command`（或运行 `bash install.sh`）。
