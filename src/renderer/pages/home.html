@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src aibrowser:; style-src aibrowser: 'unsafe-inline'; img-src * data: blob:; font-src aibrowser: data:; connect-src aibrowser:; frame-src aibdict: aibext: aibrowser:; media-src aibdict: aibext:">
+<title>AI 浏览器</title>
+<link rel="stylesheet" href="aibrowser://static/shared.css"/>
+<link rel="stylesheet" href="aibrowser://static/app.css"/>
+</head>
+<body class="page">
+<div class="page-root"><div class="home-ai">
+  <div class="home-greet">
+    <svg class="spark-inline" viewBox="0 0 100 100" width="22" height="22" aria-hidden="true"><defs><linearGradient id="sg" gradientUnits="userSpaceOnUse" x1="14" y1="10" x2="86" y2="92"><stop offset="0" stop-color="#fde047"/><stop offset="0.28" stop-color="#fb923c"/><stop offset="0.62" stop-color="#22d3ee"/><stop offset="1" stop-color="#2563eb"/></linearGradient></defs><path d="M50 2 C54 30 70 46 98 50 C70 54 54 70 50 98 C46 70 30 54 2 50 C30 46 46 30 50 2 Z" fill="url(#sg)"/></svg>
+    <h1 id="greet"></h1>
+  </div>
+  <div class="home-search">
+    <form class="home-search-box" id="form">
+      <textarea id="q" rows="1" autofocus spellcheck="false" data-i18n-placeholder="home.placeholder"></textarea>
+      <button type="submit" class="go" id="go"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 12V4M4.5 7.5L8 4l3.5 3.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></button>
+    </form>
+  </div>
+</div></div>
+<script src="aibrowser://static/i18n.js"></script>
+<script src="aibrowser://static/home.js"></script>
+</body></html>

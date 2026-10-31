@@ -1,0 +1,338 @@
+'use strict';
+const path = require('path');
+const fs = require('fs');
+const { pathToFileURL } = require('url');
+const { app, BrowserWindow, protocol, ipcMain, session, dialog, Menu, shell, webContents, net } = require('electron');
+
+if (process.env.AIB_USER_DATA) app.setPath('userData', process.env.AIB_USER_DATA);
+
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'aibrowser', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
+  { scheme: 'aibdict', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
+  { scheme: 'aibext', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
+]);
+
+const store = require('./store');
+const tabsMod = require('./tabs');
+const chat = require('./ai/chat');
+const llm = require('./ai/llm');
+const features = require('./ext/features');
+const chromeExt = require('./ext/chrome');
+const dict = require('./dict/mdict');
+
+const RENDERER = path.join(__dirname, '..', 'renderer');
+const PAGES = new Set(['chrome', 'home', 'chat', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'menu', 'find', 'lookup']);
+const MIME = { html: 'text/html; charset=utf-8', js: 'application/javascript', css: 'text/css', json: 'application/json', svg: 'image/svg+xml', png: 'image/png', woff2: 'font/woff2', wasm: 'application/wasm', mjs: 'application/javascript', gif: 'image/gif', jpg: 'image/jpeg', jpeg: 'image/jpeg', ico: 'image/x-icon', ttf: 'font/ttf', woff: 'font/woff', txt: 'text/plain', map: 'application/json', xml: 'text/xml', mp3: 'audio/mpeg', ogg: 'audio/ogg' };
+const mimeOf = f => MIME[path.extname(f).slice(1).toLowerCase()] || 'application/octet-stream';
+const fileResponse = (f) => new Response(fs.readFileSync(f), { headers: { 'Content-Type': mimeOf(f), 'Access-Control-Allow-Origin': '*' } });
+
+// ------------------------------------------------------------ protocols
+function registerProtocols() {
+  protocol.handle('aibrowser', (req) => {
+    const u = new URL(req.url);
+    let f = null;
+    if (u.hostname === 'static') {
+      const rel = decodeURIComponent(u.pathname).replace(/^\/+/, '');
+      const full = path.resolve(RENDERER, 'static', rel);
+      if (full.startsWith(path.join(RENDERER, 'static') + path.sep) && fs.existsSync(full)) f = full;
+    } else if (PAGES.has(u.hostname)) f = path.join(RENDERER, 'pages', u.hostname + '.html');
+    if (!f) return new Response('Not found', { status: 404 });
+    return fileResponse(f);
+  });
+  protocol.handle('aibdict', (req) => dict.handleProtocol(req));
+  protocol.handle('aibext', (req) => {
+    const u = new URL(req.url);
+    const id = u.hostname;
+    if (u.pathname === '/__sdk.js') return new Response(SDK_JS(id), { headers: { 'Content-Type': 'application/javascript' } });
+    const f = features.fileFor(id, u.pathname);
+    if (!f) return new Response('Not found', { status: 404 });
+    return fileResponse(f);
+  });
+}
+const SDK_JS = (id) => `(function(){var EXT=${JSON.stringify(id)},n=0,pend={},rr;
+window.aibExt={ext:EXT,ready:new Promise(function(r){rr=r}),call:function(name,args){return new Promise(function(res,rej){var i=++n;pend[i]={res:res,rej:rej};parent.postMessage({aibExtCall:i,ext:EXT,name:name,args:args||{}},'*')})}};
+window.addEventListener('message',function(e){var m=e.data;if(e.source!==parent||!m)return;
+ if(m.aibExtReply&&pend[m.aibExtReply]){var p=pend[m.aibExtReply];delete pend[m.aibExtReply];m.error?p.rej(new Error(m.error)):p.res(m.result)}
+ if(m.aibExtInit)rr(m.info)});
+parent.postMessage({aibExtHello:true,ext:EXT},'*');})();`;
+
+// ------------------------------------------------------------ helpers
+function pick(opts) {
+  // test hook: a JSON file listing the paths to "pick"
+  const tf = process.env.AIB_TEST_PICK_FILE;
+  if (tf && fs.existsSync(tf)) { try { return JSON.parse(fs.readFileSync(tf, 'utf8')); } catch {} }
+  const r = dialog.showOpenDialogSync(tabsMod.getWin() || undefined, opts);
+  return r || [];
+}
+
+function broadcast(channel, payload) {
+  for (const wc of webContents.getAllWebContents()) {
+    try { if (!wc.isDestroyed() && (wc.getURL() || '').startsWith('aibrowser://')) wc.send(channel, payload); } catch {}
+  }
+}
+
+// ------------------------------------------------------------ downloads
+const dlItems = new Map();
+function setupDownloads() {
+  session.defaultSession.on('will-download', (e, item) => {
+    const dir = process.env.AIB_DOWNLOAD_DIR || app.getPath('downloads');
+    fs.mkdirSync(dir, { recursive: true });
+    let name = item.getFilename() || 'download';
+    let dest = path.join(dir, name);
+    for (let i = 1; fs.existsSync(dest); i++) { const ext = path.extname(name); dest = path.join(dir, path.basename(name, ext) + ` (${i})` + ext); }
+    item.setSavePath(dest);
+    const rec = { id: 'dl' + Date.now() + Math.random().toString(36).slice(2, 6), url: item.getURL(), filename: path.basename(dest), path: dest, received: 0, total: item.getTotalBytes(), state: 'progressing', time: Date.now() };
+    dlItems.set(rec.id, item);
+    store.downloads().unshift(rec);
+    const push = () => { broadcast('downloads:changed'); };
+    item.on('updated', (ev, st) => { rec.received = item.getReceivedBytes(); rec.total = item.getTotalBytes(); rec.state = st === 'interrupted' ? 'interrupted' : (item.isPaused() ? 'paused' : 'progressing'); push(); });
+    item.once('done', (ev, st) => { if (process.env.AIB_DEBUG_DL) console.log('DLDONE', st, dest, fs.existsSync(dest), item.getSavePath()); rec.state = st; rec.received = item.getReceivedBytes(); dlItems.delete(rec.id); store.saveDownloads(); push(); });
+    push();
+  });
+}
+
+// ------------------------------------------------------------ panel calls (feature-ext tools -> page iframes)
+const panelPending = new Map();
+let panelSeq = 0;
+function callPanel(ctx, extId, panelId, method, args) {
+  return new Promise((resolve, reject) => {
+    const wc = ctx && ctx.wcId != null ? webContents.fromId(ctx.wcId) : null;
+    if (!wc || wc.isDestroyed()) return reject(new Error('没有可用的页面来显示面板'));
+    const reqId = 'p' + (++panelSeq);
+    const t = setTimeout(() => { panelPending.delete(reqId); reject(new Error('面板调用超时')); }, 70000);
+    panelPending.set(reqId, { resolve: (v) => { clearTimeout(t); resolve(v); }, reject: (e) => { clearTimeout(t); reject(e); } });
+    wc.send('panel:call', { reqId, extId, panelId, method, args });
+  });
+}
+
+// ------------------------------------------------------------ IPC
+function handle(channel, fn) {
+  ipcMain.handle(channel, async (e, ...args) => {
+    const url = (e.senderFrame && e.senderFrame.url) || '';
+    if (!url.startsWith('aibrowser://')) throw new Error('forbidden');
+    try { return await fn(e, ...args); } catch (err) { throw new Error(String(err && err.message || err)); }
+  });
+}
+
+const AI_GEN_SYS = {
+  feature: `You write "feature extensions" for the AI Browser (standard aib-feature/1). Reply with ONLY a JSON object: {"summary":"一句话说明","files":{"manifest.json":"<json string>","main.js":"<code>", "panel.html":"<optional>"}}.
+manifest.json fields: {"standard":"aib-feature/1","id":"user.<slug>" (lowercase letters/digits/._-, 3-64 chars),"name":"..","version":"1.0.0","description":"..","update_url":"","permissions":[subset of "storage","net","ai","tabs","panels"],"entry":"main.js","contributes":{"inputHandlers":[{"id":"h1","types":["word"|"sentence"|"article"|"question"|"any"],"priority":10}],"tools":[{"name":"snake_case","description":"..","parameters":{JSON schema}}],"settingsPage":"settings.html"?,"panels":[{"id":"p","title":"..","page":"panel.html","location":"side"}]}}.
+main.js runs in a sandbox (no require/process/DOM). It sets module.exports = {inputHandlers:{h1:async(input,ctx)=>({type:"markdown",text:"..."}|{type:"html",html:"..."}|null)}, tools:{name:async(args,ctx)=>json}, rpc:{name:async(args)=>json}}. The global "aib" offers aib.log, aib.storage.get/set (perm storage), aib.net.fetchText(url) (perm net), aib.ai.complete(prompt) (perm ai), aib.tabs.open(url) (perm tabs).`,
+  chrome: `You write Chrome Manifest V3 extensions. Reply with ONLY a JSON object: {"summary":"一句话说明","files":{"manifest.json":"<json string>","content.js":"<code>"}}. Use content_scripts / action / background service worker as needed. manifest_version must be 3. Keep it small and self-contained.`
+};
+
+function registerIpc() {
+  // settings & AI
+  handle('settings:get', () => store.publicSettings());
+  handle('settings:patch', (e, patch) => { const s = store.patchSettings(patch); broadcast('settings:changed', s); tabsMod.notify(); return s; });
+  handle('ai:presets', () => llm.PRESETS);
+  handle('ai:test', (e, cfg) => llm.testConnection(cfg));
+  handle('engines:list', () => store.ENGINES);
+
+  // tabs / navigation
+  handle('tab:new', () => { tabsMod.createTab(); return true; });
+  handle('tab:close', (e, id) => { tabsMod.closeTab(id); return true; });
+  handle('tab:activate', (e, id) => { tabsMod.activateTab(id); return true; });
+  handle('nav:back', () => { tabsMod.activeTab()?.wc.navigationHistory.goBack(); });
+  handle('nav:forward', () => { tabsMod.activeTab()?.wc.navigationHistory.goForward(); });
+  handle('nav:reload', () => { const t = tabsMod.activeTab(); if (t) { t.loading ? t.wc.stop() : t.wc.reload(); } });
+  handle('nav:submit', (e, text) => tabsMod.submit(text));
+  handle('nav:open', (e, name) => { tabsMod.openInternal(name); });
+  handle('nav:openUrl', (e, url, background) => { tabsMod.createTab(url, { activate: !background }); });
+  handle('mode:set', (e, mode) => { store.patchSettings({ mode: mode === 'search' ? 'search' : 'chat' }); tabsMod.notify(); return mode; });
+  handle('menu:toggle', () => tabsMod.toggleMenu());
+  handle('tabs:state', () => tabsMod.state());
+
+  // bookmarks / history / downloads
+  handle('bm:toggle', () => { const t = tabsMod.activeTab(); if (!t) return false; const u = t.wc.getURL(); if (tabsMod.isInternal(u)) return false; const r = store.toggleBookmark(u, t.wc.getTitle()); tabsMod.notify(); broadcast('bookmarks:changed'); return r; });
+  handle('bm:list', (e, q) => store.listBookmarks(q));
+  handle('bm:remove', (e, url) => { store.removeBookmark(url); tabsMod.notify(); broadcast('bookmarks:changed'); });
+  handle('hist:list', (e, q) => store.listHistory(q));
+  handle('hist:clear', () => { store.clearHistory(); broadcast('history:changed'); });
+  handle('hist:delete', (e, url) => { store.deleteHistory(url); broadcast('history:changed'); });
+  handle('dl:list', () => store.downloads().slice(0, 200));
+  handle('dl:cancel', (e, id) => { const it = dlItems.get(id); if (it) it.cancel(); });
+  handle('dl:open', (e, id) => { const r = store.downloads().find(x => x.id === id); if (r) shell.openPath(r.path); });
+  handle('dl:show', (e, id) => { const r = store.downloads().find(x => x.id === id); if (r) shell.showItemInFolder(r.path); });
+  handle('dl:remove', (e, id) => { const a = store.downloads(); const i = a.findIndex(x => x.id === id); if (i >= 0) a.splice(i, 1); store.saveDownloads(); broadcast('downloads:changed'); });
+  handle('dl:clear', () => { const a = store.downloads(); a.splice(0, a.length); store.saveDownloads(); broadcast('downloads:changed'); });
+
+  // menu actions / find / zoom
+  handle('menu:action', (e, name) => {
+    const t = tabsMod.activeTab();
+    switch (name) {
+      case 'history': case 'downloads': case 'bookmarks': case 'extensions': case 'settings': tabsMod.closeOverlay('menu'); tabsMod.openInternal(name); break;
+      case 'find': tabsMod.closeOverlay('menu'); setTimeout(() => tabsMod.showFind(), 50); break;
+      case 'print': tabsMod.closeOverlay('menu'); if (t) setTimeout(() => t.wc.print(), 50); break;
+      case 'devtools': tabsMod.closeOverlay('menu'); if (t) t.wc.openDevTools({ mode: 'detach' }); break;
+    }
+    return true;
+  });
+  handle('menu:close', () => tabsMod.closeOverlay('menu'));
+  handle('zoom:get', () => tabsMod.zoom(null));
+  handle('zoom:step', (e, dir) => tabsMod.zoom(dir));
+  handle('find:query', (e, text, forward, next) => {
+    const t = tabsMod.activeTab(); if (!t) return;
+    if (!text) { t.wc.stopFindInPage('clearSelection'); return; }
+    t.wc.findInPage(text, { forward: forward !== false, findNext: !!next });
+  });
+  handle('find:close', () => tabsMod.closeOverlay('find'));
+  handle('lookup:run', async (e, word) => {
+    const r = await features.runInputHandlers('word', { kind: 'word', word }, { wcId: e.sender.id });
+    return r ? r.result : null;
+  });
+  handle('lookup:close', () => tabsMod.closeOverlay('lookup'));
+
+  // chat
+  handle('chat:attach', (e, sid) => chat.attach(sid, e.sender.id));
+  handle('chat:cancel', (e, sid) => chat.cancel(sid));
+  handle('chat:rerun', (e, sid, queries) => chat.rerun(sid, queries));
+  handle('chat:aiEntry', async (e, word) => chat.aiEntry(word));
+  handle('panel:reply', (e, reqId, result, error) => { const p = panelPending.get(reqId); if (!p) return; panelPending.delete(reqId); error ? p.reject(new Error(error)) : p.resolve(result); });
+
+  // feature extensions
+  handle('ext:list', () => features.list());
+  handle('ext:setEnabled', (e, id, v) => { features.setEnabled(id, v); broadcast('ext:changed'); return features.list(); });
+  handle('ext:rpc', (e, id, name, args) => features.rpc(id, name, args, { wcId: e.sender.id }));
+  handle('ext:checkUpdate', (e, id, install) => features.checkUpdate(id, install).then(r => { if (install) broadcast('ext:changed'); return r; }));
+  handle('ext:installDir', () => { const p = pick({ properties: ['openDirectory'], title: '选择功能拓展文件夹' }); if (!p[0]) return null; const m = features.installFromDir(p[0]); broadcast('ext:changed'); return m; });
+  handle('ext:installZip', () => { const p = pick({ properties: ['openFile'], filters: [{ name: 'zip', extensions: ['zip'] }] }); if (!p[0]) return null; const m = features.installFromZip(p[0]); broadcast('ext:changed'); return m; });
+  handle('ext:uninstall', (e, id) => { features.uninstall(id); broadcast('ext:changed'); });
+  handle('ext:aiGenerate', async (e, prompt, kind) => {
+    kind = kind === 'chrome' ? 'chrome' : 'feature';
+    const j = await llm.completeJson([{ role: 'system', content: AI_GEN_SYS[kind] }, { role: 'user', content: String(prompt) }], { maxTokens: 4000, temperature: 0.2 });
+    const files = j.files || {};
+    const out = { kind, summary: j.summary || '', files, problems: [] };
+    try {
+      const m = JSON.parse(files['manifest.json'] || '{}');
+      if (kind === 'feature') out.problems = features.validateManifest(m);
+      else if (m.manifest_version !== 3) out.problems.push('manifest_version 必须为 3');
+      out.manifest = m;
+    } catch (err) { out.problems.push('manifest.json 不是有效 JSON'); }
+    return out;
+  });
+  handle('ext:aiInstall', async (e, kind, files) => {
+    for (const k of Object.keys(files)) if (typeof files[k] !== 'string') throw new Error('文件内容无效');
+    if (kind === 'chrome') { const r = await chromeExt.installFiles(files, 'ai'); broadcast('ext:changed'); return r; }
+    const m = features.installFromFiles(files); broadcast('ext:changed'); return m;
+  });
+  // chrome extensions
+  handle('cx:list', () => chromeExt.list());
+  handle('cx:add', async () => {
+    const p = pick({ properties: ['openFile', 'openDirectory'], filters: [{ name: 'Chrome extension', extensions: ['crx', 'zip'] }, { name: 'All', extensions: ['*'] }], title: '选择扩展文件夹 / .crx / .zip' });
+    if (!p[0]) return null;
+    const r = await chromeExt.add(p[0]); broadcast('ext:changed'); return r;
+  });
+  handle('cx:setEnabled', async (e, p, v) => { await chromeExt.setEnabled(p, v); broadcast('ext:changed'); });
+  handle('cx:remove', async (e, p) => { await chromeExt.remove(p); broadcast('ext:changed'); });
+  handle('cx:openUrl', (e, url) => { tabsMod.createTab(url); });
+
+  // local model
+  const local = () => require('./ai/local');
+  handle('lm:list', () => local().listModels(store.getSettings().ai.local));
+  handle('lm:status', () => local().status(store.getSettings().ai.local));
+  handle('lm:download', (e, id) => {
+    local().download(id, store.getSettings().ai.local.hfMirror, (p) => broadcast('lm:progress', p)).then(dest => {
+      if (dest && !store.getSettings().ai.local.modelPath) store.patchSettings({ ai: { local: { modelPath: dest, modelId: id } } });
+      broadcast('lm:progress', { id, done: true }); broadcast('settings:changed', store.publicSettings());
+    }).catch(err => broadcast('lm:progress', { id, error: String(err.message || err) }));
+    return true;
+  });
+  handle('lm:cancel', (e, id) => local().cancelDownload(id));
+  handle('lm:delete', (e, id) => { local().deleteModel(id); broadcast('lm:progress', { id, deleted: true }); });
+  handle('lm:pick', () => { const p = pick({ properties: ['openFile'], filters: [{ name: 'GGUF', extensions: ['gguf'] }] }); if (!p[0]) return null; store.patchSettings({ ai: { local: { modelPath: p[0], modelId: '' } } }); broadcast('settings:changed', store.publicSettings()); return p[0]; });
+
+  // privacy
+  handle('privacy:clear', async (e, opts) => {
+    if (opts.history) store.clearHistory();
+    if (opts.downloads) { const a = store.downloads(); a.splice(0, a.length); store.saveDownloads(); }
+    if (opts.cache) await session.defaultSession.clearCache();
+    if (opts.cookies) await session.defaultSession.clearStorageData({ storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage'] });
+    broadcast('history:changed'); broadcast('downloads:changed');
+    return true;
+  });
+  handle('app:info', () => ({ version: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome, platform: process.platform, arch: process.arch, userData: app.getPath('userData') }));
+
+  // selection lookup from web pages (preload content script)
+  ipcMain.on('sel:lookup', (e, p) => {
+    try {
+      const s = store.getSettings();
+      if (!s.selectionLookup || !p || typeof p.text !== 'string' || !/^[A-Za-z][A-Za-z'’-]{1,40}$/.test(p.text)) return;
+      if (!features.list().find(x => x.id === 'aib.dictionary' && x.enabled) || !dict.enabled().length) return;
+      const tab = tabsMod.allTabs().find(t => t.wc.id === e.sender.id);
+      if (!tab || tab.id !== tabsMod.activeTab()?.id) return;
+      tabsMod.showLookup(p.text, Number(p.x) || 0, Number(p.y) || 0, tab);
+    } catch (err) { console.error('sel:lookup', err.message); }
+  });
+}
+
+// ------------------------------------------------------------ host services for built-in feature extensions
+function registerHostServices() {
+  features.registerHost('dictionary', {
+    lookup: (w) => dict.lookup(String(w)),
+    suggest: (p, n) => dict.suggest(String(p), n || 12),
+    list: () => dict.list(),
+    remove: (id) => { dict.remove(id); return true; },
+    setEnabled: (id, v) => { dict.setEnabled(id, v); return true; },
+    move: (id, d) => { dict.move(id, d); return true; },
+    pickAndAdd: () => {
+      const files = pick({ properties: ['openFile', 'multiSelections'], filters: [{ name: 'MDict', extensions: ['mdx'] }], title: '选择 .mdx 词典' });
+      const added = [], errors = [];
+      for (const f of files) { try { const r = dict.add(f); if (!r.dup) added.push(r.name); } catch (e) { errors.push(path.basename(f) + ': ' + e.message); } }
+      return { added, errors };
+    }
+  });
+  features.setHooks({
+    openTab: (u) => tabsMod.createTab(u),
+    ai: (messages) => llm.complete(messages),
+    callPanel
+  });
+}
+
+function buildMenu() {
+  const act = (fn) => () => { const t = tabsMod.activeTab(); fn(t); };
+  const tpl = [
+    { label: app.name, submenu: [{ role: 'about' }, { type: 'separator' }, { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => tabsMod.openInternal('settings') }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
+    { label: '文件', submenu: [
+      { label: '新建标签页', accelerator: 'CmdOrCtrl+T', click: () => tabsMod.createTab() },
+      { label: '关闭标签页', accelerator: 'CmdOrCtrl+W', click: () => { const t = tabsMod.activeTab(); if (t) tabsMod.closeTab(t.id); } },
+      { label: '打开地址栏', accelerator: 'CmdOrCtrl+L', click: () => { const w = tabsMod.getWin(); if (w) w.webContents.send('addr:focus'); } },
+      { label: '打印…', accelerator: 'CmdOrCtrl+P', click: act(t => t && t.wc.print()) }] },
+    { label: '编辑', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }, { type: 'separator' }, { label: '在页面上查找', accelerator: 'CmdOrCtrl+F', click: () => tabsMod.showFind() }] },
+    { label: '显示', submenu: [
+      { label: '重新载入', accelerator: 'CmdOrCtrl+R', click: act(t => t && t.wc.reload()) },
+      { label: '后退', accelerator: 'CmdOrCtrl+[', click: act(t => t && t.wc.navigationHistory.goBack()) },
+      { label: '前进', accelerator: 'CmdOrCtrl+]', click: act(t => t && t.wc.navigationHistory.goForward()) },
+      { type: 'separator' },
+      { label: '放大', accelerator: 'CmdOrCtrl+Plus', click: () => tabsMod.zoom('in') },
+      { label: '放大 ', accelerator: 'CmdOrCtrl+=', visible: false, click: () => tabsMod.zoom('in') },
+      { label: '缩小', accelerator: 'CmdOrCtrl+-', click: () => tabsMod.zoom('out') },
+      { label: '实际大小', accelerator: 'CmdOrCtrl+0', click: () => tabsMod.zoom('reset') },
+      { type: 'separator' },
+      { label: '开发者工具', accelerator: 'CmdOrCtrl+Alt+I', click: act(t => t && t.wc.openDevTools({ mode: 'detach' })) },
+      { role: 'togglefullscreen' }] },
+    { label: '历史', submenu: [{ label: '历史记录', accelerator: 'CmdOrCtrl+Y', click: () => tabsMod.openInternal('history') }, { label: '下载内容', accelerator: 'CmdOrCtrl+Shift+J', click: () => tabsMod.openInternal('downloads') }, { label: '书签', accelerator: 'CmdOrCtrl+Shift+O', click: () => tabsMod.openInternal('bookmarks') }] },
+    { role: 'windowMenu' }
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(tpl));
+}
+
+// ------------------------------------------------------------ lifecycle
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) { app.quit(); } else {
+  app.on('second-instance', () => { const w = tabsMod.getWin(); if (w) { if (w.isMinimized()) w.restore(); w.focus(); } });
+  app.whenReady().then(async () => {
+    store.init();
+    registerProtocols();
+    registerIpc();
+    registerHostServices();
+    setupDownloads();
+    features.reload();
+    buildMenu();
+    tabsMod.createWindow();
+    chromeExt.init().catch(e => console.error('chrome ext init', e.message));
+    app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) tabsMod.createWindow(); });
+  });
+  app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+  app.on('before-quit', () => store.flushAll());
+}

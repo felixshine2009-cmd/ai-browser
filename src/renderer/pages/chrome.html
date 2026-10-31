@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src aibrowser:; style-src aibrowser: 'unsafe-inline'; img-src * data: blob:; font-src aibrowser: data:; connect-src aibrowser:; frame-src aibdict: aibext: aibrowser:; media-src aibdict: aibext:">
+<title>AI 浏览器</title>
+<link rel="stylesheet" href="aibrowser://static/shared.css"/>
+<link rel="stylesheet" href="aibrowser://static/app.css"/>
+</head>
+<body class="chrome-body">
+<div class="window chrome-root">
+  <div class="tabbar">
+    <div class="traffic"></div>
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="toolbar">
+    <div class="tb-btn disabled" id="back" data-i18n-title="nav.back"><svg viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"/></svg></div>
+    <div class="tb-btn disabled" id="fwd" data-i18n-title="nav.forward"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></div>
+    <div class="tb-btn" id="reload" data-i18n-title="nav.reload"><svg viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5V5h-2.5"/></svg></div>
+    <div class="mode-seg" id="modeseg">
+      <div class="seg ai" data-mode="chat" data-i18n="mode.chat">Chat</div>
+      <div class="seg" data-mode="search" data-i18n="mode.search">Search</div>
+    </div>
+    <div class="address-wrap">
+      <div class="address">
+        <span class="lock" id="lock"></span>
+        <input class="url" id="addr" spellcheck="false" autocomplete="off" data-i18n-placeholder="addr.start"/>
+      </div>
+    </div>
+    <div class="tb-right">
+      <div class="tb-btn" id="bookmark" data-i18n-title="nav.bookmark"><svg viewBox="0 0 16 16"><path d="M4 2.5h8v11L8 10.5l-4 3z"/></svg></div>
+      <div class="tb-btn menu-trigger" id="menu" data-i18n-title="menu.title"><svg viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg></div>
+    </div>
+  </div>
+</div>
+<script src="aibrowser://static/i18n.js"></script>
+<script src="aibrowser://static/chrome.js"></script>
+</body></html>

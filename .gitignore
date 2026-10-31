@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.DS_Store
+*.part
+test/results.json
+*.log

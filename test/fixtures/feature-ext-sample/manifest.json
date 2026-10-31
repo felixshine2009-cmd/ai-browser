@@ -1,0 +1,16 @@
+{
+  "standard": "aib-feature/1",
+  "id": "user.sample-echo",
+  "name": "Sample Echo",
+  "version": "1.0.0",
+  "description": "Test extension following the standard",
+  "update_url": "",
+  "permissions": ["storage"],
+  "entry": "main.js",
+  "contributes": {
+    "inputHandlers": [ { "id": "zz", "types": ["word"], "priority": 200 } ],
+    "tools": [ { "name": "sample_echo", "description": "Echo text back (test tool)", "parameters": { "type": "object", "properties": { "text": { "type": "string" } }, "required": ["text"] } } ],
+    
+    "panels": []
+  }
+}
