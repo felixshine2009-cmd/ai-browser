@@ -54,17 +54,21 @@ async function refreshWebGPUBadge(){
   const localOpt = eng.querySelector('option[value="local"]');
   const loadBtn = document.getElementById('btnLoadLocal');
   const modelSel = document.getElementById('localModel');
+  const reasonEl = document.getElementById('webgpuReason');
   if (!d.ok) {
     localOpt.disabled = true;
     if (eng.value === 'local') eng.value = 'api';
     if (loadBtn) loadBtn.disabled = true;
     if (modelSel) modelSel.disabled = true;
+    const msg = t('webgpuDisabled') + ' ' + reasonText(d.reason);
+    if (reasonEl) { reasonEl.style.display = ''; reasonEl.textContent = msg; }
     const warn = document.getElementById('localWarn');
-    if (warn) { warn.style.display = ''; warn.textContent = t('webgpuDisabled') + ' ' + reasonText(d.reason); }
+    if (warn) { warn.style.display = ''; warn.textContent = msg; }
   } else {
     localOpt.disabled = false;
     if (loadBtn) loadBtn.disabled = false;
     if (modelSel) modelSel.disabled = false;
+    if (reasonEl) { reasonEl.style.display = 'none'; reasonEl.textContent = ''; }
   }
   return d;
 }
@@ -129,6 +133,7 @@ async function doSaveSettings(){
   saveSettings(settings);
   renderChrome();
   toast(t('saved'));
+  closeSettings();
 }
 
 function setMode(mode){
