@@ -4,7 +4,7 @@
 
 A desktop browser (Electron / Chromium) with an AI **Chat mode** built in: dictionary lookup (MDX/MDD), sentence analysis, translation, **agentic web search** with cited answers, a local knowledge base, and GeoGebra plotting. An AI agent can drive the browser itself through a single tool registry.
 
-**Web version (PWA):** https://felixshine2009-cmd.github.io/ai-browser/ — chat via your own API key, GeoGebra, physics; desktop-only features are grayed out. Add to Home Screen on iPhone Safari.
+**Web version (PWA):** https://felixshine2009-cmd.github.io/ai-browser/ — chat via your own API key **or WebGPU local models** (WebLLM quantized Qwen2.5 / Gemma 2, ~0.5–3B; EmbeddingGemma for the knowledge base); GeoGebra, physics; desktop-only features are grayed out. Add to Home Screen on iPhone Safari. Current web release: `web-v1.1.0`.
 
 Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on Linux (xvfb + Playwright); things that need a real Mac are listed under *Known limitations*.
 

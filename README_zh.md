@@ -4,7 +4,7 @@
 
 一个内置 AI **聊天模式**的桌面浏览器（Electron / Chromium）：词典查询（MDX/MDD）、长难句分析、翻译、带引用的**智能搜索**、本地知识库和 GeoGebra 画图。AI 通过统一的工具注册表，可以直接操作浏览器。
 
-**网页版（PWA）：** https://felixshine2009-cmd.github.io/ai-browser/ ——使用你自己的 API Key 聊天，含 GeoGebra 与物理仿真；仅桌面版功能显示为灰色。iPhone 可在 Safari 中“添加到主屏幕”。
+**网页版（PWA）：** https://felixshine2009-cmd.github.io/ai-browser/ — 用你自己的 API Key **或 WebGPU 本地模型**（WebLLM 量化 Qwen2.5 / Gemma 2，约 0.5–3B；知识库可用 EmbeddingGemma）；GeoGebra、物理仿真；仅桌面功能显示为灰色。iPhone Safari 可「添加到主屏幕」。当前网页版：`web-v1.1.0`。
 
 面向 **Apple 芯片（M1/M2/M3）macOS 12+**。应用在 Linux 上用 xvfb + Playwright 做了端到端测试；需要真机验证的部分见“已知限制”。
 
