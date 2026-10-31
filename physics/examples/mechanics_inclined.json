@@ -1,0 +1,52 @@
+{
+  "topic": "mechanics.inclined",
+  "zh": "斜面滑块",
+  "meta": {
+    "title": "Inclined plane",
+    "zh": "斜面"
+  },
+  "world": {
+    "xmin": -2,
+    "xmax": 10,
+    "ymin": -1,
+    "ymax": 8
+  },
+  "g": 9.8,
+  "bodies": [
+    {
+      "id": "block",
+      "x": 1,
+      "y": 4,
+      "vx": 0,
+      "vy": 0,
+      "mass": 1,
+      "radius": 0.3,
+      "color": "#38bdf8",
+      "label": "滑块"
+    }
+  ],
+  "walls": [
+    {
+      "x1": 0,
+      "y1": 0,
+      "x2": 8,
+      "y2": 0,
+      "bounce": 0
+    }
+  ],
+  "forces": [
+    {
+      "type": "const",
+      "body": "block",
+      "fx": 3.5,
+      "fy": -3.5
+    }
+  ],
+  "plots": [
+    {
+      "id": "v",
+      "of": "block.vx",
+      "label": "vx"
+    }
+  ]
+}

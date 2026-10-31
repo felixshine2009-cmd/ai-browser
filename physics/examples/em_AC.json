@@ -1,0 +1,28 @@
+{
+  "topic": "em.AC",
+  "zh": "交流电",
+  "meta": {
+    "title": "AC voltage",
+    "zh": "正弦交流电"
+  },
+  "world": {
+    "xmin": -2,
+    "xmax": 2,
+    "ymin": -2,
+    "ymax": 2
+  },
+  "g": 0,
+  "bodies": [],
+  "circuit": {
+    "type": "AC",
+    "V0": 5,
+    "w": 31.4,
+    "R": 100
+  },
+  "plots": [
+    {
+      "id": "V",
+      "of": "t"
+    }
+  ]
+}

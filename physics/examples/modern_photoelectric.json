@@ -1,0 +1,45 @@
+{
+  "topic": "modern.photoelectric",
+  "zh": "光电效应（示意）",
+  "meta": {
+    "title": "Photoelectric effect (schematic)",
+    "zh": "光电效应"
+  },
+  "world": {
+    "xmin": -2,
+    "xmax": 10,
+    "ymin": -2,
+    "ymax": 6
+  },
+  "g": 0,
+  "bodies": [
+    {
+      "id": "plate",
+      "x": 0,
+      "y": 2,
+      "fixed": true,
+      "radius": 0.15,
+      "color": "#64748b",
+      "label": "金属板"
+    },
+    {
+      "id": "e",
+      "x": 0.4,
+      "y": 2,
+      "vx": 3,
+      "vy": 1.5,
+      "mass": 0.1,
+      "q": -1,
+      "radius": 0.12,
+      "color": "#38bdf8",
+      "label": "e⁻",
+      "gravity": 0
+    }
+  ],
+  "fields": [
+    {
+      "type": "E",
+      "Ex": -0.5
+    }
+  ]
+}

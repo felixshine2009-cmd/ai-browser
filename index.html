@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1416">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="AI Browser web — chat, GeoGebra, physics, dictionary">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/app.css">
+<title>AI Browser</title>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div id="tabs">
+      <div class="tab active" data-i18n="chat">Chat</div>
+      <div class="tab disabled" data-desktop-only data-i18n="newIncog">Incognito</div>
+      <div class="tab disabled" data-desktop-only>+</div>
+    </div>
+    <div id="toolbar">
+      <div id="modeseg">
+        <button type="button" class="seg active" data-mode="chat" data-i18n="chat">Chat</button>
+        <button type="button" class="seg" data-mode="search" data-i18n="search">Search</button>
+      </div>
+      <input id="addr" class="disabled" data-desktop-only readonly placeholder="aibrowser://home" title="Desktop only">
+      <button type="button" id="btnGgb" data-i18n="ggb">GeoGebra</button>
+      <button type="button" id="btnPhys" data-i18n="phys">Physics</button>
+      <button type="button" class="disabled" data-desktop-only data-i18n="extensions">Ext</button>
+      <button type="button" class="disabled" data-desktop-only data-i18n="passwords">Passwords</button>
+      <button type="button" class="disabled" data-desktop-only data-i18n="print">Print</button>
+      <button type="button" id="btnSettings" data-i18n="settings">Settings</button>
+    </div>
+  </header>
+  <main id="main">
+    <section id="chatcol">
+      <div class="greet" id="greet">Hello</div>
+      <p class="note-desk" data-i18n="deskNote"></p>
+      <p class="hint" data-i18n="addHome"></p>
+      <div id="askrow">
+        <textarea id="q" rows="3" data-i18n-ph="askPlaceholder" placeholder="Ask…"></textarea>
+        <div class="row-actions">
+          <button type="button" class="primary" id="btnSend" data-i18n="send">Send</button>
+          <button type="button" class="disabled" data-desktop-only data-i18n="localModels">Local models</button>
+        </div>
+      </div>
+      <div id="tools" class="status"></div>
+      <div id="status" class="status"></div>
+      <div id="answer" class="answer"></div>
+      <h3 data-i18n="kb">KB</h3>
+      <textarea id="kbText" rows="2" placeholder="Paste text…"></textarea>
+      <div class="row-actions">
+        <button type="button" id="kbAdd" data-i18n="kbAdd">Add</button>
+        <button type="button" id="kbClear" data-i18n="clear">Clear</button>
+      </div>
+      <input id="kbQuery" data-i18n-ph="kbSearch" placeholder="Search KB">
+      <div id="kbList"></div>
+    </section>
+    <section id="panelcol"><div id="panelTabs"><button type="button" id="ptGgb" data-i18n="ggb">GeoGebra</button><button type="button" id="ptPhys" data-i18n="phys">Physics</button></div><button type="button" id="btnClosePanel" aria-label="Close" data-i18n-title="close">✕</button><div id="plotcanvas" style="height:100%;min-height:280px"></div></section>
+    <aside id="sidecol">
+      <h3 data-i18n="sources">Sources</h3>
+      <p class="hint" data-i18n="offline"></p>
+      <button type="button" class="disabled" data-desktop-only data-i18n="bookmarks">Bookmarks</button>
+      <button type="button" class="disabled" data-desktop-only data-i18n="downloads">Downloads</button>
+      <button type="button" class="disabled" data-desktop-only data-i18n="find">Find</button>
+      <button type="button" class="disabled" data-desktop-only data-i18n="zoom">Zoom</button>
+    </aside>
+  </main>
+</div>
+<div id="toast" role="status"></div>
+<div id="settings" role="dialog" aria-modal="true">
+  <div class="sheet">
+    <h2 data-i18n="settings">Settings</h2>
+    <div class="form-row"><label data-i18n="displayName">Name</label><input id="dname"></div>
+    <div class="form-row"><label data-i18n="greeting">Greeting</label><input id="greeting" placeholder="{name}"></div>
+    <div class="form-row"><label data-i18n="lang">Lang</label>
+      <select id="lang"><option value="zh">中文</option><option value="en">English</option></select>
+    </div>
+    <div class="form-row"><label data-i18n="apiBase">API Base</label><input id="apiBase" placeholder="https://api.deepseek.com/v1"></div>
+    <div class="form-row"><label data-i18n="apiKey">API Key</label><input id="apiKey" type="password" autocomplete="off"></div>
+    <div class="form-row"><label data-i18n="apiModel">Model</label><input id="apiModel"></div>
+    <p class="hint" data-i18n="corsHint"></p>
+    <div class="form-row"><label data-i18n="searchEngine">Engine</label>
+      <select id="engine"><option value="baidu">Baidu</option><option value="bing">Bing</option><option value="google">Google</option><option value="custom">Custom</option></select>
+    </div>
+    <div class="form-row"><label>Custom URL (%s)</label><input id="customEng"></div>
+    <div class="row-actions">
+      <button type="button" class="primary" id="btnSave" data-i18n="save">Save</button>
+      <button type="button" id="btnTest" data-i18n="testConn">Test</button>
+      <button type="button" id="btnCloseSettings">OK</button>
+    </div>
+    <p class="note-desk" data-i18n="deskNote"></p>
+  </div>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

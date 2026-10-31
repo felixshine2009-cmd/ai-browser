@@ -1,0 +1,42 @@
+{
+  "topic": "em.charge_B",
+  "zh": "磁场中的带电粒子",
+  "meta": {
+    "title": "Charge in uniform B field",
+    "zh": "匀强磁场中的圆周运动"
+  },
+  "world": {
+    "xmin": -6,
+    "xmax": 6,
+    "ymin": -6,
+    "ymax": 6
+  },
+  "g": 0,
+  "bodies": [
+    {
+      "id": "q",
+      "x": 2,
+      "y": 0,
+      "vx": 0,
+      "vy": 3,
+      "mass": 1,
+      "q": 1,
+      "radius": 0.2,
+      "color": "#f472b6",
+      "label": "+q",
+      "gravity": 0
+    }
+  ],
+  "fields": [
+    {
+      "type": "B",
+      "Bz": 1.5
+    }
+  ],
+  "plots": [
+    {
+      "id": "vx",
+      "of": "q.vx"
+    }
+  ]
+}

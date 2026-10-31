@@ -1,0 +1,52 @@
+{
+  "topic": "oscillation.pendulum",
+  "zh": "单摆",
+  "meta": {
+    "title": "Simple pendulum",
+    "zh": "单摆"
+  },
+  "world": {
+    "xmin": -4,
+    "xmax": 4,
+    "ymin": -5,
+    "ymax": 1
+  },
+  "g": 9.8,
+  "bodies": [
+    {
+      "id": "pivot",
+      "x": 0,
+      "y": 0,
+      "fixed": true,
+      "radius": 0.05,
+      "color": "#64748b",
+      "label": "O"
+    },
+    {
+      "id": "bob",
+      "x": 1.5,
+      "y": -2.6,
+      "vx": 0,
+      "vy": 0,
+      "mass": 0.5,
+      "radius": 0.25,
+      "color": "#eab308",
+      "label": "摆球"
+    }
+  ],
+  "springs": [
+    {
+      "a": "pivot",
+      "b": "bob",
+      "k": 500,
+      "rest": 3,
+      "damping": 0.02
+    }
+  ],
+  "plots": [
+    {
+      "id": "x",
+      "of": "bob.x"
+    }
+  ]
+}
