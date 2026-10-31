@@ -1,0 +1,14 @@
+{
+  "topic": "mechanics.gravitation",
+  "zh": "万有引力（G、M、R、h）",
+  "meta": {
+    "zh": "万有引力（G、M、R、h）",
+    "title": "Gravitation"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "gravitation"
+    }
+  ]
+}

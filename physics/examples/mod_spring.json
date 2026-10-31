@@ -1,0 +1,14 @@
+{
+  "topic": "oscillation.spring",
+  "zh": "弹簧振子（k、m、A、阻尼）",
+  "meta": {
+    "zh": "弹簧振子（k、m、A、阻尼）",
+    "title": "Spring oscillator"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "spring"
+    }
+  ]
+}

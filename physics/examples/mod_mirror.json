@@ -1,0 +1,14 @@
+{
+  "topic": "optics.mirror",
+  "zh": "球面镜成像（R、u）",
+  "meta": {
+    "zh": "球面镜成像（R、u）",
+    "title": "Spherical mirror"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "mirror"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "topic": "optics.lens",
+  "zh": "薄透镜成像（f、u）",
+  "meta": {
+    "zh": "薄透镜成像（f、u）",
+    "title": "Thin lens"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "lens"
+    }
+  ]
+}

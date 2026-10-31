@@ -1,0 +1,14 @@
+{
+  "topic": "oscillation.shm",
+  "zh": "简谐运动（A、T、φ）",
+  "meta": {
+    "zh": "简谐运动（A、T、φ）",
+    "title": "Simple harmonic motion"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "shm"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "topic": "em.circuit",
+  "zh": "电路（ε、r、R、C、L、ρ、交流）",
+  "meta": {
+    "zh": "电路（ε、r、R、C、L、ρ、交流）",
+    "title": "Circuit"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "circuit"
+    }
+  ]
+}

@@ -13,7 +13,7 @@ export const STR = {
     kbAdd:'添加文本', kbSearch:'检索', kbEmpty:'知识库为空',
     offline:'离线可用（应用外壳）', addHome:'可在 Safari 中“添加到主屏幕”以全屏使用。',
     copy:'复制', clear:'清空', error:'出错了', thinking:'思考中…',
-    panelGgb:'GeoGebra', panelPhys:'物理', sources:'来源', close:'关闭',
+    panelGgb:'GeoGebra', panelPhys:'物理', sources:'来源', close:'关闭', show:'显示',
   },
   en: {
     appName:'AI Browser (Web)', chat:'Chat', search:'Search', settings:'Settings', send:'Send',
@@ -29,7 +29,7 @@ export const STR = {
     kbAdd:'Add text', kbSearch:'Search', kbEmpty:'Knowledge base empty',
     offline:'Offline-capable app shell', addHome:'On iPhone Safari: Share → Add to Home Screen for fullscreen use.',
     copy:'Copy', clear:'Clear', error:'Something went wrong', thinking:'Thinking…',
-    panelGgb:'GeoGebra', panelPhys:'Physics', sources:'Sources', close:'Close',
+    panelGgb:'GeoGebra', panelPhys:'Physics', sources:'Sources', close:'Close', show:'Show',
   }
 };
 let lang = localStorage.getItem('aib.lang') || (navigator.language||'').startsWith('zh') ? 'zh' : 'en';
