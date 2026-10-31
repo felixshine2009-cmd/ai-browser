@@ -21,7 +21,15 @@ async function waitHttp(url, ms = 20000) {
 
 async function launch(opts = {}) {
   const port = opts.port || (9300 + Math.floor(Math.random() * 500));
+  const createdUd = !opts.userData;
   const userData = opts.userData || fs.mkdtempSync(path.join(os.tmpdir(), 'aib-ud-'));
+  // Harness default: skip the v3 onboarding wizard unless the suite opted into a fresh install
+  // (or already wrote its own settings.json, e.g. suite 23).
+  const settingsPath = path.join(userData, 'settings.json');
+  if (!opts.freshOnboarding && !fs.existsSync(settingsPath)) {
+    fs.mkdirSync(userData, { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({ onboarding: { completed: true, skipped: false, completedAt: 1 } }));
+  }
   const dlDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aib-dl-'));
   const logs = [];
   const proc = spawn(electronPath, ['.', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', `--remote-debugging-port=${port}`, ...(opts.args || [])], {

@@ -17,7 +17,7 @@ const chatMod = () => require('./chat');
 const kbMod = () => require('./kb');
 const trMod = () => require('./translate');
 
-const INTERNAL_PAGES = ['home', 'settings', 'extensions', 'history', 'bookmarks', 'downloads'];
+const INTERNAL_PAGES = ['home', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'onboarding'];
 const tabRow = (t) => { const i = tabs().tabInfo(t); return { id: t.id, title: i.title, url: i.url, active: !!i.active, incognito: !!t.incognito, loading: !!i.loading }; };
 const needTab = (id) => { const t = id == null ? tabs().activeTab() : tabs().getTab(Number(id)); if (!t) throw new Error('no such tab' + (id != null ? ': ' + id : '')); return t; };
 const httpUrl = (u) => { u = String(u || '').trim(); if (!u) throw new Error('url required'); if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u; if (!/^(https?|aibrowser):/i.test(u)) throw new Error('only http(s) urls are allowed'); return u; };

@@ -8,7 +8,7 @@ const chat = require('./ai/chat');
 const CHROME_H = 88;
 const PRELOAD = path.join(__dirname, '..', 'preload', 'preload.js');
 const SCHEME = 'aibrowser';
-const INTERNAL = new Set(['home', 'chat', 'settings', 'extensions', 'history', 'bookmarks', 'downloads']);
+const INTERNAL = new Set(['home', 'chat', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'onboarding']);
 
 let win = null;
 let chromeWc = null;
@@ -304,7 +304,12 @@ function createWindow() {
   win.on('enter-full-screen', layout); win.on('leave-full-screen', layout);
   win.on('closed', () => { win = null; chromeWc = null; tabs = []; activeId = null; overlays.menu = overlays.find = overlays.lookup = null; });
   chromeWc.on('did-finish-load', () => notify());
-  win.webContents.on('did-finish-load', () => { if (!tabs.length) createTab(); });
+  win.webContents.on('did-finish-load', () => {
+    if (!tabs.length) {
+      const ob = (store.getSettings().onboarding || {});
+      createTab(ob.completed ? `${SCHEME}://home` : `${SCHEME}://onboarding`);
+    }
+  });
   return win;
 }
 

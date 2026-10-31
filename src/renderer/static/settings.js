@@ -563,6 +563,11 @@
     $('greetsave').onclick = saveGreet;
     ['dname', 'greeting'].forEach(id => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') saveGreet(); }));
     $('greetreset').onclick = async () => { $('greeting').value = ''; $('dname').value = 'Felix'; preview(); await saveGreet(); };
+    const obRow = document.createElement('div'); obRow.className='form-row'; obRow.style.marginTop='18px';
+    obRow.innerHTML = `<label>${esc(t('onboard.reopenLabel'))}</label><div class="hint">${esc(t('onboard.reopenHint'))}</div><div class="inline" style="margin-top:8px"><button class="btn-secondary" id="obreopen">${esc(t('onboard.reopen'))}</button></div>`;
+    p.appendChild(obRow);
+    $('obreopen').onclick = async () => { await window.aib.invoke('settings:patch', { onboarding: { completed: false, skipped: false } }); location.href = 'aibrowser://onboarding'; };
+
   }
   // ---------------- privacy
   async function renderPrivacy() {
