@@ -38,12 +38,7 @@ function zipDir(dir, out, keepParent) {
   const zip = path.join(DIST, 'AI-Browser-mac-arm64.zip');
   zipDir(appDir, zip, true);
   console.log('wrote', zip, (fs.statSync(zip).size / 1048576).toFixed(1) + ' MB');
-  // drag-to-Applications disk image (Linux-capable: ISO-9660 + Rock Ridge volume with a .dmg extension; see scripts/make-dmg.py)
-  try {
-    const py = process.env.AIB_PYTHON || (fs.existsSync('/workspace/bt/venv/bin/python') ? '/workspace/bt/venv/bin/python' : 'python3');
-    const dmg = path.join(DIST, 'AI-Browser-mac-arm64.dmg');
-    execFileSync(py, [path.join(__dirname, 'make-dmg.py'), appDir, dmg, '--volname', 'AI Browser', '--ds-vendor', path.join(__dirname, 'vendor')], { stdio: 'inherit' });
-  } catch (e) { console.warn('dmg skipped:', e.message); }
+  // NOTE: no .dmg is published (Felix removed it); make-dmg.py stays available for manual use.
 
   // source zip (no node_modules / dist)
   // (copy into the OS temp dir: copying a project into its own subdirectory is an error)

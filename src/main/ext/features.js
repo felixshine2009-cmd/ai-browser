@@ -7,8 +7,8 @@ const { app, net } = require('electron');
 const store = require('../store');
 
 const STANDARD = 'aib-feature/1';
-const PERMS = new Set(['storage', 'net', 'ai', 'tabs', 'panels', 'host.dictionary', 'host.geogebra']);
-const HOST_PERMS = new Set(['host.dictionary', 'host.geogebra']); // builtin only
+const PERMS = new Set(['storage', 'net', 'ai', 'tabs', 'panels', 'host.dictionary', 'host.geogebra', 'host.physics']);
+const HOST_PERMS = new Set(['host.dictionary', 'host.geogebra', 'host.physics']); // builtin only
 const INPUT_TYPES = new Set(['word', 'sentence', 'article', 'question', 'any']);
 
 const hostServices = {}; // name -> object (registered by main.js)

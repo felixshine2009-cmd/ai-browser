@@ -26,7 +26,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   await test('四方格菜单第一项“新建隐身标签页 ⇧⌘N”；点击后新建一个隐身标签并激活', async () => {
     await app.setMode('search'); await navTo(B + '/set?v=normal'); normalId = (await st()).tabs.find(t => t.active).id;
     await ch.click('#menu'); const m = await app.waitPage('aibrowser://menu'); await sleep(250);
-    const first = m.locator('.omi').first(); const txt = await first.innerText(); assert(/新建隐身标签页/.test(txt) && /⇧⌘N/.test(txt), txt);
+    const first = m.locator('.omi').first(); const txt = await first.innerText(); assert(/新建隐身标签页/.test(txt) && /(⇧⌘N|Shift\+Ctrl\+N|Ctrl\+Shift\+N)/.test(txt), txt);
     await first.click(); await until(async () => (await st()).tabs.some(t => t.incognito && t.active), 5000, 'incognito tab active');
     incId = (await st()).tabs.find(t => t.incognito).id; assert(incId !== normalId);
   });

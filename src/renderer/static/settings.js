@@ -551,7 +551,6 @@
       <div class="form-row"><label>${esc(t('general.greeting'))}</label><input type="text" id="greeting" maxlength="120" placeholder="${esc(t('general.greetingPh'))}" value="${esc(S.greeting || '')}"/><div class="hint">${esc(t('general.greetingHint'))}</div>
         <div class="inline" style="margin-top:8px"><button class="btn-secondary" id="greetsave">${esc(t('common.save'))}</button><button class="btn-ghost" id="greetreset">${esc(t('general.greetReset'))}</button><span id="greetnote"></span></div>
         <div class="hint" id="greetprev" style="margin-top:6px"></div></div>
-      <div class="form-row"><label class="inline" style="font-size:13px;color:var(--text-primary)"><input type="checkbox" id="hidespark" ${S.hideSpark ? 'checked' : ''}/>${esc(t('general.hideSpark'))}</label></div>
       <div class="hint">AI浏览器 ${esc(info.version)} · Electron ${esc(info.electron)} · Chromium ${esc(info.chromium)} · ${esc(info.platform)}/${esc(info.arch)}</div>`;
     p.querySelectorAll('[data-lang]').forEach(b => b.onclick = async () => { await window.aib.invoke('settings:patch', { lang: b.dataset.lang }); toast(); });
     const $ = id => document.getElementById(id);
@@ -564,7 +563,6 @@
     $('greetsave').onclick = saveGreet;
     ['dname', 'greeting'].forEach(id => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') saveGreet(); }));
     $('greetreset').onclick = async () => { $('greeting').value = ''; $('dname').value = 'Felix'; preview(); await saveGreet(); };
-    $('hidespark').onchange = async (e) => { await window.aib.invoke('settings:patch', { hideSpark: e.target.checked }); toast(); };
   }
   // ---------------- privacy
   async function renderPrivacy() {

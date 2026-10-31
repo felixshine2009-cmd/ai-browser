@@ -19,7 +19,6 @@ const DEFAULTS = {
   selectionLookup: true,
   displayName: 'Felix', // home greeting: {name}
   greeting: '', // '' = localized default
-  hideSpark: false,
   translate: { engine: 'hunyuan' }, // 'hunyuan' (bundled HY-MT, loaded only while translating) | 'chat' (current chat model)
   kb: { source: 'builtin', api: { baseUrl: '', apiKey: '', model: '' } }, // knowledge base embeddings
   agent: { maxSteps: 12 },

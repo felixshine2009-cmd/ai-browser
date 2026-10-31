@@ -8,7 +8,7 @@
     const name = (st.displayName || '').trim();
     return name ? tpl.split('{name}').join(name) : tpl.replace(/\{name\}[，,、:：\s]*/g, '').trim();
   };
-  const set = () => { g.textContent = greetText(S); document.title = t('tab.newtab'); const sp = document.querySelector('.spark-inline'); if (sp) sp.style.display = S.hideSpark ? 'none' : ''; };
+  const set = () => { g.textContent = greetText(S); document.title = t('tab.newtab'); };
   set(); I18N.onChange(set);
   window.aib.on('settings:changed', (s) => { S = s; set(); });
   const q = document.getElementById('q');

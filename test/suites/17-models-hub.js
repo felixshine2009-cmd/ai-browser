@@ -15,7 +15,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     'mlx-community/Tiny-Qwen3-4bit': { tags: ['mlx', 'license:apache-2.0'], downloads: 55, likes: 2, files: { 'config.json': Buffer.from('{"model_type":"qwen3"}'), 'model.safetensors': rnd(400000, 5), 'tokenizer.json': Buffer.from('{}') } }
   });
   const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'aib-hub-'));
-  let app = await launch({ userData: ud, env: { AIB_HF_BASE: hf.base } }); let ch = await app.chrome();
+  let app = await launch({ userData: ud, env: { AIB_HF_BASE: hf.base, AIB_MLX_BIN: '/bin/true' } }); let ch = await app.chrome();
   const inv = (c, ...a) => ch.evaluate(([c, a]) => window.aib.invoke(c, ...a), [c, a]);
   const settings = async (hash) => { await app.submit('aibrowser://settings#' + hash); const p = await app.waitPage('aibrowser://settings'); await sleep(500); return p; };
   const local = async () => { const p = await settings('ai'); await p.click('[data-src="local"]'); await until(async () => (await p.locator('.fam-group').count()) > 0, 6000, 'groups'); return p; };
@@ -141,7 +141,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   await test('自动回退：首选源不可用时自动改用其他源（搜索 + 下载）', async () => {
     await app.close();
     const dsrv = require('http').createServer(); await new Promise(r => dsrv.listen(0, '127.0.0.1', r)); const dead = 'http://127.0.0.1:' + dsrv.address().port; await new Promise(r => dsrv.close(r)); // refuses connections
-    app = await launch({ userData: ud, env: { AIB_HF_BASE: dead + ',' + hf.base } }); ch = await app.chrome();
+    app = await launch({ userData: ud, env: { AIB_HF_BASE: dead + ',' + hf.base, AIB_MLX_BIN: '/bin/true' } }); ch = await app.chrome();
     const r = await inv('hub:search', 'tiny', 'gguf'); assert(r.ok && r.items.length >= 2, JSON.stringify(r)); assert(r.via && r.via.includes(String(hf.port)), 'via ' + r.via);
     assert(Array.isArray(r.tried) && r.tried.length >= 1 && /refused|拒绝/.test(JSON.stringify(r.tried)), 'tried: ' + JSON.stringify(r.tried));
     const f = await inv('hub:files', 'acme/Tiny-Gemma-GGUF'); assert(f.ok && f.files.length === 1);
