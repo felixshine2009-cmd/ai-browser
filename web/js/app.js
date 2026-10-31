@@ -1,6 +1,6 @@
 import { t, setLang, getLang, applyI18n } from './i18n.js';
 import { load as loadSettings, save as saveSettings, engines } from './settings.js';
-import { testConnection } from './api.js';
+import { testConnection, cleanKey, cleanText, cleanBase } from './api.js';
 import { toast, wireDesktopOnly } from './desktop-disabled.js';
 import { mount as mountPanels, show as showPanel, closeOverlay } from './panels.js';
 import { handleAsk } from './chat.js';
@@ -36,16 +36,24 @@ function openSettings(){
 }
 function closeSettings(){ document.getElementById('settings').classList.remove('open'); }
 
-async function doSaveSettings(){
+function collectSettings(){
   settings.displayName = document.getElementById('dname').value.trim() || 'Felix';
   settings.greeting = document.getElementById('greeting').value;
   const lang = document.getElementById('lang').value;
   setLang(lang); settings.lang = lang;
-  settings.api.baseUrl = document.getElementById('apiBase').value.trim();
-  settings.api.apiKey = document.getElementById('apiKey').value.trim();
-  settings.api.model = document.getElementById('apiModel').value.trim();
+  settings.api.baseUrl = cleanBase(document.getElementById('apiBase').value);
+  settings.api.apiKey = cleanKey(document.getElementById('apiKey').value);
+  settings.api.model = cleanText(document.getElementById('apiModel').value);
   settings.search.engine = document.getElementById('engine').value;
   settings.search.custom = document.getElementById('customEng').value.trim();
+  // reflect the cleaned values back so what is shown is what is used
+  document.getElementById('apiBase').value = settings.api.baseUrl;
+  document.getElementById('apiKey').value = settings.api.apiKey;
+  document.getElementById('apiModel').value = settings.api.model;
+  return settings;
+}
+async function doSaveSettings(){
+  collectSettings();
   saveSettings(settings);
   renderChrome();
   toast(t('saved'));
@@ -78,7 +86,9 @@ function wire(){
   document.getElementById('btnSettings').onclick = openSettings;
   document.getElementById('btnCloseSettings').onclick = closeSettings;
   document.getElementById('btnSave').onclick = doSaveSettings;
+  document.getElementById('btnShowKey').onclick = ()=>{ const k=document.getElementById('apiKey'); k.type = k.type==='password'?'text':'password'; };
   document.getElementById('btnTest').onclick = async ()=>{
+    collectSettings(); saveSettings(settings); // test exactly what is in the form, and keep it
     try { const r = await testConnection(settings.api); toast('OK: '+(r||'').slice(0,40)); }
     catch(e){ toast(String(e.message||e).slice(0,160)); }
   };
