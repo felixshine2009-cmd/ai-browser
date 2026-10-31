@@ -21,7 +21,30 @@
       if (b.mass != null && !(b.mass > 0)) err.push('bodies[' + i + '].mass must be > 0');
     });
     if (scene.dt != null && !(scene.dt > 0 && scene.dt <= 0.05)) err.push('dt must be in (0, 0.05]');
-    return { ok: !err.length, errors: err };
+    const warnings = [];
+    if (scene.g != null && !(scene.g >= 0 && scene.g <= 100)) err.push('g must be in [0, 100] m/s²');
+    if (scene.world && scene.world.air != null && !(scene.world.air >= 0)) err.push('world.air (drag coefficient) must be ≥ 0');
+    if (scene.planet) { const p = scene.planet; ['G', 'M', 'R'].forEach(k => { if (!(p[k] > 0)) err.push('planet.' + k + ' must be > 0'); }); }
+    (scene.bodies || []).forEach((b, i) => {
+      if (b.e != null && !(b.e >= 0 && b.e <= 1)) err.push('bodies[' + i + '].e (restitution) must be in [0, 1]');
+      if (b.radius != null && !(b.radius > 0)) err.push('bodies[' + i + '].radius must be > 0');
+    });
+    (scene.springs || []).forEach((sp, i) => {
+      if (sp.k != null && !(sp.k >= 0)) err.push('springs[' + i + '].k must be ≥ 0');
+      if (sp.rest != null && !(sp.rest >= 0)) err.push('springs[' + i + '].rest must be ≥ 0');
+      if (sp.damping != null && !(sp.damping >= 0)) err.push('springs[' + i + '].damping must be ≥ 0');
+    });
+    (scene.walls || []).forEach((w, i) => {
+      if (w.mu != null && !(w.mu >= 0)) err.push('walls[' + i + '].mu must be ≥ 0');
+      if (w.mu0 != null && !(w.mu0 >= 0)) err.push('walls[' + i + '].mu0 must be ≥ 0');
+      if (w.mu != null && w.mu0 != null && w.mu > w.mu0) warnings.push('walls[' + i + ']: kinetic μ should not exceed static μ₀');
+    });
+    (scene.fields || []).forEach((f, i) => {
+      if (f.d != null && !(f.d > 0)) err.push('fields[' + i + '].d (plate spacing) must be > 0');
+    });
+    const PM = root.PhysModules;
+    (scene.modules || []).forEach((m, i) => { if (PM) { const r = PM.validateModule(m, i); err.push(...r.errors); warnings.push(...r.warnings); } });
+    return { ok: !err.length, errors: err, warnings };
   }
 
   function defaults(scene) {
@@ -29,6 +52,7 @@
     s.dt = s.dt || 1 / 120;
     s.g = s.g == null ? G : s.g;
     s.t = s.t || 0;
+    if (s.planet && s.planet.G > 0 && s.planet.M > 0 && s.planet.R > 0) s.g = s.planet.G * s.planet.M / (s.planet.R * s.planet.R);
     s.world = Object.assign({ xmin: -10, xmax: 10, ymin: -2, ymax: 12, air: 0 }, s.world || {});
     s.bodies = (s.bodies || []).map(b => Object.assign({
       x: 0, y: 0, vx: 0, vy: 0, ax: 0, ay: 0, mass: 1, radius: 0.25, q: 0,
@@ -42,9 +66,20 @@
     s.plots = s.plots || [];   // {id, of:'body.vx', history:[]}
     s.meta = Object.assign({ title: s.topic || 'scene', zh: s.zh || s.topic || '' }, s.meta || {});
     s.history = s.history || {};
+    s.modules = s.modules || [];
+    // runtime module state lives in a non-enumerable property so clone()/export never serialise it
+    Object.defineProperty(s, '_mod', { value: root.PhysModules ? s.modules.map(m => root.PhysModules.make(m.kind, m)) : [], writable: true, enumerable: false, configurable: true });
     return s;
   }
 
+  // E field: {Ex,Ey} or {mag|E, angle(deg, default 90 = up)} or {U, d, angle}  (E = U/d)
+  function fieldE(f) {
+    if (f.Ex != null || f.Ey != null) return { x: f.Ex || 0, y: f.Ey || 0 };
+    const m = f.U != null && f.d > 0 ? f.U / f.d : (f.mag != null ? f.mag : (f.E || 0));
+    const a = (f.angle == null ? 90 : f.angle) * Math.PI / 180; return { x: m * Math.cos(a), y: m * Math.sin(a) };
+  }
+  // B field (z component, + = out of page): {Bz} or {mag, dir:'out'|'in'}
+  function fieldB(f) { if (f.Bz != null) return f.Bz; const m = f.mag != null ? f.mag : (f.B || 0); return f.dir === 'in' ? -m : m; }
   function forceOn(s, b) {
     let fx = 0, fy = 0;
     if (!b.fixed && s.g) fy -= b.mass * s.g * (b.gravity == null ? 1 : b.gravity);
@@ -65,9 +100,9 @@
     // EM fields on charged bodies
     if (b.q) {
       for (const f of s.fields) {
-        if (f.type === 'E') { fx += b.q * (f.Ex || 0); fy += b.q * (f.Ey || 0); }
+        if (f.type === 'E') { const E = fieldE(f); fx += b.q * E.x; fy += b.q * E.y; }
         if (f.type === 'B') { // F = q v × B (Bz out of page): Fx=q vy Bz, Fy=-q vx Bz
-          const Bz = f.Bz || 0; fx += b.q * b.vy * Bz; fy += -b.q * b.vx * Bz;
+          const Bz = fieldB(f); fx += b.q * b.vy * Bz; fy += -b.q * b.vx * Bz;
         }
       }
     }
@@ -84,25 +119,42 @@
     return { x: fx, y: fy };
   }
 
+  // friction coefficient for a contact: surface value first, then the body's own, then fallback
+  function frictionOf(surf, b, key, fb) {
+    if (surf[key] != null) return surf[key]; if (key === 'mu' && surf.friction != null) return surf.friction;
+    if (b[key] != null) return b[key]; if (key === 'mu' && b.friction != null) return b.friction; return fb || 0;
+  }
   function collideWalls(s, b) {
     const w = s.world;
     const r = b.radius || 0;
     if (b.x - r < w.xmin) { b.x = w.xmin + r; b.vx = Math.abs(b.vx) * (b.bounce == null ? 0.0 : b.bounce); }
     if (b.x + r > w.xmax) { b.x = w.xmax - r; b.vx = -Math.abs(b.vx) * (b.bounce == null ? 0.0 : b.bounce); }
-    if (b.y - r < w.ymin) { b.y = w.ymin + r; b.vy = Math.abs(b.vy) * (b.bounce == null ? 0.0 : b.bounce); }
+    if (b.y - r < w.ymin) {
+      const e = b.bounce == null ? 0.0 : b.bounce, dvn = Math.abs(b.vy) * (1 + e);
+      b.y = w.ymin + r; b.vy = Math.abs(b.vy) * e;
+      const mu = frictionOf(w, b, 'mu'), mu0 = frictionOf(w, b, 'mu0', mu);
+      if (mu > 0 || mu0 > 0) { if (Math.abs(b.vx) <= mu0 * dvn) { b.x -= b.vx * s.dt; b.vx = 0; } else b.vx -= Math.sign(b.vx) * mu * dvn; }
+    }
     if (b.y + r > w.ymax) { b.y = w.ymax - r; b.vy = -Math.abs(b.vy) * (b.bounce == null ? 0.0 : b.bounce); }
     for (const wall of s.walls) {
       // axis-aligned segments only for v1 of engine
       if (Math.abs(wall.y1 - wall.y2) < 1e-9) { // horizontal
         const y = wall.y1, x1 = Math.min(wall.x1, wall.x2), x2 = Math.max(wall.x1, wall.x2);
         if (b.x >= x1 && b.x <= x2 && Math.abs(b.y - y) < r + 0.01) {
-          b.y = y + (b.y >= y ? r : -r); b.vy *= -(wall.bounce == null ? 0.9 : wall.bounce);
+          const e = wall.bounce == null ? 0.9 : wall.bounce, dvn = Math.abs(b.vy) * (1 + e);
+          b.y = y + (b.y >= y ? r : -r); b.vy *= -e;
+          // Coulomb friction along the wall: static μ₀ holds, kinetic μ decelerates (impulse ≤ μ·Δvn)
+          const mu = frictionOf(wall, b, 'mu'), mu0 = frictionOf(wall, b, 'mu0', mu);
+          if (mu > 0 || mu0 > 0) { if (Math.abs(b.vx) <= mu0 * dvn) { b.x -= b.vx * s.dt; b.vx = 0; } else b.vx -= Math.sign(b.vx) * mu * dvn; }
         }
       }
       if (Math.abs(wall.x1 - wall.x2) < 1e-9) {
         const x = wall.x1, y1 = Math.min(wall.y1, wall.y2), y2 = Math.max(wall.y1, wall.y2);
         if (b.y >= y1 && b.y <= y2 && Math.abs(b.x - x) < r + 0.01) {
-          b.x = x + (b.x >= x ? r : -r); b.vx *= -(wall.bounce == null ? 0.9 : wall.bounce);
+          const e = wall.bounce == null ? 0.9 : wall.bounce, dvn = Math.abs(b.vx) * (1 + e);
+          b.x = x + (b.x >= x ? r : -r); b.vx *= -e;
+          const mu = frictionOf(wall, b, 'mu'), mu0 = frictionOf(wall, b, 'mu0', mu);
+          if (mu > 0 || mu0 > 0) { if (Math.abs(b.vy) <= mu0 * dvn) { b.y -= b.vy * s.dt; b.vy = 0; } else b.vy -= Math.sign(b.vy) * mu * dvn; }
         }
       }
     }
@@ -210,6 +262,7 @@
           c.V = V0 * Math.sin(w * c.t); c.I = c.V / (c.R || 100);
         }
       }
+      for (const m of (s._mod || [])) root.PhysModules.step(m, s.dt, 1);
       s.t += s.dt;
       if ((k % 2) === 0) record(s);
     }
@@ -225,5 +278,22 @@
     });
   }
 
-  root.PhysSim = { validate, defaults, step, vectors, clone, G };
+  // Live derived quantities for the readout panel
+  function derived(s) {
+    const out = {}; let ke = 0, pe = 0, px = 0, py = 0;
+    for (const b of s.bodies) { ke += 0.5 * b.mass * (b.vx * b.vx + b.vy * b.vy); pe += b.mass * s.g * (b.y - s.world.ymin); px += b.mass * b.vx; py += b.mass * b.vy; }
+    if (s.bodies.length) Object.assign(out, { 'kinetic energy Ek (J)': ke, 'potential energy Ep (J)': pe, 'total energy E (J)': ke + pe, 'momentum px (kg·m/s)': px, 'momentum py (kg·m/s)': py, 'g (m/s²)': s.g });
+    s.fields.forEach((f, i) => { if (f.type === 'E') { const E = fieldE(f); out['E' + i + ' (V/m)'] = Math.hypot(E.x, E.y); } if (f.type === 'B') out['B' + i + ' (T, + out)'] = fieldB(f); });
+    (s._mod || []).forEach((m, i) => { const d = root.PhysModules.derive(m); for (const k in d) out[(s._mod.length > 1 ? 'm' + i + ' ' : '') + k] = d[k]; });
+    return out;
+  }
+  // set a module parameter (aliases allowed), keep the scene's param record in sync, restart the module
+  function setModuleParam(s, i, key, value) {
+    const M = s._mod && s._mod[i]; if (!M) return { ok: false, errors: ['no module at index ' + i] };
+    const r = root.PhysModules.setParam(M, key, value); if (!r.ok) return r;
+    const rec = s.modules[i]; for (const p of root.PhysModules.paramList(M.kind)) if (!p.alias) rec[p.key] = M[p.key];
+    root.PhysModules.init(M); return r;
+  }
+
+  root.PhysSim = { validate, defaults, step, vectors, derived, setModuleParam, fieldE, fieldB, clone, G };
 })(typeof window !== 'undefined' ? window : globalThis);

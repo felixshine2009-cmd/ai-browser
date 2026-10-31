@@ -1,0 +1,14 @@
+{
+  "topic": "mechanics.collision",
+  "zh": "一维碰撞（恢复系数 e）",
+  "meta": {
+    "zh": "一维碰撞（恢复系数 e）",
+    "title": "1D collision"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "collision"
+    }
+  ]
+}

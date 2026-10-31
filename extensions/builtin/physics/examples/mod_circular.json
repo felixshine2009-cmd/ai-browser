@@ -1,0 +1,14 @@
+{
+  "topic": "mechanics.circular",
+  "zh": "匀速圆周运动（r、ω）",
+  "meta": {
+    "zh": "匀速圆周运动（r、ω）",
+    "title": "Circular motion"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "circular"
+    }
+  ]
+}

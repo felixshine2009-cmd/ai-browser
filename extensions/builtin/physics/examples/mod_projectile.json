@@ -1,0 +1,14 @@
+{
+  "topic": "mechanics.projectile",
+  "zh": "抛体运动（可调初速/角/高度/阻力）",
+  "meta": {
+    "zh": "抛体运动（可调初速/角/高度/阻力）",
+    "title": "Projectile (all params)"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "projectile"
+    }
+  ]
+}

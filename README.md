@@ -1,12 +1,20 @@
 [**English**](README.md) | [中文](README_zh.md)
 
-# AI Browser v2.1.0
+# AI Browser v2.2.0
 
 A desktop browser (Electron / Chromium) with an AI **Chat mode** built in: dictionary lookup (MDX/MDD), sentence analysis, translation, **agentic web search** with cited answers, a local knowledge base, and GeoGebra plotting. An AI agent can drive the browser itself through a single tool registry.
 
 **Web version (PWA):** https://felixshine2009-cmd.github.io/ai-browser/ — chat via your own API key, GeoGebra, physics; desktop-only features are grayed out. Add to Home Screen on iPhone Safari.
 
 Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on Linux (xvfb + Playwright); things that need a real Mac are listed under *Known limitations*.
+
+## What's new in 2.2.0
+
+* **Every physics quantity is customisable** — a new *Params* panel (slider + number box + unit, collapsible on small screens) for 19 parametric high-school modules: projectile, incline (static μ₀ ≠ kinetic μ, angle, mass), circular motion, pendulum, spring, collision (restitution e), gravitation (G, M, R), SHM, waves (λ, T, v, f, φ), charged particle in plates + B (q, m, U, d, B, direction), circuits (DC / RC / RL / AC with ε, r, R, C, L, ρ, wire length and cross-section, frequency, peak), transformer, induction (N, area, B, ω), refraction (n₁, n₂, incidence, live critical angle, wavelength), thin lens (f, u, h), spherical mirror, ideal gas (isothermal / isobaric / isochoric / adiabatic, n, p, V, T, γ, c, m), photoelectric (ν, W₀, h, stopping voltage, threshold) and radioactive decay (half-life, N₀).
+* Rigid-body scenes gained static / kinetic friction on walls and floor, restitution, E-field by `{mag, angle}` or `{U, d}`, B-field by `{mag, dir}`, and `planet{G,M,R}` → g.
+* Derived values (range, critical angle, time constants, Ek, …) update live; out-of-range input shows a clear error; scenes export / import as JSON.
+* New agent tools `phys_set_param`, `phys_update`, `phys_list_params`; a test asserts that every parameter changes the simulation output.
+* Web version updated with the same panel (see the wiki page *Physics-Parameters*).
 
 ## What's new in 2.1.0
 
