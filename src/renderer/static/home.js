@@ -19,4 +19,14 @@
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); document.getElementById('form').requestSubmit(); } });
   q.focus();
   window.aib.on('addr:focus', () => q.focus());
+  const vk = VKeyboard.mount(document.getElementById('vkhost'), { getTarget: () => q, collapsed: true });
+  window.__AIB_VK__ = vk;
+  window.aib.on('vkeyboard:cmd', (msg) => {
+    if (!msg) return;
+    if (msg.action === 'toggle') vk.setCollapsed(!vk.isCollapsed());
+    else if (msg.action === 'show') vk.setCollapsed(false);
+    else if (msg.action === 'hide') vk.setCollapsed(true);
+    else if (msg.action === 'insert' && msg.text) vk.insert(msg.text);
+    else if (msg.action === 'tab' && msg.tab) vk.setTab(msg.tab);
+  });
 })();

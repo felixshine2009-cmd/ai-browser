@@ -316,8 +316,13 @@ function createWindow() {
 function getWin() { return win; }
 function allTabs() { return tabs; }
 
+function broadcastToActive(channel, payload) {
+  const t = activeTab();
+  if (t && t.wc && !t.wc.isDestroyed()) try { t.wc.send(channel, payload); } catch {}
+}
+
 module.exports = {
-  CHROME_H, createWindow, createTab, createIncognitoTab, closeTab, activateTab, getTab, activeTab, allTabs, submit, openInternal, load,
+  CHROME_H, createWindow, createTab, createIncognitoTab, closeTab, activateTab, getTab, activeTab, allTabs, submit, openInternal, load, broadcastToActive,
   toggleMenu, closeOverlay, showFind, showLookup, openOverlay, overlays, zoom, state, notify, getWin, hooks, looksLikeUrl, isInternal,
   tabInfo, layout
 };

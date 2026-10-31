@@ -1,6 +1,6 @@
 [English](README.md) | [**中文**](README_zh.md)
 
-# AI 浏览器 v3.0.0
+# AI 浏览器 v3.1.0
 
 一个内置 AI **聊天模式**的桌面浏览器（Electron / Chromium）：词典查询（MDX/MDD）、长难句分析、翻译、带引用的**智能搜索**、本地知识库和 GeoGebra 画图。AI 通过统一的工具注册表，可以直接操作浏览器。
 
@@ -8,7 +8,14 @@
 
 面向 **Apple 芯片（M1/M2/M3）macOS 12+**。应用在 Linux 上用 xvfb + Playwright 做了端到端测试；需要真机验证的部分见“已知限制”。
 
+## 3.1.0 新内容
+
+* **可折叠数学 / 化学虚拟键盘**：主页（默认折叠）与 Chat 追问区；数学 / 化学 / 希腊字母 / 运算符号分页，在光标处插入。
+* Agent 工具 `vkeyboard_toggle`、`vkeyboard_insert`、`vkeyboard_catalog`。
+* 网页版同步同一键盘。
+
 ## 3.0.0 新内容
+
 
 * **首次安装设置向导**：语言 → 显示名称 → AI 模型（API / 本地）→ 搜索引擎 → 词典（可选）→ 完成。任意步骤可跳过；可在 **设置 → 通用** 重新打开。
 * Agent 工具 `browser_open_page` 支持 `onboarding`。

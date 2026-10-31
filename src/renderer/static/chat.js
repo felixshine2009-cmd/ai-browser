@@ -25,13 +25,31 @@
     side.style.display = 'none';
     side.innerHTML = `<div class="ai-label" id="plabel"></div><div class="pages-read" id="pages"></div><div class="ai-label" id="slabel"></div><div id="sources"></div>`;
     body.append(main, side);
-    page.append(qbar, body);
+    const follow = el('div', 'chat-follow');
+    follow.innerHTML = `<div class="home-search-box chat-follow-box"><textarea id="followq" rows="1" spellcheck="false" placeholder=""></textarea><button type="button" class="go" id="followgo" title="Send">↵</button></div><div id="vkhost"></div>`;
+    page.append(qbar, body, follow);
     root.appendChild(page);
-    els = { q: qs('q'), qlabel: qs('qlabel'), rewrites: qs('rewrites'), alabel: qs('alabel'), status: qs('status'), trace: qs('trace'), answer: qs('answer'), toolsrow: qs('toolsrow'), pngs: qs('pngs'), err: qs('err'), side, plabel: qs('plabel'), pages: qs('pages'), slabel: qs('slabel'), sources: qs('sources'), body, main };
+    els = { q: qs('q'), qlabel: qs('qlabel'), rewrites: qs('rewrites'), alabel: qs('alabel'), status: qs('status'), trace: qs('trace'), answer: qs('answer'), toolsrow: qs('toolsrow'), pngs: qs('pngs'), err: qs('err'), side, plabel: qs('plabel'), pages: qs('pages'), slabel: qs('slabel'), sources: qs('sources'), body, main, followq: qs('followq') };
     els.q.textContent = st.input;
     els.alabel.textContent = t('chat.answer');
     els.plabel.textContent = t('chat.pagesRead');
     els.slabel.textContent = t('chat.sources');
+    const fq = qs('followq'); fq.placeholder = t('home.placeholder');
+    const sendFollow = () => { const v = fq.value.trim(); if (v) window.aib.invoke('nav:submit', v); };
+    qs('followgo').onclick = sendFollow;
+    fq.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendFollow(); } });
+    if (window.VKeyboard) {
+      const vk = VKeyboard.mount(qs('vkhost'), { getTarget: () => fq, collapsed: true });
+      window.__AIB_VK__ = vk;
+      window.aib.on('vkeyboard:cmd', (msg) => {
+        if (!msg) return;
+        if (msg.action === 'toggle') vk.setCollapsed(!vk.isCollapsed());
+        else if (msg.action === 'show') vk.setCollapsed(false);
+        else if (msg.action === 'hide') vk.setCollapsed(true);
+        else if (msg.action === 'insert' && msg.text) vk.insert(msg.text);
+        else if (msg.action === 'tab' && msg.tab) vk.setTab(msg.tab);
+      });
+    }
   }
   const qs = id => document.getElementById(id);
 

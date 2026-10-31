@@ -88,3 +88,20 @@ select option{background:var(--panel2);color:var(--text)}
 .hint.warn{color:var(--danger);font-weight:600}
 #localProg{min-height:1.2em;font-variant-numeric:tabular-nums}
 #engKind:disabled,#localModel:disabled,#btnLoadLocal:disabled{opacity:.45;cursor:not-allowed}
+
+/* virtual keyboard */
+
+.vk{margin:10px 0 0;max-width:720px}
+.vk-toggle{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:6px 12px;border:1px solid var(--border,#1e2c30);background:var(--panel,#121c1f);color:var(--text,#e8f0ea);border-radius:999px;cursor:pointer;font:600 12px inherit}
+.vk-toggle:hover{border-color:var(--accent,#3d9b6e)}
+.vk-ico{color:var(--accent,#3d9b6e);font-weight:800}
+.vk-panel{margin-top:8px;padding:10px;border:1px solid var(--border,#1e2c30);border-radius:12px;background:var(--panel,#121c1f)}
+.vk-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}
+.vk-tab{min-height:32px;padding:4px 10px;border-radius:8px;border:1px solid var(--border,#1e2c30);background:#0b1416;color:var(--muted,#8aa096);cursor:pointer;font:600 12px inherit}
+.vk-tab.on{background:var(--accent,#3d9b6e);border-color:var(--accent,#3d9b6e);color:#04140c}
+.vk-row{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 4px}
+.vk-key{min-width:36px;min-height:36px;padding:4px 8px;border-radius:8px;border:1px solid var(--border,#1e2c30);background:#0b1416;color:var(--text,#e8f0ea);cursor:pointer;font:600 13px "Segoe UI Symbol","Noto Sans Symbols",sans-serif}
+.vk-key.wide{min-width:52px;font-size:12px}
+.vk-key:hover{border-color:var(--accent,#3d9b6e);background:#163528}
+.vk.collapsed .vk-panel{display:none}
+@media (pointer:coarse){.vk-key,.vk-tab,.vk-toggle{min-height:44px;min-width:44px}}
