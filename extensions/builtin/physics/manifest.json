@@ -1,0 +1,148 @@
+{
+  "standard": "aib-feature/1",
+  "id": "aib.physics",
+  "name": "高中物理可视化",
+  "version": "2.0.0",
+  "description": "2D physics engine for Chinese high-school physics with AI scene JSON + canvas visualization.",
+  "update_url": "https://example.invalid/aib/aib.physics/update.json",
+  "permissions": [
+    "panels"
+  ],
+  "entry": "main.js",
+  "i18n": {
+    "zh": {
+      "name": "高中物理可视化",
+      "description": "覆盖高中物理力学/振动波动/电磁/光学/热学/近代物理的 2D 可视化；AI 输出 scene JSON 并驱动播放。"
+    },
+    "en": {
+      "name": "High-school Physics",
+      "description": "2D visualizer covering Chinese high-school physics; AI outputs scene JSON and drives playback."
+    }
+  },
+  "contributes": {
+    "tools": [
+      {
+        "name": "phys_validate",
+        "description": "Validate a physics scene JSON against the schema. Returns {ok, errors[]}. Always validate before phys_load; on failure, fix the JSON and retry.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "scene": {
+              "type": "object",
+              "description": "Physics scene JSON"
+            }
+          },
+          "required": [
+            "scene"
+          ]
+        }
+      },
+      {
+        "name": "phys_load",
+        "description": "Load a physics scene JSON into the visualizer (opens the panel). Scene fields: topic, zh, world{xmin,xmax,ymin,ymax,air}, g, bodies[{id,x,y,vx,vy,mass,radius,q,color,label,fixed,bounce,e}], springs[{a,b,k,rest,damping}], fields[{type:'E'|'B',Ex,Ey,Bz}], walls, optics{rays,mirrors,lenses,interfaces}, circuit{type:'RC'|'AC',...}, plots[{id,of:'body.prop'}], dt. Coordinates: +x right, +y up; gravity pulls -y.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "scene": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "scene"
+          ]
+        }
+      },
+      {
+        "name": "phys_play",
+        "description": "Play the current physics simulation.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "phys_pause",
+        "description": "Pause the physics simulation.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "phys_step",
+        "description": "Advance a few simulation steps while paused.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "n": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      {
+        "name": "phys_reset",
+        "description": "Reset the scene to its initial state.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "phys_set_speed",
+        "description": "Set playback speed (0.25–4).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "speed": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "speed"
+          ]
+        }
+      },
+      {
+        "name": "phys_state",
+        "description": "Read current simulation state (t, body positions/velocities, circuit).",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "phys_list_examples",
+        "description": "List built-in example scenes covering Chinese high-school physics topics.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "phys_load_example",
+        "description": "Load a built-in example by id (from phys_list_examples).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    ],
+    "panels": [
+      {
+        "id": "canvas",
+        "title": "Physics",
+        "page": "panel.html",
+        "location": "side"
+      }
+    ],
+    "inputHandlers": []
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "topic": "optics.lens",
+  "zh": "薄透镜",
+  "meta": {
+    "title": "Thin lens",
+    "zh": "薄透镜成像"
+  },
+  "world": {
+    "xmin": -1,
+    "xmax": 12,
+    "ymin": -4,
+    "ymax": 4
+  },
+  "g": 0,
+  "bodies": [],
+  "optics": {
+    "rays": [
+      {
+        "x": 0,
+        "y": 1.2,
+        "angle": 0,
+        "n": 1
+      },
+      {
+        "x": 0,
+        "y": 0,
+        "angle": 0,
+        "n": 1
+      },
+      {
+        "x": 0,
+        "y": -1.2,
+        "angle": 0,
+        "n": 1
+      }
+    ],
+    "lenses": [
+      {
+        "x": 5,
+        "y": 0,
+        "h": 4,
+        "f": 3
+      }
+    ]
+  }
+}

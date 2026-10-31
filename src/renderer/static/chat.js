@@ -65,6 +65,7 @@
       case 'queries': st.queries = ev.queries; st.direct = ev.direct; renderQueries(); if (ev.direct) setStatus(t('chat.generating')); else if (!ev.queries.length) setStatus(t('chat.thinking')); break;
       case 'search-start': break;
       case 'status': setStatus(ev.text); addTrace(ev.text); break;
+      case 'translate-error': setStatus((t('chat.translateFail') || 'Translation failed') + ': ' + (ev.error || '')); addTrace('✕ ' + (ev.error || '')); break;
       case 'answer-reset': st.answer = ''; st.translation = ''; queueRender(); break;
       case 'serp': break;
       case 'pages': st.pages = ev.pages; els.side.style.display = ''; renderPages(); break;
@@ -170,8 +171,17 @@
     f.addEventListener('load', () => { f.dataset.loaded = '1'; });
     f.src = `aibext://${extId}/panel.html`;
     holder.appendChild(f);
+    showPanel(f);
     return f;
   }
+  // Only the panel the AI is driving is visible (GeoGebra and Physics share this area); the title follows it.
+  function showPanel(f) {
+    const holder = document.getElementById('plotcanvas'); if (!holder || !f) return;
+    holder.querySelectorAll('iframe').forEach(x => { x.style.display = x === f ? '' : 'none'; });
+    const logo = document.querySelector('#plotpanel .gg-bar .logo');
+    if (logo) logo.innerHTML = f.dataset.ext === 'aib.physics' ? `<span>${esc(t('plot.physics'))}</span>` : 'Geo<span>Gebra</span>';
+  }
+  Bridge.showPanel = showPanel;
   Bridge.mountPanel = mountPanel;
   function ensurePlotLayout() {
     if (document.getElementById('plotpanel')) return;

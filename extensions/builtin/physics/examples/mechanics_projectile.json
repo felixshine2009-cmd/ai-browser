@@ -1,0 +1,50 @@
+{
+  "topic": "mechanics.projectile",
+  "zh": "平抛运动",
+  "meta": {
+    "title": "Projectile motion",
+    "zh": "平抛运动"
+  },
+  "world": {
+    "xmin": -1,
+    "xmax": 14,
+    "ymin": -1,
+    "ymax": 8
+  },
+  "g": 9.8,
+  "bodies": [
+    {
+      "id": "ball",
+      "x": 0,
+      "y": 5,
+      "vx": 6,
+      "vy": 0,
+      "mass": 0.2,
+      "radius": 0.2,
+      "color": "#f59e0b",
+      "label": "小球",
+      "bounce": 0
+    }
+  ],
+  "walls": [
+    {
+      "x1": -1,
+      "y1": 0,
+      "x2": 14,
+      "y2": 0,
+      "bounce": 0
+    }
+  ],
+  "plots": [
+    {
+      "id": "y",
+      "of": "ball.y",
+      "label": "y(t)"
+    },
+    {
+      "id": "vy",
+      "of": "ball.vy",
+      "label": "vy(t)"
+    }
+  ]
+}
