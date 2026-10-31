@@ -84,3 +84,7 @@ select{background:var(--panel2);color:var(--text);-webkit-appearance:none;appear
 select option{background:var(--panel2);color:var(--text)}
 
 .keyrow{display:flex;gap:8px;align-items:center}.keyrow input{flex:1 1 auto}.keyrow button{flex:0 0 auto}
+
+.hint.warn{color:var(--danger);font-weight:600}
+#localProg{min-height:1.2em;font-variant-numeric:tabular-nums}
+#engKind:disabled,#localModel:disabled,#btnLoadLocal:disabled{opacity:.45;cursor:not-allowed}
