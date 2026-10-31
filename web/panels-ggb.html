@@ -1,0 +1,176 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#0b1416;--panel:#121c1f;--border:#1e2c30;--text:#e8f0ea;--muted:#8aa096;--accent:#3d9b6e;--btn:#1a282c}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}
+#chrome{display:flex;flex-direction:column;height:100%}
+#bar{display:flex;gap:6px;align-items:center;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+#apps{display:flex;gap:2px;flex-wrap:wrap}
+#apps button,#acts button{appearance:none;border:1px solid var(--border);background:var(--btn);color:var(--text);border-radius:6px;padding:5px 9px;font:600 12px/1 inherit;cursor:pointer}
+#apps button.active{background:var(--accent);border-color:var(--accent);color:#04140c}
+#apps button:hover,#acts button:hover{filter:brightness(1.15)}
+#acts{display:flex;gap:4px;margin-left:auto}
+#wrap{flex:1;position:relative;min-height:0}
+#ggb{position:absolute;inset:0}
+#err{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--muted);text-align:center;padding:24px}
+#toast{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);background:#163528;color:#b7f0cf;padding:6px 12px;border-radius:8px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;z-index:5}
+input[type=file]{display:none}
+@media (pointer:coarse){#apps button,#acts button{min-height:44px;min-width:44px}}
+html,body{max-width:100vw}
+</style>
+<script src="ggb/deployggb.js"></script>
+</head><body>
+<div id="chrome">
+  <div id="bar">
+    <div id="apps">
+      <button data-app="graphing" class="active" title="Graphing">Graphing</button>
+      <button data-app="geometry" title="Geometry">Geometry</button>
+      <button data-app="3d" title="3D Graphics">3D</button>
+      <button data-app="cas" title="CAS">CAS</button>
+      <button data-app="scientific" title="Scientific">Scientific</button>
+      <button data-app="suite" title="Suite">Suite</button>
+    </div>
+    <div id="acts">
+      <button id="kb" title="Math keyboard (123 / f(x) / ABC / symbols)">⌨ Keyboard</button>
+      <button id="save" title="Save .ggb">Save</button>
+      <button id="load" title="Open .ggb">Open</button>
+      <button id="png" title="Export PNG">PNG</button>
+      <button id="clr" title="New construction">Clear</button>
+      <input id="file" type="file" accept=".ggb,application/vnd.geogebra.file">
+    </div>
+  </div>
+  <div id="wrap"><div id="ggb"></div><div id="err"></div><div id="toast"></div></div>
+</div>
+<script>
+(function () {
+  var applet = null, currentApp = 'graphing', readyRes, readyRej;
+  var ready = new Promise(function (a, b) { readyRes = a; readyRej = b; });
+  var toastEl = document.getElementById('toast'), toastT;
+  function toast(m) { toastEl.textContent = m; toastEl.style.opacity = '1'; clearTimeout(toastT); toastT = setTimeout(function () { toastEl.style.opacity = '0'; }, 1800); }
+  function size() { var w = document.getElementById('wrap'); return { w: Math.max(240, w.clientWidth), h: Math.max(240, w.clientHeight) }; }
+  // One codebase per page: GGBApplet cannot switch codebases after the first load, and web3d supports every app (graphing/geometry/3D/CAS/scientific/suite).
+  function codebaseFor(app) { return 'ggb/HTML5/5.0/web3d/'; }
+  function paramsFor(app) {
+    var s = size();
+    return {
+      appName: app, width: s.w, height: s.h,
+      showToolBar: true, showToolBarHelp: false, customToolBar: '',
+      showAlgebraInput: true, showMenuBar: false, showResetIcon: false,
+      enableRightClick: true, enableShiftDragZoom: true, useBrowserForJS: true,
+      borderColor: '#0b1416', showFullscreenButton: false, language: 'zh',
+      showKeyboardOnFocus: true, allowUpscale: true, autoHeight: false,
+      enableFileFeatures: false, showZoomButtons: true,
+      appletOnLoad: function (api) {
+        applet = api; readyRes(api);
+        try { if (app === 'graphing' || app === 'geometry') api.setCoordSystem(-8, 8, -5, 5); } catch (e) {}
+        // Prefer the built-in math keyboard (tabs: 123 / f(x) / ABC / symbols)
+        
+        try { parent.postMessage({ aibPanelEvent: 'ready', app: app }, '*'); } catch (e) {}
+      }
+    };
+  }
+  function inject(app) {
+    applet = null;
+    ready = new Promise(function (a, b) { readyRes = a; readyRej = b; });
+    document.getElementById('ggb').innerHTML = '';
+    document.getElementById('err').style.display = 'none';
+    currentApp = app;
+    document.querySelectorAll('#apps button').forEach(function (b) { b.classList.toggle('active', b.dataset.app === app); });
+    var a = new GGBApplet(paramsFor(app), true);
+    a.setHTML5Codebase(codebaseFor(app));
+    a.inject('ggb');
+    setTimeout(function () {
+      if (!applet) {
+        var e = document.getElementById('err'); e.style.display = 'flex';
+        e.textContent = 'GeoGebra failed to load (' + app + ')'; readyRej(new Error('GeoGebra load timeout'));
+      }
+    }, 60000);
+  }
+  function focusInput() {
+    // Click the algebra / AV input so the WEB math keyboard appears with 123 / f(x) / ABC / symbols
+    var sels = [
+      '.algebraView .newRadioButtonPanel input', '.algebraPanel input',
+      'input.gwt-TextBox', 'textarea.gwt-TextArea',
+      '.AlgebraInput input', '.algebraEditor', '[class*="AlgebraInput"] input',
+      '[class*="mathField"]', '.avInput', '#InputBox'
+    ];
+    for (var i = 0; i < sels.length; i++) {
+      var el = document.querySelector(sels[i]);
+      if (el) { try { el.focus(); el.click(); return true; } catch (e) {} }
+    }
+    return false;
+  }
+  async function toggleKeyboard() {
+    var api = await ready;
+    var shown = false;
+    try { if (api.showKeyboard) { api.showKeyboard(true); shown = true; } } catch (e) {}
+    try { if (!shown && api.evalCommand) { /* no-op */ } } catch (e) {}
+    if (!focusInput()) toast('Tap the input bar to open the math keyboard');
+    else toast('Keyboard: 123 · f(x) · ABC · symbols');
+  }
+  try { new ResizeObserver(function () { if (applet && applet.setSize) { var s = size(); try { applet.setSize(s.w, s.h); } catch (e) {} } }).observe(document.getElementById('wrap')); } catch (e) {}
+  window.addEventListener('resize', function () {
+    if (applet && applet.setSize) { var s = size(); try { applet.setSize(s.w, s.h); } catch (e) {} }
+  });
+  document.getElementById('apps').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-app]'); if (!b) return;
+    if (b.dataset.app === currentApp) return;
+    inject(b.dataset.app);
+  });
+  document.getElementById('kb').onclick = function () { toggleKeyboard(); };
+  document.getElementById('clr').onclick = async function () { var api = await ready; api.newConstruction(); toast('Cleared'); };
+  document.getElementById('png').onclick = async function () {
+    var api = await ready; var b = api.getPNGBase64(1, true, 72);
+    try { parent.postMessage({ aibPanelEvent: 'png', data: 'data:image/png;base64,' + b }, '*'); } catch (e) {}
+    toast('PNG exported');
+  };
+  document.getElementById('save').onclick = async function () {
+    var api = await ready; var b64 = api.getBase64();
+    var bin = atob(b64), u8 = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([u8], { type: 'application/vnd.geogebra.file' }));
+    a.download = 'construction.ggb'; a.click(); URL.revokeObjectURL(a.href); toast('Saved .ggb');
+  };
+  document.getElementById('load').onclick = function () { document.getElementById('file').click(); };
+  document.getElementById('file').onchange = async function () {
+    var f = this.files && this.files[0]; this.value = ''; if (!f) return;
+    var api = await ready; var buf = await f.arrayBuffer();
+    var u8 = new Uint8Array(buf), s = ''; for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+    try { api.setBase64(btoa(s)); toast('Opened ' + f.name); } catch (e) { toast('Open failed: ' + e.message); }
+  };
+
+  var methods = {
+    eval: async function (a) {
+      var api = await ready, res = [];
+      (a.commands || []).forEach(function (c) {
+        var ok = false, scripting = /^\s*(Set|Show|Hide|Zoom|Pan|Rename|Delete|Execute|Update|Center|Start|Pause|Run|Select|Deselect|Unlink|Lock)[A-Za-z]*\s*\(/i.test(String(c));
+        try { ok = api.evalCommand(String(c)); if (!ok && scripting) ok = true; } catch (e) { ok = false; }
+        res.push({ cmd: c, ok: !!ok });
+      });
+      return { results: res, objects: api.getAllObjectNames(), count: api.getObjectNumber(), app: currentApp };
+    },
+    clear: async function () { var api = await ready; api.newConstruction(); try { api.setCoordSystem(-8, 8, -5, 5); } catch (e) {} return { ok: true, count: api.getObjectNumber() }; },
+    exportPng: async function () {
+      var api = await ready; var b = api.getPNGBase64(1, true, 72);
+      try { parent.postMessage({ aibPanelEvent: 'png', data: 'data:image/png;base64,' + b }, '*'); } catch (e) {}
+      return { ok: true, bytes: Math.floor(b.length * 3 / 4) };
+    },
+    setApp: async function (a) { var app = (a && a.app) || 'graphing'; if (app !== currentApp) inject(app); await ready; return { app: currentApp }; },
+    getBase64: async function () { var api = await ready; return { ggb: api.getBase64(), app: currentApp }; },
+    setBase64: async function (a) { var api = await ready; api.setBase64(String(a.ggb || a.base64 || '')); return { ok: true, objects: api.getAllObjectNames() }; },
+    showKeyboard: async function () { await toggleKeyboard(); return { ok: true }; },
+    state: async function () {
+      var api = await ready; var names = api.getAllObjectNames();
+      return { app: currentApp, objects: names.map(function (n) { return { name: n, type: api.getObjectType(n), def: api.getCommandString(n) }; }) };
+    }
+  };
+  window.addEventListener('message', function (ev) {
+    var m = ev.data; if (ev.source !== parent || !m || !m.aibPanelCall) return;
+    Promise.resolve().then(function () { return methods[m.method]((m.args) || {}); })
+      .then(function (r) { parent.postMessage({ aibPanelReply: m.aibPanelCall, result: r }, '*'); },
+           function (e) { parent.postMessage({ aibPanelReply: m.aibPanelCall, error: String(e && e.message || e) }, '*'); });
+  });
+  inject('graphing');
+})();
+</script></body></html>
