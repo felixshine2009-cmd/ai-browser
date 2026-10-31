@@ -33,7 +33,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     const heads = await p.locator('.ext-sec-title span:first-child').allInnerTexts();
     eq(heads, ['功能拓展', '普通浏览器拓展']);
     const names = await p.locator('#feats .ext-card .name').allInnerTexts();
-    assert(names.some(n => n.startsWith('词典')) && names.some(n => n.startsWith('GeoGebra 绘图')), names.join('|'));
+    assert(names.some(n => n.startsWith('词典')) && names.some(n => n.startsWith('GeoGebra')), names.join('|'));
     assert((await p.locator('#feats .ext-card .btn-update[data-act="update"]').count()) >= 2);
     await app.screenshot(path.join(__dirname, '..', '..', 'shots', '07-extensions.png'));
   });

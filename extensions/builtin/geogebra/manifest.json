@@ -1,9 +1,9 @@
 {
   "standard": "aib-feature/1",
   "id": "aib.geogebra",
-  "name": "GeoGebra 绘图",
-  "version": "1.0.0",
-  "description": "AI 调用 GeoGebra 绘制函数图像与几何作图。",
+  "name": "GeoGebra Math Apps",
+  "version": "2.0.0",
+  "description": "Offline GeoGebra Math Apps (graphing, geometry, 3D, CAS, scientific, suite) with WEB math keyboard; AI-driven via evalCommand.",
   "update_url": "https://example.invalid/aib/aib.geogebra/update.json",
   "permissions": [
     "panels"
@@ -11,12 +11,12 @@
   "entry": "main.js",
   "i18n": {
     "zh": {
-      "name": "GeoGebra 绘图",
-      "description": "AI 调用 GeoGebra 绘制函数图像与几何作图。"
+      "name": "GeoGebra 数学应用",
+      "description": "离线 GeoGebra 数学应用（绘图 / 几何 / 3D / CAS / 科学计算器 / 套件），含网页版数学键盘；AI 通过 evalCommand 驱动。"
     },
     "en": {
-      "name": "GeoGebra Graphing",
-      "description": "AI-driven GeoGebra for function plots and geometry."
+      "name": "GeoGebra Math Apps",
+      "description": "Offline GeoGebra Math Apps (graphing, geometry, 3D, CAS, scientific, suite) with the WEB math keyboard; AI-driven via evalCommand."
     }
   },
   "contributes": {
@@ -24,7 +24,7 @@
     "tools": [
       {
         "name": "ggb_eval",
-        "description": "Execute GeoGebra commands in the graphing panel; the panel opens automatically. Use English GeoGebra syntax, ONE object per command string, in dependency order: functions \"f(x)=sin(x)\", \"g(x)=x^2/4\"; restricted \"h(x)=If(0<=x<=2π, x^2)\"; points \"A=(1,2)\"; intersections \"A=Intersect(f,g,1)\" (or Intersect(f,g) for all); shapes \"c=Circle((0,0),3)\", \"s=Segment(A,B)\", \"p=Polygon(A,B,C)\"; calculus \"d=Derivative(f)\", \"i=Integral(f,0,1)\"; style \"SetColor(f,\\\"Blue\\\")\". Use * for multiplication of names, ^ for powers, pi/π and sqrt(). Returns per-command success and the names of all objects — re-check failed commands and retry once.",
+        "description": "Execute GeoGebra commands in the Math Apps panel (opens automatically). Use English GeoGebra syntax, ONE object per command, in dependency order. Examples: f(x)=sin(x); A=(1,2); c=Circle((0,0),3); SetColor(f,\"Blue\"). Switch app first with ggb_set_app when you need 3D/CAS/geometry. Returns per-command success and object names.",
         "parameters": {
           "type": "object",
           "properties": {
@@ -33,7 +33,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "GeoGebra command strings, executed in order"
+              "description": "GeoGebra command strings"
             }
           },
           "required": [
@@ -43,7 +43,7 @@
       },
       {
         "name": "ggb_clear",
-        "description": "Remove all objects from the GeoGebra panel (start a new construction).",
+        "description": "Clear the GeoGebra construction (new blank worksheet).",
         "parameters": {
           "type": "object",
           "properties": {}
@@ -51,7 +51,69 @@
       },
       {
         "name": "ggb_export_png",
-        "description": "Export the current GeoGebra view as a PNG (shown to the user as a downloadable image). Returns the byte size.",
+        "description": "Export the current GeoGebra view as a PNG shown to the user.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "ggb_set_app",
+        "description": "Switch the GeoGebra app: graphing | geometry | 3d | cas | scientific | suite.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string",
+              "enum": [
+                "graphing",
+                "geometry",
+                "3d",
+                "cas",
+                "scientific",
+                "suite"
+              ]
+            }
+          },
+          "required": [
+            "app"
+          ]
+        }
+      },
+      {
+        "name": "ggb_save",
+        "description": "Return the current construction as a base64 .ggb (for the user to download or for ggb_load).",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "ggb_load",
+        "description": "Load a construction from a base64 .ggb string.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "ggb": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ggb"
+          ]
+        }
+      },
+      {
+        "name": "ggb_keyboard",
+        "description": "Show the on-screen WEB math keyboard (tabs: 123 / f(x) / ABC / symbols).",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "ggb_state",
+        "description": "List objects currently in the GeoGebra construction (name, type, definition).",
         "parameters": {
           "type": "object",
           "properties": {}

@@ -371,24 +371,23 @@ await A('tb.bookmark', '工具栏', '书签星标', '加入 / 取消书签，列
       assert(await p.locator('.settings-nav').isVisible());
     }
   });
-  await A('set.general', '设置页 · 通用', '语言 中文 / English', '切换语言：设置落盘、界面立即变化；版本号为 1.1.0', async () => {
-    const p = await settings('general'); assert((await p.locator('.hint').last().innerText()).includes('1.1.0'), await p.locator('.hint').last().innerText());
+  await A('set.general', '设置页 · 通用', '语言 中文 / English', '切换语言：设置落盘、界面立即变化；版本号为 2.0.0', async () => {
+    const p = await settings('general'); assert((await p.locator('.hint').last().innerText()).includes('2.0.0'), await p.locator('.hint').last().innerText());
     await p.click('[data-lang="en"]'); await until(async () => (await inv('settings:get')).lang === 'en', 3000, 'en saved');
     await until(async () => (await p.locator('.nav-item').first().innerText()) !== 'AI 模型', 3000, 'ui english');
     await until(async () => (await ch.locator('#modeseg .seg').first().innerText()) === 'Chat', 3000, 'chrome english');
     await p.click('[data-lang="zh"]'); await until(async () => (await inv('settings:get')).lang === 'zh', 3000, 'zh saved');
     await until(async () => (await p.locator('.nav-item').first().innerText()) === 'AI 模型', 3000, 'ui chinese');
   });
-  await A('set.greeting', '设置页 · 通用', '显示名称 / 主页问候语 / 保存 / 恢复默认 / 隐藏 ✦', '保存后落盘并绿色提示；主页问候语即时更新（{name}）；留空用默认；隐藏图标；恢复默认', async () => {
+  await A('set.greeting', '设置页 · 通用', '显示名称 / 主页问候语 / 保存 / 恢复默认 ', '保存后落盘并绿色提示；主页问候语即时更新（{name}）；留空用默认；恢复默认', async () => {
     const p = await settings('general');
     await p.fill('#dname', '阿杰'); await p.fill('#greeting', '{name}，你好呀'); await p.click('#greetsave');
     await until(async () => (await p.locator('#greetnote .ck').count()) === 1, 3000, 'green check');
     await until(async () => { const s = await inv('settings:get'); return s.displayName === '阿杰' && s.greeting === '{name}，你好呀'; }, 3000, 'persisted');
     const h = await openInternal('home'); await until(async () => (await h.locator('#greet').innerText()) === '阿杰，你好呀', 4000, 'home greeting');
     const p2 = await settings('general');
-    await p2.click('#hidespark'); await until(async () => (await inv('settings:get')).hideSpark === true, 3000, 'hideSpark saved');
-    await p2.click('#hidespark'); await p2.click('#greetreset');
-    await until(async () => { const s = await inv('settings:get'); return s.greeting === '' && s.displayName === 'Felix' && s.hideSpark === false; }, 3000, 'reset');
+    await p2.click('#greetreset');
+    await until(async () => { const s = await inv('settings:get'); return s.greeting === '' && s.displayName === 'Felix'; }, 3000, 'reset');
   });
   await A('chat.agent', 'Chat 页 · 智能体搜索', '工具调用循环：web_search / open_page / 所选引擎 / 状态行', '模型发出 web_search×2 → open_page×3；状态行显示 “用 … 搜索”、“阅读：…”；回答仅引用已打开页面；无需搜索的问题不搜索', async () => {
     const p = await chat('苹果 M1 和 M2 有什么区别？');

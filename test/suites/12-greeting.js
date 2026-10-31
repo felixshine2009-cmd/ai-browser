@@ -9,10 +9,10 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   const ch = await app.chrome();
   const inv = (...a) => ch.evaluate((a) => window.aib.invoke(...a), a);
   let home, sp;
-  await test('默认问候语：Felix，今天想做什么？ 且 ✦ 图标可见', async () => {
+  await test('默认问候语：Felix，今天想做什么？（无装饰图标）', async () => {
     home = await app.waitPage(u => u.startsWith('aibrowser://home'));
     await until(async () => (await home.locator('#greet').innerText()) === 'Felix，今天想做什么？', 5000, 'default greeting');
-    assert(await home.locator('.spark-inline').isVisible());
+    assert((await home.locator('.spark-inline').count()) === 0, 'spark decoration removed');
   });
   await test('设置 → 通用 有“显示名称”和“主页问候语”，主页无需刷新即时更新', async () => {
     await ch.click('#tabadd'); await sleep(400);
@@ -37,11 +37,10 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     await sp.fill('#dname', ''); await sp.click('#greetsave');
     await until(async () => (await home.locator('#greet').innerText()) === '今天想做什么？', 5000, 'no name');
   });
-  await test('隐藏 ✦ 图标选项；恢复默认', async () => {
-    await sp.click('#hidespark'); await until(async () => !(await home.locator('.spark-inline').isVisible()), 5000, 'spark hidden');
-    await sp.click('#hidespark'); await until(async () => await home.locator('.spark-inline').isVisible(), 5000, 'spark back');
+  await test('恢复默认问候语', async () => {
     await sp.click('#greetreset');
     await until(async () => (await home.locator('#greet').innerText()) === 'Felix，今天想做什么？', 5000, 'reset');
+    assert((await home.locator('.spark-inline').count()) === 0, 'no spark after reset');
   });
   await app.close();
 };

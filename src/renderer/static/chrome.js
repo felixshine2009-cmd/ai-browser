@@ -4,7 +4,6 @@
   const tabsEl = $('tabs'), addr = $('addr');
   document.addEventListener('keydown', (ev) => { if (!(ev.ctrlKey || ev.metaKey)) return; window.aib.invoke('kbd:key', { code: ev.code, ctrl: ev.ctrlKey, meta: ev.metaKey, shift: ev.shiftKey, alt: ev.altKey }).then(ok => { }).catch(() => {}); });
   let state = { tabs: [], activeId: null, mode: 'chat' };
-  const SPARK = '<svg class="spark-inline" viewBox="0 0 100 100" width="14" height="14"><defs><linearGradient id="fgc" gradientUnits="userSpaceOnUse" x1="14" y1="10" x2="86" y2="92"><stop offset="0" stop-color="#fde047"/><stop offset="0.28" stop-color="#fb923c"/><stop offset="0.62" stop-color="#22d3ee"/><stop offset="1" stop-color="#2563eb"/></linearGradient></defs><path d="M50 2 C54 30 70 46 98 50 C70 54 54 70 50 98 C46 70 30 54 2 50 C30 46 46 30 50 2 Z" fill="url(#fgc)"/></svg>';
   const LOCK = '<svg width="12" height="12" viewBox="0 0 16 16"><rect x="4" y="7" width="8" height="7" rx="1.5" fill="none" stroke="currentColor"/><path d="M6 7V5a2 2 0 0 1 4 0v2" fill="none" stroke="currentColor"/></svg>';
 
   const seen = new Set(); let firstRender = true; let prevEls = new Map();
@@ -17,9 +16,8 @@
       el.className = 'tab' + (tb.active ? ' active' : '') + (tb.incognito ? ' incognito' : '') + (!firstRender && !seen.has(tb.id) ? ' enter' : '');
       seen.add(tb.id);
       el.dataset.id = tb.id;
-      const fav = document.createElement('div'); fav.className = 'favicon' + (tb.icon === 'spark' ? ' fav-spark' : '');
-      if (tb.icon === 'spark') fav.innerHTML = SPARK;
-      else if (tb.favicon) { const im = document.createElement('img'); im.src = tb.favicon; im.onerror = () => { fav.textContent = (tb.title || '·').slice(0, 1); im.remove(); }; fav.appendChild(im); }
+      const fav = document.createElement('div'); fav.className = 'favicon';
+      if (tb.favicon) { const im = document.createElement('img'); im.src = tb.favicon; im.onerror = () => { fav.textContent = (tb.title || '·').slice(0, 1); im.remove(); }; fav.appendChild(im); }
       else fav.textContent = (tb.title || tb.url || '·').replace(/^https?:\/\//, '').slice(0, 1).toUpperCase();
       const ti = document.createElement('div'); ti.className = 'title';
       ti.textContent = tb.kind === 'home' ? I18N.t('tab.newtab') : (tb.kind === 'chat' ? (tb.display || tb.title) : (tb.title || tb.url));
@@ -50,8 +48,8 @@
       $('reload').classList.toggle('loading', a.loading);
       $('bookmark').classList.toggle('bookmarked', !!a.bookmarked);
       cwsUpdate(a);
-      $('lock').innerHTML = a.icon === 'spark' ? '✦' : LOCK;
-      $('lock').classList.toggle('spark', a.icon === 'spark');
+      $('lock').innerHTML = LOCK; // spark glyph removed in v2
+      $('lock').classList.remove('spark');
       if (document.activeElement !== addr) addr.value = a.display || '';
     }
     document.querySelectorAll('#modeseg .seg').forEach(s => s.classList.toggle('active', s.dataset.mode === state.mode));

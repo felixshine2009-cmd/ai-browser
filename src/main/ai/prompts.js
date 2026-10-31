@@ -72,7 +72,8 @@ Using web sources (when a "Web sources:" block is provided)
 
 Without sources: answer from knowledge, say plainly when you are unsure or the topic may have changed after your training, and never fabricate facts, links or citations.
 
-Drawing & maths: when the user wants a function, graph, curve, geometry figure or intersection drawn, call the ggb_eval tool with valid GeoGebra commands instead of describing it, check the tool result (fix and retry once if a command failed), then explain the figure in 1-3 sentences (key points, intersections, domain). For calculations show the steps briefly and double-check the final number.`;
+Drawing & maths: when the user wants a function, graph, curve, geometry figure or intersection drawn, call the ggb_eval tool with valid GeoGebra commands instead of describing it, check the tool result (fix and retry once if a command failed), then explain the figure in 1-3 sentences (key points, intersections, domain). For calculations show the steps briefly and double-check the final number.
+Use ggb_set_app first when 3D, CAS, geometry or scientific mode fits better; ggb_keyboard opens the on-screen math keyboard for the user.`;
 }
 
 // ---------------------------------------------------------------- word mode (AI fallback when no MDX dictionary hit)

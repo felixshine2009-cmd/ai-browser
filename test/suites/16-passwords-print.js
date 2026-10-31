@@ -104,7 +104,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   await test('打印：四方格菜单含“打印 ⌘P”，点击触发打印；另存为 PDF 生成有效 PDF；工具 browser_print 同样触发', async () => {
     await app.submit(A + '/login'); await sleep(500);
     await ch.click('#menu'); const mp = await app.waitPage(u => u.startsWith('aibrowser://menu')); await sleep(300);
-    const row = mp.locator('.omi[data-action="print"]'); assert(/打印/.test(await row.innerText()) && /⌘P/.test(await row.innerText()), await row.innerText());
+    const row = mp.locator('.omi[data-action="print"]'); assert(/打印/.test(await row.innerText()) && /(⌘|Ctrl\+)P/.test(await row.innerText()), await row.innerText());
     assert(/密码/.test(await mp.locator('.omi[data-action="passwords"]').innerText()), 'Passwords entry in menu');
     await row.click(); await until(() => fs.existsSync(printLog) && fs.readFileSync(printLog, 'utf8').includes('/login'), 5000, 'print called');
     fs.rmSync(printLog, { force: true });

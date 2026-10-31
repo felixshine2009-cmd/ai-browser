@@ -24,7 +24,7 @@ async function launch(opts = {}) {
   const userData = opts.userData || fs.mkdtempSync(path.join(os.tmpdir(), 'aib-ud-'));
   const dlDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aib-dl-'));
   const logs = [];
-  const proc = spawn(electronPath, ['.', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', `--remote-debugging-port=${port}`], {
+  const proc = spawn(electronPath, ['.', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', `--remote-debugging-port=${port}`, ...(opts.args || [])], {
     cwd: ROOT, env: { ...process.env, AIB_USER_DATA: userData, AIB_DOWNLOAD_DIR: dlDir, ELECTRON_ENABLE_LOGGING: '1', ...(opts.env || {}) }
   });
   proc.stdout.on('data', d => logs.push(String(d)));

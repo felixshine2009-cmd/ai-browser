@@ -497,6 +497,7 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) { app.quit(); } else {
   app.on('second-instance', () => { const w = tabsMod.getWin(); if (w) { if (w.isMinimized()) w.restore(); w.focus(); } });
   app.whenReady().then(async () => {
+    try { if (process.platform === 'darwin' && app.dock) app.dock.setIcon(require('path').join(__dirname, '..', 'assets', 'icon.png')); } catch {}
     store.init();
     registerProtocols();
     tabsMod.hooks.prepareIncognito = (ses) => { registerProtocols(ses.protocol); setupDownloads(ses); };

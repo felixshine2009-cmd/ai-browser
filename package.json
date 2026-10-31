@@ -1,7 +1,7 @@
 {
   "name": "ai-browser",
   "productName": "AI浏览器",
-  "version": "1.1.1",
+  "version": "2.0.0",
   "description": "AI 浏览器 — Electron (Chromium) + AI 搜索/词典/GeoGebra",
   "main": "src/main/main.js",
   "author": "Felix",
@@ -29,5 +29,22 @@
     "js-mdict": "^6.0.8",
     "jsdom": "^29.1.1",
     "node-llama-cpp": "^3.22.2"
+  },
+  "build": {
+    "appId": "com.felix.aibrowser",
+    "productName": "AI Browser",
+    "directories": {
+      "buildResources": "build"
+    },
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "icon": "build/icon.png"
+    }
   }
 }
