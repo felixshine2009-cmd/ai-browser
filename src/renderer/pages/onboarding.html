@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src aibrowser:; style-src aibrowser: 'unsafe-inline'; img-src * data: blob:; font-src aibrowser: data:; connect-src aibrowser:; frame-src aibdict: aibext: aibrowser:; media-src aibdict: aibext:">
+<title>Setup</title>
+<link rel="stylesheet" href="aibrowser://static/shared.css"/>
+<link rel="stylesheet" href="aibrowser://static/app.css"/>
+<style>
+.ob{max-width:560px;margin:8vh auto 0;padding:24px 28px 32px;background:var(--panel,#121c1f);border:1px solid var(--border,#1e2c30);border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.ob h1{margin:0 0 6px;font-size:22px}
+.ob .sub{color:var(--muted,#8aa096);margin:0 0 18px;font-size:13px}
+.ob .steps{display:flex;gap:6px;margin:0 0 18px;flex-wrap:wrap}
+.ob .steps span{flex:1;min-width:48px;height:4px;border-radius:2px;background:#1e2c30}
+.ob .steps span.on{background:var(--accent,#3d9b6e)}
+.ob .steps span.done{background:#2a5c44}
+.ob .form-row{margin:0 0 14px}
+.ob label{display:block;font-size:12px;color:var(--muted,#8aa096);margin:0 0 4px}
+.ob input,.ob select{width:100%;min-height:40px;background:#0b1416;border:1px solid #1e2c30;border-radius:8px;color:#e8f0ea;padding:8px 10px;font:600 14px inherit}
+.ob .hint{font-size:12px;color:var(--muted,#8aa096);margin-top:4px}
+.ob .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px;align-items:center}
+.ob .actions .spacer{flex:1}
+.ob .mode-seg{display:flex;gap:6px}
+.ob .mode-seg .seg{flex:1;text-align:center;padding:10px;border:1px solid #1e2c30;border-radius:8px;cursor:pointer;font-weight:600}
+.ob .mode-seg .seg.active{background:var(--accent,#3d9b6e);border-color:var(--accent,#3d9b6e);color:#04140c}
+.ob .done-icon{font-size:40px;margin:8px 0 12px}
+</style>
+</head>
+<body class="page">
+<div class="page-root"><div class="ob" id="ob">
+  <div class="steps" id="dots"></div>
+  <h1 id="title"></h1>
+  <p class="sub" id="sub"></p>
+  <div id="body"></div>
+  <div class="actions">
+    <button type="button" class="btn-ghost" id="btnSkip"></button>
+    <span class="spacer"></span>
+    <button type="button" class="btn-secondary" id="btnBack"></button>
+    <button type="button" class="btn-primary" id="btnNext"></button>
+  </div>
+</div></div>
+<script src="aibrowser://static/i18n.js"></script>
+<script src="aibrowser://static/onboarding.js"></script>
+</body></html>

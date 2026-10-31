@@ -22,7 +22,8 @@ const DEFAULTS = {
   translate: { engine: 'hunyuan' }, // 'hunyuan' (bundled HY-MT, loaded only while translating) | 'chat' (current chat model)
   kb: { source: 'builtin', api: { baseUrl: '', apiKey: '', model: '' } }, // knowledge base embeddings
   agent: { maxSteps: 12 },
-  passwords: { save: true, autofill: true }
+  passwords: { save: true, autofill: true },
+  onboarding: { completed: false, skipped: false, completedAt: 0 }
 };
 
 const ENGINES = {
@@ -68,8 +69,15 @@ class JsonFile {
 let settingsFile, historyFile, bookmarksFile, downloadsFile;
 
 function init() {
+  const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+  let raw = null;
+  try { raw = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch { raw = null; }
   settingsFile = new JsonFile('settings.json', {});
-  settingsFile.data = deepMerge(DEFAULTS, settingsFile.data);
+  settingsFile.data = deepMerge(DEFAULTS, raw || {});
+  // Brand-new install → show the wizard. Pre-3.0.0 upgrades (settings existed without onboarding) skip it.
+  const fresh = raw === null || (typeof raw === 'object' && !Object.keys(raw).length);
+  if (fresh) settingsFile.data.onboarding = { completed: false, skipped: false, completedAt: 0 };
+  else if (!Object.prototype.hasOwnProperty.call(raw, 'onboarding')) settingsFile.data.onboarding = { completed: true, skipped: false, completedAt: 0 };
   historyFile = new JsonFile('history.json', []);
   bookmarksFile = new JsonFile('bookmarks.json', []);
   downloadsFile = new JsonFile('downloads.json', []);
