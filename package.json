@@ -1,7 +1,7 @@
 {
   "name": "ai-browser",
   "productName": "AI浏览器",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "AI 浏览器 — Electron (Chromium) + AI 搜索/词典/GeoGebra",
   "main": "src/main/main.js",
   "author": "Felix",
@@ -12,12 +12,16 @@
     "stage:mac": "node scripts/stage-mac.js",
     "pack:mac": "node scripts/pack-mac.js",
     "dist:mac": "npm run pack:mac",
-    "test:direct": "node test/run-all.js"
+    "test:direct": "node test/run-all.js",
+    "dist:win": "node scripts/pack-win.js x64",
+    "dist:win-arm64": "node scripts/pack-win.js arm64"
   },
   "devDependencies": {
     "@electron/packager": "^18.4.4",
     "electron": "^45.2.1",
-    "playwright-core": "^1.64.1"
+    "electron-builder": "^25.1.8",
+    "playwright-core": "^1.64.1",
+    "resedit": "^3.1.0"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",

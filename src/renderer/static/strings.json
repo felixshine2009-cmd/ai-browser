@@ -260,6 +260,7 @@
   "pw.cancel": "取消",
   "pw.touch": "查看前会请求 Touch ID",
   "pw.syspw": "查看前会请求系统密码",
+  "pw.hello": "查看前会请求 Windows Hello（或 PIN / 系统密码）",
   "settings.nav.kb": "知识库"
  },
  "en": {
@@ -523,6 +524,7 @@
   "pw.cancel": "Cancel",
   "pw.touch": "Touch ID is asked before viewing",
   "pw.syspw": "Your system password is asked before viewing",
+  "pw.hello": "Windows Hello (or your PIN / system password) is asked before viewing",
   "settings.nav.kb": "Knowledge base"
  }
 }

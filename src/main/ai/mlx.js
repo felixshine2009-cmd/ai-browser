@@ -72,6 +72,6 @@ async function stop(key) {
   await new Promise(r => { const t = setTimeout(() => { try { s.proc.kill('SIGKILL'); } catch {} r(); }, 3000); s.proc.once('exit', () => { clearTimeout(t); r(); }); });
 }
 async function stopAll() { for (const k of Array.from(servers.keys())) await stop(k); }
-const status = () => ({ available: available(), runtime: detectRuntime(), running: Array.from(servers.entries()).map(([k, s]) => ({ key: k, model: s.model, port: s.port, lastUsed: s.lastUsed })) });
+const status = () => ({ platformOk: platformOk(), available: available(), runtime: detectRuntime(), running: Array.from(servers.entries()).map(([k, s]) => ({ key: k, model: s.model, port: s.port, lastUsed: s.lastUsed })) });
 
 module.exports = { acquire, stop, stopAll, available, detectRuntime, status, platformOk };

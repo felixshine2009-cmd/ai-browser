@@ -11,7 +11,7 @@
 * **隐身标签页** — 右上角四方格菜单第一项“新建隐身标签页”（⇧⌘N）。使用独立的内存会话：不共享 Cookie、存储、历史和已保存密码；深紫色标签带“隐身”徽标；关闭最后一个隐身标签后全部清除。
 * **Agent 工具注册表** — 统一的函数调用工具（兼容 OpenAI / Anthropic；本地模型走语法约束的 JSON 回退）：浏览器操作（标签页、隐身、导航、历史、拓展）、搜索 / 读网页、词典、翻译与语法分析、知识库、设置（只读，不含密钥）、打印 / 另存 PDF，以及各 功能拓展 声明的工具（新拓展自动注册）。聊天里会简要显示工具步骤，步数上限可调。
 * **知识库** — 内置 **EmbeddingGemma-300M**（离线，使用 `task: search result | query: …` 提示），分块 + 本地向量库，可添加文件 / 网页 / 文本，检索测试，也可改用自定义嵌入 API。
-* **混元翻译** — 内置 **HY-MT1.5-1.8B**，仅在翻译时加载（句子 / 文章 / 网页 / `translate_text` 工具），空闲约 2.5 分钟后卸载；不会用于聊天和词典。可用自定义 API 或“翻译”角色模型替换。
+* **混元翻译** — **HY-MT1.5-1.8B**（1.1.1 起不再内置，约 1.1 GB，第一次翻译时从 hf-mirror 下载，有进度、可续传），仅在翻译时加载（句子 / 文章 / 网页 / `translate_text` 工具），空闲约 2.5 分钟后卸载；不会用于聊天和词典。可用自定义 API 或“翻译”角色模型替换。
 * **本地模型重做** — 引擎选择（llama.cpp GGUF / Apple 芯片上的 MLX）；下载默认走 **hf-mirror.com**（可切换 huggingface.co 或自定义地址，失败自动回退）；可**搜索 Hugging Face** 或粘贴 repo，支持断点续传和 sha256 校验；自定义模型可担任 聊天 / 词典 / 翻译 / 嵌入 角色；模型按**家族折叠分组**（Qwen3、Qwen2.5、Gemma 4、Gemma 3n、Gemma 3、Hunyuan-MT、EmbeddingGemma …）。
 * **本地框架** — 自动探测 **LM Studio**（:1234）、**Ollama**（:11434，原生 API）、**oMLX**（:8000）、MLX-LM / llama.cpp server（:8080）、vLLM、Jan、LocalAI 或任意 OpenAI 兼容服务；可自定义主机 / 端口，连接测试给出具体原因，支持流式输出，原生工具调用 + JSON 回退。
 * **MLX 引擎**（Apple 芯片）— 启动本地 OpenAI 兼容的 `mlx_lm.server`，按需启动 / 空闲停止，失败时回退到 llama.cpp 并显示原因。需要 `pip3 install mlx-lm`（未内置）。
@@ -26,7 +26,9 @@
 | 文件 | 说明 |
 |---|---|
 | `AI-Browser-mac-arm64.dmg` | 磁盘映像，打开后把应用拖进“应用程序”即可。在 Linux 上制作，还没有在真实 Mac 上挂载验证 — 打不开请用 zip |
-| `AI-Browser-mac-arm64.zip` | 未签名的 `AI Browser.app`（macOS arm64）— 已含 EmbeddingGemma 和 HY-MT 模型，可离线使用 |
+| `AI-Browser-mac-arm64.zip` | 未签名的 `AI Browser.app`（macOS arm64）— 已含 EmbeddingGemma（知识库）；HY-MT 翻译模型在第一次使用时下载 |
+| `AI-Browser-win-x64-setup.exe` | Windows 安装程序（x64，NSIS 向导：选目录、桌面 / 开始菜单快捷方式）。未签名，SmartScreen 可能提示 — 点“更多信息 → 仍要运行” |
+| `AI-Browser-win-x64-portable.zip` | Windows 便携版（x64）：解压到任意位置，运行 `AI Browser.exe` |
 | `install.command` / `install.sh` | 解压 → 拷贝到 `/Applications` → `xattr -cr` → 启动 |
 | `AI-Browser-source.zip` | 源码（不含 `node_modules` 和模型文件） |
 | `README.md` / `README-zh.md` | 英文 / 中文说明 |
@@ -38,6 +40,8 @@
 1. 把 `AI-Browser-mac-arm64.zip` 和 `install.command` 放在同一文件夹。
 2. 双击 `install.command`（或运行 `bash install.sh`）。
 3. 若 macOS 提示无法验证开发者：系统设置 → 隐私与安全性 → 仍要打开；或运行 `xattr -cr "/Applications/AI Browser.app" && open "/Applications/AI Browser.app"`。
+
+**Windows：** 运行 `AI-Browser-win-x64-setup.exe`（或解压便携版后启动 `AI Browser.exe`）。Windows 版只内置 EmbeddingGemma（llama.cpp CPU + Vulkan 后端）；混元翻译模型（HY-MT，约 1.1 GB）在第一次翻译时下载——默认走 hf-mirror，有进度、可续传；MLX 只支持 Apple 芯片，在 Windows 上已隐藏；查看已保存密码会请求 Windows Hello（或 PIN / 密码）；快捷键用 Ctrl 代替 ⌘。这个版本在 Linux 上构建，还没有在真实 Windows 上运行过 — 遇到问题请反馈。
 
 ## 首次使用
 

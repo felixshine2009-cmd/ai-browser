@@ -20,7 +20,7 @@ function customEntries() {
   let c = []; try { c = store.getSettings().ai.local.custom || []; } catch {}
   return c.map(x => ({ ...x, custom: true, display: (x.family || familyOf(x.repo)) + ' ' + x.name, size: fmtSize(x.bytes || 0), ram: ramFor(x.bytes || 0), tags: x.tags || ['custom'], note: x.note || x.repo }));
 }
-function allEntries() { return BUILTIN_CATALOG.concat(customEntries()); }
+function allEntries() { const all = BUILTIN_CATALOG.concat(customEntries()); return require('./mlx').platformOk() ? all : all.filter(m => m.engine !== 'mlx'); } // MLX is Apple-Silicon only: hidden elsewhere (Windows / Linux)
 function findEntry(id) { return allEntries().find(m => m.id === id); }
 function haveEntry(m) {
   const p = modelPathOf(m);

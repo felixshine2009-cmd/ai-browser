@@ -132,6 +132,7 @@
   let fwCache = [], mlxSt = null, hf = { q: '', kind: 'gguf', items: [], files: {}, busy: false, msg: null };
   const patchLocal = (p) => window.aib.invoke('settings:patch', { ai: { local: p } });
   const rolesOf = () => (S.ai.local.roles || {});
+  const showMlx = () => !mlxSt || mlxSt.platformOk !== false;
   const roleKey = (m) => (m.engine === 'mlx' ? 'mlx:' : 'llama:') + m.id;
   const selId = () => { const L = S.ai.local; if (L.modelId) return L.modelId; const m = models.find(x => x.path === L.modelPath); return m ? m.id : ''; };
   const roleOfModel = (m) => (m.tags || []).includes('embedding') ? 'embedding' : (m.tags || []).includes('translate') ? 'translate' : 'chat';
@@ -203,7 +204,7 @@
     const L = S.ai.local; const body = document.getElementById('aibody'); if (!body) return;
     const hub = L.hub || { endpoint: 'mirror', custom: '' };
     body.innerHTML = `<div class="engine-note">${esc(t('ai.local.note'))}</div>
-      <div class="form-row"><label>${esc(T('推理引擎', 'Inference engine'))}</label><div class="mode-seg" id="engseg">${[['auto', T('自动', 'Auto')], ['llama', 'llama.cpp (GGUF)'], ['mlx', 'MLX (Apple)']].map(([v, l]) => `<div class="seg ${(L.engine || 'auto') === v ? 'active' : ''}" data-eng="${v}">${esc(l)}</div>`).join('')}</div>
+      <div class="form-row"><label>${esc(T('推理引擎', 'Inference engine'))}</label><div class="mode-seg" id="engseg">${[['auto', T('自动', 'Auto')], ['llama', 'llama.cpp (GGUF)'], ['mlx', 'MLX (Apple)']].filter(x => x[0] !== 'mlx' || showMlx()).map(([v, l]) => `<div class="seg ${(L.engine || 'auto') === v ? 'active' : ''}" data-eng="${v}">${esc(l)}</div>`).join('')}</div>
         <div class="hint" id="engnote"></div></div>
       <div class="form-row"><label>${esc(T('Hugging Face 下载源', 'Hugging Face endpoint'))}</label>
         <div class="inline"><select id="hubep"><option value="mirror" ${hub.endpoint === 'mirror' ? 'selected' : ''}>hf-mirror.com (${esc(T('默认', 'default'))})</option><option value="official" ${hub.endpoint === 'official' ? 'selected' : ''}>huggingface.co</option><option value="custom" ${hub.endpoint === 'custom' ? 'selected' : ''}>${esc(T('自定义地址', 'Custom URL'))}</option></select>
@@ -214,7 +215,7 @@
       <div class="engine-note" id="lmpath"></div>
       <h3 class="sec-h">${esc(T('从 Hugging Face 搜索', 'Search Hugging Face'))}</h3>
       <div class="hf-bar"><input type="text" id="hfq" placeholder="${esc(T('搜索模型，或粘贴 repo id / 链接', 'Search models, or paste a repo id / URL'))}" value="${esc(hf.q)}" spellcheck="false"/>
-        <div class="mode-seg" id="hfkind"><div class="seg ${hf.kind === 'gguf' ? 'active' : ''}" data-kind="gguf">GGUF</div><div class="seg ${hf.kind === 'mlx' ? 'active' : ''}" data-kind="mlx">MLX</div></div><button class="btn-primary" id="hfgo">${esc(T('搜索', 'Search'))}</button></div>
+        <div class="mode-seg" id="hfkind"><div class="seg ${hf.kind === 'gguf' ? 'active' : ''}" data-kind="gguf">GGUF</div>${showMlx() ? `<div class="seg ${hf.kind === 'mlx' ? 'active' : ''}" data-kind="mlx">MLX</div>` : ''}</div><button class="btn-primary" id="hfgo">${esc(T('搜索', 'Search'))}</button></div>
       <div id="hfmsg"></div><div id="hfres"></div>
       <h3 class="sec-h">${esc(T('模型角色', 'Model roles'))}</h3><div class="hint">${esc(T('为不同任务指定不同模型；留空 = 聊天模型（翻译 / 嵌入留空 = 内置 HY-MT / EmbeddingGemma）。', 'Assign models per task; empty = the chat model (translate / embedding empty = bundled HY-MT / EmbeddingGemma).'))}</div><div id="roles" class="roles-grid"></div>
       <div class="engine-note" id="lmstat"></div>
@@ -225,7 +226,7 @@
     const hasSel = !!(cur || L.modelPath || rolesOf().chat); const useBtn = document.getElementById('uselocal'); useBtn.disabled = !hasSel;
     document.getElementById('pickgguf').onclick = async () => { await window.aib.invoke('lm:pick'); await refresh(); renderLocal(); };
     // engine
-    window.aib.invoke('mlx:status').then(s => { mlxSt = s; const e = document.getElementById('engnote'); if (!e) return;
+    window.aib.invoke('mlx:status').then(s => { const before = showMlx(); mlxSt = s; if (before !== showMlx()) { if (!showMlx() && hf.kind === 'mlx') hf.kind = 'gguf'; return renderLocal(); } const e = document.getElementById('engnote'); if (!e) return;
       const rt = s.runtime || {};
       e.innerHTML = esc(s.available ? T('MLX 可用：', 'MLX available: ') + (rt.cmd || '') : T('MLX 不可用：', 'MLX unavailable: ') + (rt.reason || T('仅支持 Apple 芯片 Mac，并需 pip3 install mlx-lm', 'Apple Silicon only; run pip3 install mlx-lm'))) + ` <a href="#" id="mlxre">${esc(T('重新检测', 'Re-check'))}</a>`;
       const a = document.getElementById('mlxre'); if (a) a.onclick = async (ev) => { ev.preventDefault(); mlxSt = await window.aib.invoke('mlx:recheck'); renderLocal(); };
@@ -441,7 +442,7 @@
     p.innerHTML = `<h2>${esc(t('pw.title'))}</h2><div class="sub">${esc(t('pw.sub'))}</div>
       <div class="form-row"><label class="inline pw-check"><input type="checkbox" id="pwsave" ${cfg.save !== false ? 'checked' : ''}/>${esc(t('pw.save'))}</label>
         <label class="inline pw-check"><input type="checkbox" id="pwauto" ${cfg.autofill !== false ? 'checked' : ''}/>${esc(t('pw.autofill'))}</label>
-        <div class="hint">${esc(info.touchId ? t('pw.touch') : t('pw.syspw'))}</div></div>
+        <div class="hint">${esc(info.touchId ? t('pw.touch') : info.hello ? t('pw.hello') : t('pw.syspw'))}</div></div>
       <div class="pw-bar"><input type="text" id="pwq" placeholder="${esc(t('pw.search'))}" spellcheck="false"/><button class="btn-secondary" id="pwadd">${esc(t('pw.add'))}</button><button class="btn-secondary" id="pwimp">${esc(t('pw.import'))}</button><button class="btn-secondary" id="pwexp">${esc(t('pw.export'))}</button><span id="pwnote"></span></div>
       <div class="engine-note">${esc(t('pw.exportWarn'))}</div>
       <div class="card-list pw-list" id="pwlist"></div>
