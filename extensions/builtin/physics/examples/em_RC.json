@@ -1,0 +1,29 @@
+{
+  "topic": "em.RC",
+  "zh": "RC 电路充电",
+  "meta": {
+    "title": "RC charging",
+    "zh": "RC 充电"
+  },
+  "world": {
+    "xmin": -2,
+    "xmax": 2,
+    "ymin": -2,
+    "ymax": 2
+  },
+  "g": 0,
+  "bodies": [],
+  "circuit": {
+    "type": "RC",
+    "R": 1000,
+    "C": 0.001,
+    "V": 5,
+    "Vc": 0
+  },
+  "plots": [
+    {
+      "id": "Vc",
+      "of": "t"
+    }
+  ]
+}

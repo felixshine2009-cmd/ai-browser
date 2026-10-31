@@ -1,0 +1,60 @@
+{
+  "topic": "mechanics.circular",
+  "zh": "匀速圆周运动",
+  "meta": {
+    "title": "Uniform circular motion",
+    "zh": "匀速圆周"
+  },
+  "world": {
+    "xmin": -5,
+    "xmax": 5,
+    "ymin": -5,
+    "ymax": 5
+  },
+  "g": 0,
+  "bodies": [
+    {
+      "id": "p",
+      "x": 3,
+      "y": 0,
+      "vx": 0,
+      "vy": 4,
+      "mass": 1,
+      "radius": 0.2,
+      "color": "#a78bfa",
+      "label": "质点",
+      "gravity": 0
+    },
+    {
+      "id": "o",
+      "x": 0,
+      "y": 0,
+      "fixed": true,
+      "radius": 0.05,
+      "color": "#64748b",
+      "label": "O"
+    }
+  ],
+  "springs": [
+    {
+      "a": "p",
+      "b": "o",
+      "k": 0,
+      "rest": 3
+    }
+  ],
+  "forces": [
+    {
+      "type": "gravity_point",
+      "body": "p",
+      "center": "o",
+      "G": 16
+    }
+  ],
+  "plots": [
+    {
+      "id": "vx",
+      "of": "p.vx"
+    }
+  ]
+}

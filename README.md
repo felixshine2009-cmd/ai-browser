@@ -9,6 +9,7 @@ Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on 
 ## What's new in 2.0.0
 
 * **Full GeoGebra Math Apps**, offline: graphing / geometry / 3D / CAS / scientific / suite, on-screen math keyboard (123 / f(x) / ABC / symbols), save/open `.ggb`, PNG export, AI control via `ggb_*` tools.
+* **High-school physics visualizer**: deterministic 2D engine for mechanics, oscillation / waves, electromagnetism, optics, thermal and modern topics; scene JSON validated before loading (AI retries on errors); play / pause / step / speed, vectors, trails, live plots; 15 example scenes; `phys_*` agent tools.
 * **New app icon** (ring + aurora).
 * Removed the greeting decoration glyph.
 

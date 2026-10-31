@@ -14,6 +14,7 @@
       let f = Bridge.frameFor(extId, panelId);
       if (!f && Bridge.mountPanel) f = Bridge.mountPanel(extId, panelId);
       if (!f) throw new Error('panel not available');
+      if (Bridge.showPanel) Bridge.showPanel(f);
       if (!f.dataset.loaded) await new Promise(res => { if (f.dataset.loaded) return res(); f.addEventListener('load', () => res(), { once: true }); });
       return new Promise((resolve, reject) => {
         const id = ++n;

@@ -1,0 +1,32 @@
+{
+  "topic": "optics.refraction",
+  "zh": "折射与全反射",
+  "meta": {
+    "title": "Refraction / TIR",
+    "zh": "光的折射"
+  },
+  "world": {
+    "xmin": -1,
+    "xmax": 10,
+    "ymin": -1,
+    "ymax": 8
+  },
+  "g": 0,
+  "bodies": [],
+  "optics": {
+    "rays": [
+      {
+        "x": 0,
+        "y": 4,
+        "angle": 0.6,
+        "n": 1
+      }
+    ],
+    "interfaces": [
+      {
+        "x": 5,
+        "n2": 1.5
+      }
+    ]
+  }
+}

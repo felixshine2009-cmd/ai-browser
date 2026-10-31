@@ -1,0 +1,51 @@
+{
+  "topic": "mechanics.collision",
+  "zh": "弹性碰撞",
+  "meta": {
+    "title": "1D elastic collision",
+    "zh": "一维弹性碰撞"
+  },
+  "world": {
+    "xmin": -2,
+    "xmax": 12,
+    "ymin": -1,
+    "ymax": 4
+  },
+  "g": 0,
+  "bodies": [
+    {
+      "id": "a",
+      "x": 1,
+      "y": 1,
+      "vx": 3,
+      "vy": 0,
+      "mass": 1,
+      "radius": 0.4,
+      "color": "#22c55e",
+      "label": "m₁",
+      "e": 1
+    },
+    {
+      "id": "b",
+      "x": 5,
+      "y": 1,
+      "vx": 0,
+      "vy": 0,
+      "mass": 1,
+      "radius": 0.4,
+      "color": "#ef4444",
+      "label": "m₂",
+      "e": 1
+    }
+  ],
+  "plots": [
+    {
+      "id": "vxa",
+      "of": "a.vx"
+    },
+    {
+      "id": "vxb",
+      "of": "b.vx"
+    }
+  ]
+}

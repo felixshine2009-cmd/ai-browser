@@ -40,5 +40,29 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     assert(hasKb, 'keyboard DOM present; tabs=' + JSON.stringify(tabs) + ' ' + txt.slice(0, 200));
   });
 
+  await test('物理：加载示例（抛体）、播放后时间推进、画布有内容；暂停/单步/重置', async () => {
+    const ex = JSON.parse(fs.readFileSync(path.join(__dirname, '../../extensions/builtin/physics/examples/index.json'), 'utf8'));
+    const first = (ex.examples || ex)[0];
+    const file = first.file || first.id + '.json';
+    const scene = JSON.parse(fs.readFileSync(path.join(__dirname, '../../extensions/builtin/physics/examples', file.endsWith('.json') ? file : file + '.json'), 'utf8'));
+    const r = await call('aib.physics', 'load', { scene });
+    await sleep(800);
+    await call('aib.physics', 'play', {}); await sleep(1200);
+    const s1 = await call('aib.physics', 'state', {});
+    await call('aib.physics', 'pause', {}); await sleep(200);
+    const s2 = await call('aib.physics', 'state', {});
+    const dbg = await p.frames().find(f => f.url().includes('aib.physics')).evaluate(() => ({ hidden: document.hidden, vis: document.visibilityState, w: innerWidth, h: innerHeight })).catch(e => String(e));
+    assert((s1.t || s1.state?.t || 0) > 0, JSON.stringify(dbg) + 'time advances ' + JSON.stringify(s1).slice(0, 300) + JSON.stringify(r).slice(0, 200));
+    await call('aib.physics', 'step', { n: 5 });
+    const s3 = await call('aib.physics', 'state', {});
+    await shot('21-physics-projectile.png');
+    const fr = p.frames().find(f => f.url().includes('aib.physics/panel.html'));
+    const filled = await fr.evaluate(() => { const c = document.querySelector('canvas'); if (!c) return -1; const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++; return n; });
+    assert(filled !== 0, 'canvas painted: ' + filled);
+    await call('aib.physics', 'reset', {});
+    const s4 = await call('aib.physics', 'state', {});
+    assert((s4.t || s4.state?.t || 0) === 0, 'reset ' + JSON.stringify(s4).slice(0, 200));
+  });
+
   await app.close();
 };

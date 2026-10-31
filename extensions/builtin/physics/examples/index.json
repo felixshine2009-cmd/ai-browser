@@ -1,0 +1,92 @@
+[
+  {
+    "id": "mechanics_projectile",
+    "topic": "mechanics.projectile",
+    "zh": "平抛运动",
+    "title": "Projectile motion"
+  },
+  {
+    "id": "mechanics_inclined",
+    "topic": "mechanics.inclined",
+    "zh": "斜面滑块",
+    "title": "Inclined plane"
+  },
+  {
+    "id": "mechanics_collision",
+    "topic": "mechanics.collision",
+    "zh": "弹性碰撞",
+    "title": "1D elastic collision"
+  },
+  {
+    "id": "mechanics_circular",
+    "topic": "mechanics.circular",
+    "zh": "匀速圆周运动",
+    "title": "Uniform circular motion"
+  },
+  {
+    "id": "osc_spring",
+    "topic": "oscillation.spring",
+    "zh": "弹簧振子",
+    "title": "Spring–mass SHM"
+  },
+  {
+    "id": "osc_pendulum",
+    "topic": "oscillation.pendulum",
+    "zh": "单摆",
+    "title": "Simple pendulum"
+  },
+  {
+    "id": "em_charge_E",
+    "topic": "em.charge_E",
+    "zh": "电场中的带电粒子",
+    "title": "Charge in uniform E field"
+  },
+  {
+    "id": "em_charge_B",
+    "topic": "em.charge_B",
+    "zh": "磁场中的带电粒子",
+    "title": "Charge in uniform B field"
+  },
+  {
+    "id": "em_RC",
+    "topic": "em.RC",
+    "zh": "RC 电路充电",
+    "title": "RC charging"
+  },
+  {
+    "id": "em_AC",
+    "topic": "em.AC",
+    "zh": "交流电",
+    "title": "AC voltage"
+  },
+  {
+    "id": "optics_mirror",
+    "topic": "optics.mirror",
+    "zh": "平面镜反射",
+    "title": "Plane mirror"
+  },
+  {
+    "id": "optics_refraction",
+    "topic": "optics.refraction",
+    "zh": "折射与全反射",
+    "title": "Refraction / TIR"
+  },
+  {
+    "id": "optics_lens",
+    "topic": "optics.lens",
+    "zh": "薄透镜",
+    "title": "Thin lens"
+  },
+  {
+    "id": "thermal_ideal_gas",
+    "topic": "thermal.ideal_gas",
+    "zh": "理想气体分子动理论（示意）",
+    "title": "Ideal gas particles"
+  },
+  {
+    "id": "modern_photoelectric",
+    "topic": "modern.photoelectric",
+    "zh": "光电效应（示意）",
+    "title": "Photoelectric effect (schematic)"
+  }
+]
