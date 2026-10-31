@@ -64,5 +64,23 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     assert((s4.t || s4.state?.t || 0) === 0, 'reset ' + JSON.stringify(s4).slice(0, 200));
   });
 
+  await test('物理（桌面）：参数面板——改 μ₀/θ 后派生量实时变化、越界报错、别名、模块示例全部可载入', async () => {
+    await call('aib.physics', 'loadExample', { id: 'mod_incline' }); await sleep(900);
+    const lp = await call('aib.physics', 'listParams', {});
+    const keys = lp.modules[0].params.map(x => x.key); for (const k of ['theta', 'mu0', 'mu', 'mass', 'g']) assert(keys.includes(k), 'param ' + k);
+    const fr = p.frames().find(f => f.url().includes('aib.physics/panel.html'));
+    const before = await call('aib.physics', 'state', {});
+    await call('aib.physics', 'setParam', { module: 0, key: 'theta', value: 45 }); await call('aib.physics', 'setParam', { module: 0, key: 'mu0', value: 1 });
+    const after = await call('aib.physics', 'state', {});
+    assert(after.derived['critical angle atan μ₀ (°)'] > 44.9 && after.derived['critical angle atan μ₀ (°)'] < 45.1, JSON.stringify(after.derived));
+    assert(after.derived['slides 是否下滑'] !== undefined && JSON.stringify(after.derived) !== JSON.stringify(before.derived), 'derived live');
+    const n = await fr.evaluate(() => document.querySelectorAll('#params input[type=range]').length); assert(n >= 7, 'sliders ' + n);
+    let err = ''; try { await call('aib.physics', 'setParam', { module: 0, key: 'theta', value: 200 }); } catch (e) { err = String(e.message || e); }
+    assert(/must be in \[/.test(err), 'range error: ' + err);
+    const ex = JSON.parse(fs.readFileSync(path.join(__dirname, '../../extensions/builtin/physics/examples/index.json'), 'utf8')); const list = ex.examples || ex;
+    for (const e of list.filter(x => x.id.startsWith('mod_'))) { const r = await call('aib.physics', 'loadExample', { id: e.id }); assert(r.ok, e.id); }
+    await shot('21-physics-params.png');
+  });
+
   await app.close();
 };
