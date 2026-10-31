@@ -1,138 +1,106 @@
 [English](README.md) | [**中文**](README_zh.md)
 
-# AI 浏览器（AI Browser）v1.0.1
+# AI 浏览器 v1.1.0
 
-Electron（Chromium）桌面浏览器 + Chat 模式 AI 能力：查词（MDX/MDD）、句子成分分析、长文翻译、智能体搜索作答、GeoGebra 作图；支持 OpenAI 兼容 / Anthropic API，以及内嵌本地 GGUF 模型（Apple Silicon Metal）。
+一个内置 AI **聊天模式**的桌面浏览器（Electron / Chromium）：词典查询（MDX/MDD）、长难句分析、翻译、带引用的**智能搜索**、本地知识库和 GeoGebra 画图。AI 通过统一的工具注册表，可以直接操作浏览器。
 
-面向 **Apple Silicon（M1/M2/M3）macOS 12+**。本仓库在 Linux 上用 xvfb + Playwright 做过端到端自动化测试；已在 Apple M1 上做过一轮真机反馈并发布 v1.0.1（字体/关闭按钮/动画/本地模型点选/AI 词条等）。
+面向 **Apple 芯片（M1/M2/M3）macOS 12+**。应用在 Linux 上用 xvfb + Playwright 做了端到端测试；需要真机验证的部分见“已知限制”。
 
----
+## 1.1.0 新内容
 
-## 一键安装（推荐）
+* **隐身标签页** — 右上角四方格菜单第一项“新建隐身标签页”（⇧⌘N）。使用独立的内存会话：不共享 Cookie、存储、历史和已保存密码；深紫色标签带“隐身”徽标；关闭最后一个隐身标签后全部清除。
+* **Agent 工具注册表** — 统一的函数调用工具（兼容 OpenAI / Anthropic；本地模型走语法约束的 JSON 回退）：浏览器操作（标签页、隐身、导航、历史、拓展）、搜索 / 读网页、词典、翻译与语法分析、知识库、设置（只读，不含密钥）、打印 / 另存 PDF，以及各 功能拓展 声明的工具（新拓展自动注册）。聊天里会简要显示工具步骤，步数上限可调。
+* **知识库** — 内置 **EmbeddingGemma-300M**（离线，使用 `task: search result | query: …` 提示），分块 + 本地向量库，可添加文件 / 网页 / 文本，检索测试，也可改用自定义嵌入 API。
+* **混元翻译** — 内置 **HY-MT1.5-1.8B**，仅在翻译时加载（句子 / 文章 / 网页 / `translate_text` 工具），空闲约 2.5 分钟后卸载；不会用于聊天和词典。可用自定义 API 或“翻译”角色模型替换。
+* **本地模型重做** — 引擎选择（llama.cpp GGUF / Apple 芯片上的 MLX）；下载默认走 **hf-mirror.com**（可切换 huggingface.co 或自定义地址，失败自动回退）；可**搜索 Hugging Face** 或粘贴 repo，支持断点续传和 sha256 校验；自定义模型可担任 聊天 / 词典 / 翻译 / 嵌入 角色；模型按**家族折叠分组**（Qwen3、Qwen2.5、Gemma 4、Gemma 3n、Gemma 3、Hunyuan-MT、EmbeddingGemma …）。
+* **本地框架** — 自动探测 **LM Studio**（:1234）、**Ollama**（:11434，原生 API）、**oMLX**（:8000）、MLX-LM / llama.cpp server（:8080）、vLLM、Jan、LocalAI 或任意 OpenAI 兼容服务；可自定义主机 / 端口，连接测试给出具体原因，支持流式输出，原生工具调用 + JSON 回退。
+* **MLX 引擎**（Apple 芯片）— 启动本地 OpenAI 兼容的 `mlx_lm.server`，按需启动 / 空闲停止，失败时回退到 llama.cpp 并显示原因。需要 `pip3 install mlx-lm`（未内置）。
+* **密码** — 内置密码管理器（四方格菜单 → 设置 → 密码）：登录时询问保存、自动填充、搜索；查看 / 导出需 Touch ID 或 macOS 密码；编辑 / 删除；CSV 导入导出；使用 Electron `safeStorage`（钥匙串）加密保存；隐身模式永不保存；**AI 工具无法读取密码**。
+* **打印…（⌘P）和另存为 PDF** 在菜单里；AI 只能弹出打印对话框。
+* **词典导入时整体复制**到应用数据目录（mdx、所有同名 `.mdd`、css / js / 字体 / 图片），显示进度和占用空间；删除词典会删除副本（带确认）；已有的路径引用词典启动时自动迁移（原文件不存在则提示“源文件缺失”）。
+* **Chrome 拓展直接从 Chrome 应用商店安装** — 打开拓展页面点“添加”即可；“加载已解压的拓展”仅作高级备用。
+* **设置页可读性修复** — 词典面板不再出现白底；所有设置面板都有自动化的 ≥ 4.5:1 对比度测试。
 
-发行物在 `dist/`：
+## 安装（推荐）
 
 | 文件 | 说明 |
 |---|---|
-| `AI-Browser-mac-arm64.zip` | 未签名的 `AI Browser.app`（含 macOS arm64 Electron + Metal 本地模型二进制） |
-| `install.command` / `install.sh` | 解压 → 复制到 `/Applications` → `xattr -cr` 清隔离 → 启动 |
-| `AI-Browser-source.zip` | 源码（不含 `node_modules`） |
-| `README_zh.md` | 本文 |
+| `AI-Browser-mac-arm64.dmg` | 磁盘映像，打开后把应用拖进“应用程序”即可。在 Linux 上制作，还没有在真实 Mac 上挂载验证 — 打不开请用 zip |
+| `AI-Browser-mac-arm64.zip` | 未签名的 `AI Browser.app`（macOS arm64）— 已含 EmbeddingGemma 和 HY-MT 模型，可离线使用 |
+| `install.command` / `install.sh` | 解压 → 拷贝到 `/Applications` → `xattr -cr` → 启动 |
+| `AI-Browser-source.zip` | 源码（不含 `node_modules` 和模型文件） |
+| `README.md` / `README-zh.md` | 英文 / 中文说明 |
 
-### 步骤
+**macOS 最简单：** 打开 `.dmg`，把 *AI Browser* 拖到 *应用程序*。
 
-1. 把 `AI-Browser-mac-arm64.zip` 与 `install.command` 放在同一目录。
-2. **双击 `install.command`**（或终端执行 `bash install.sh`）。
-3. 若 macOS 提示「无法验证开发者」：
-   - 系统设置 → 隐私与安全性 → 仍要打开；或
-   - 终端：`xattr -cr "/Applications/AI Browser.app" && open "/Applications/AI Browser.app"`
+**macOS 用脚本：**
 
-仅想手动安装：
+1. 把 `AI-Browser-mac-arm64.zip` 和 `install.command` 放在同一文件夹。
+2. 双击 `install.command`（或运行 `bash install.sh`）。
+3. 若 macOS 提示无法验证开发者：系统设置 → 隐私与安全性 → 仍要打开；或运行 `xattr -cr "/Applications/AI Browser.app" && open "/Applications/AI Browser.app"`。
 
-```bash
-unzip AI-Browser-mac-arm64.zip
-xattr -cr "AI Browser.app"
-cp -R "AI Browser.app" /Applications/
-open "/Applications/AI Browser.app"
-```
+## 首次使用
 
----
+1. **设置 → 通用**：显示名称、问候语、中文 / English。
+2. **设置 → AI 模型**：*自定义 API*（预设、OpenAI / Anthropic 格式、带具体失败原因的“测试连接”）、*本地模型*（内置目录、Hugging Face 搜索、引擎与下载源、模型角色）或 *本地框架*（LM Studio、Ollama、oMLX …）。
+3. **搜索引擎**：Bing / Google / 百度 / DuckDuckGo / 自定义 `%s`；Agent 使用所选引擎。
+4. **词典**、**知识库**、**拓展**、**历史**、**密码**、**隐私** 都是设置页内的分区（`aibrowser://settings#passwords` 等）。
 
-## 首次运行与配置
+未配置模型时提问会给出友好提示，不会崩溃。
 
-1. 打开后首页问候为「Felix，今天想做什么？」；**设置 → 通用** 可改显示名称与问候语（支持 `{name}`，留空为默认）、切换 中文 / English。
-2. **右上角四格菜单 → 设置 → AI 模型**：
-   - **自定义 API**：选预设或填 Base URL / Key / 模型 / 温度；格式可选 OpenAI 或 Anthropic；点「测试连接」。
-   - **本地模型**：从列表下载 GGUF（支持断点续传），或「选择本地文件」。Key **只存本机、加密**，主进程调用，页面与日志看不到明文。
-3. **搜索引擎**：Bing / Google / 百度 / DuckDuckGo / 自定义 `%s`。
-4. **词典 MDX/MDD**：设置 → 词典 → 导入；支持多词典排序与禁用。
-5. Chat / Search 分段控件在地址栏左侧。
+## 聊天模式
 
-未配置模型时提问会给出友好错误，**不会崩溃**。
+| 输入 | 行为 |
+|---|---|
+| 单词 | 优先词典拓展（MDX）；否则生成标注“AI 生成”的词条 |
+| 句子 | 翻译（HY-MT）+ 主谓宾等成分着色与结构拆解 |
+| 长文本 | 仅翻译，原文 / 译文分栏 |
+| 问题 | 带 `[n]` 引用的**智能搜索**，或调用其他已注册工具（知识库、浏览器操作 …） |
 
----
+## 模型与许可
 
-## 从源码运行（备选，免包装）
+* 内置目录（llama.cpp 用 GGUF，另有 `mlx-community` 的 MLX 版本）：**Qwen3**、**Qwen2.5**、**Gemma 4**（E2B / E4B / 12B / 26B-A4B / 31B，Apache-2.0）、**Gemma 3n**、**Gemma 3**、**Hunyuan-MT**、Seed-X、**EmbeddingGemma**。每项都显示体积和预估内存。
+* **Gemma 3 / 3n / EmbeddingGemma** 适用 [Gemma 使用条款](https://ai.google.dev/gemma/terms)及禁止用途政策；**Gemma 4** 为 Apache-2.0。内置的 EmbeddingGemma 文件按 Gemma 条款分发。
+* **HY-MT1.5** 使用腾讯混元社区许可（**不适用于欧盟、英国和韩国**），再分发前请自行确认。
+* Qwen 系列多为 Apache-2.0（以各模型卡为准）。
 
-适合不想用未签名 `.app`、或要改代码的情况：
+## 拓展
+
+* **功能拓展**（`aib-feature/1`，见 [`docs/EXTENSION_STANDARD.md`](docs/EXTENSION_STANDARD.md)）：预装词典和 GeoGebra；拓展可在 `manifest.contributes.tools` 中声明 Agent 工具。
+* **Chrome 拓展**（MV3）：在浏览器内直接从 Chrome 应用商店安装。覆盖范围受 Electron 扩展 API 限制（已测试内容脚本、service worker、`chrome.storage`；工具栏弹窗有限）。
+* GeoGebra 仅限**非商业**使用，遵循 [GeoGebra 许可](https://www.geogebra.org/license)。
+
+## 从源码运行
 
 ```bash
 unzip AI-Browser-source.zip && cd ai-browser
 npm ci
-# 首次可能需：node node_modules/electron/install.js
 npm start
+npm run dist:mac   # 构建 darwin-arm64 应用（dist/）；先把两个 .gguf 放进 ./models 才会内置
 ```
 
-打 Mac arm64 包（需能下载 Electron darwin-arm64；可在任意 OS 交叉打包）：
+## 测试
 
 ```bash
-npm ci
-npm run dist:mac
-# 产物：dist/AI-Browser-mac-arm64.zip、install.*、源码 zip
+xvfb-run -a node test/run-all.js          # 全部测试（默认关闭真实模型推理：AIB_REAL_INFERENCE=1 开启）
+xvfb-run -a node test/run-all.js 16       # 单个测试，例如 密码 + 打印
 ```
 
-`dist:mac` 会：`stage`（按 `--os=darwin --cpu=arm64` 安装依赖并只保留 `@node-llama-cpp/mac-arm64-metal`）→ `@electron/packager`（`asar:false`）→ zip。
+## 已知限制
 
----
+1. **需要在真机 Mac 上验证：** node-llama-cpp 的 Metal 推理（Gemma 4 GGUF 加载未测）、MLX 引擎（仅用模拟 `mlx_lm.server` 测试）、Touch ID 弹窗、系统打印对话框。
+2. 应用未签名 / 未公证。
+3. Chrome 拓展 API 覆盖受 Electron 限制。
+4. 搜索引擎可能对脚本请求出验证码；已有回退链和相关性过滤。
+5. 未内置 `mlx-lm`（`pip3 install mlx-lm`），也可通过“本地框架”使用 oMLX。
 
-## Chat 模式行为摘要
+## v2 预告
 
-| 输入类型 | 行为 |
-|---|---|
-| 单词 | 词典拓展（MDX）优先；否则 AI 生成词条并标注「AI 生成」 |
-| 句子 | 翻译 + 主谓宾定状着色与结构拆解 |
-| 长文 / 多段 | 仅翻译（原文 / 译文双栏） |
-| 问题 | **智能体搜索**：API 模型用工具调用循环（`web_search` 用你选的搜索引擎 → `open_page` 读取 → 必要时换词再搜 → 带 `[n]` 引用作答，只引用真正读过的页面；最多 4 次搜索 / 8 个页面 / 90 秒）；本地模型用固定流水线（改写查询 → 搜索 → 读取 → 作答）。改写查询可编辑后重新搜索；可调用 GeoGebra 工具 |
+* 完整 GeoGebra（全部应用、网页数学键盘、离线包），可由 Agent 驱动。
+* 二维物理引擎，让 AI 把解题过程可视化（力学、波、电磁、光学、热学、近代物理）。
+* 英文 GitHub Wiki。
+* v3 设想：AI 修改浏览器自身代码来增加功能。
 
-所选引擎不可用或结果与问题无关时，会按 百度 → Bing → DuckDuckGo 回退（状态行会提示），并对结果做相关性过滤。详见 [`docs/AGENT_SEARCH.md`](docs/AGENT_SEARCH.md)。
+许可：MIT。作者：Felix。
 
----
-
-## 拓展
-
-- **功能拓展**（自有标准 `aib-feature/1`）：见 [`docs/EXTENSION_STANDARD.md`](docs/EXTENSION_STANDARD.md)。预装 **词典**、**GeoGebra**，可独立升级；支持「AI 编写插件」预览后安装。
-- **普通浏览器拓展**：Chrome MV3，尽力支持（内容脚本、service worker、`chrome.storage` 已测）；工具栏弹窗 UI 有限，popup/options 多在标签页打开。
-
----
-
-## 自动化测试（本仓库）
-
-```bash
-# Linux + xvfb；可选真实本地推理：
-export AIB_TEST_GGUF=/path/to/qwen2.5-0.5b-instruct-q4_k_m.gguf
-npm test                 # 或：xvfb-run -a node test/run-all.js
-```
-
-截图在 `shots/`。结果写入 `test/RESULTS.md`。
-
----
-
-## 已知限制（请务必阅读）
-
-1. **未在真实 Mac 上实测**；打包与 Metal 二进制在 Linux 交叉构建，本地推理路径在 Linux 用 CPU 验证过，Metal GPU 路径需你在 M 系列上确认。
-2. 应用**未签名 / 未公证**，首次打开需清隔离或「仍要打开」。
-3. 本地模型：**无工具调用**（Chat 的 GeoGebra / 搜索工具环仅 API 后端完整）；首启下载体积大。
-4. Chrome 扩展 API 覆盖受 Electron 限制；无完整工具栏 popup。
-5. GeoGebra 面板为浅色主题；打印、原生右键「查词」菜单未做 UI 自动化。
-6. 使用系统鼠标指针（自定义蓝光标已取消）；界面动画为克制的 120–220ms 过渡，开启系统「减少动态效果」时自动关闭。
-
----
-
-## 目录速览
-
-```
-src/main/          Electron 主进程（LLM、词典、拓展、标签页）
-src/preload/       contextBridge → window.aib
-src/renderer/      chrome / home / chat / settings / …
-extensions/builtin/dictionary|geogebra
-docs/EXTENSION_STANDARD.md
-test/              Playwright + mock OpenAI/SERP
-shots/             自动化截图
-scripts/           stage-mac / pack-mac / i18n
-dist/              发行 zip 与安装脚本
-```
-
-许可证：MIT。作者：Felix。
-
-
-*由 Grok 创建。*
+*Created by Grok.*

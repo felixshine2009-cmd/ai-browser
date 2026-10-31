@@ -1,0 +1,674 @@
+[
+ {
+  "id": "tb.mode",
+  "area": "工具栏",
+  "control": "Chat / Search 分段控件",
+  "action": "点击切换模式、滑块移动、持久化",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "tb.addr",
+  "area": "工具栏",
+  "control": "地址栏",
+  "action": "Search 模式输入网址回车导航；Chat 模式输入问题进入 AI；Esc 恢复",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "tb.nav",
+  "area": "工具栏",
+  "control": "后退 / 前进 / 重新载入",
+  "action": "点击后退、前进、重新载入（并验证禁用状态）",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "tb.mode.searchNow",
+  "area": "工具栏",
+  "control": "Chat→Search 立即搜索",
+  "action": "地址栏/Chat 查询非空时切换到 Search 立刻用默认引擎搜索；空查询只切模式",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "tb.bookmark",
+  "area": "工具栏",
+  "control": "书签星标",
+  "action": "加入 / 取消书签，列表同步；内部页无效果",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "menu.toggle",
+  "area": "四方格菜单",
+  "control": "四方格按钮",
+  "action": "点击打开 / 再点关闭 / Esc 关闭，含 11 个菜单项，且全部在视图内",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "menu.history",
+  "area": "四方格菜单",
+  "control": "历史记录",
+  "action": "点击后打开 aibrowser://history 并关闭菜单",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "menu.downloads",
+  "area": "四方格菜单",
+  "control": "下载内容",
+  "action": "点击后打开 aibrowser://downloads 并关闭菜单",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "menu.extensions",
+  "area": "四方格菜单",
+  "control": "拓展",
+  "action": "点击后打开 aibrowser://extensions 并关闭菜单",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "menu.bookmarks",
+  "area": "四方格菜单",
+  "control": "书签",
+  "action": "点击后打开 aibrowser://bookmarks 并关闭菜单",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "menu.settings",
+  "area": "四方格菜单",
+  "control": "设置",
+  "action": "点击后打开 aibrowser://settings 并关闭菜单",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "menu.find",
+  "area": "四方格菜单",
+  "control": "在页面上查找",
+  "action": "点击后出现查找条",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "find.buttons",
+  "area": "查找条",
+  "control": "↑ ↓ ✕ 按钮与 Enter / Esc",
+  "action": "↓ 下一个 → 2/4，↑ 上一个 → 1/4，✕ 关闭；Esc 关闭；按钮 ≥ 28px",
+  "status": "FIXED",
+  "note": "查找条 ↑ ↓ ✕ 放大为 30×30"
+ },
+ {
+  "id": "menu.zoom",
+  "area": "四方格菜单",
+  "control": "缩放 − / + / ⟲",
+  "action": "三个按钮分别缩小、放大、重置，页面 devicePixelRatio 变化",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "menu.devtools",
+  "area": "四方格菜单",
+  "control": "检查",
+  "action": "点击后为当前网页打开开发者工具",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "menu.print",
+  "area": "四方格菜单",
+  "control": "打印",
+  "action": "点击后关闭菜单并调用 webContents.print()（系统原生打印对话框无法在无头 Linux 中断言；仅验证菜单关闭且应用未崩溃）",
+  "status": "NOT-TESTABLE-ON-LINUX",
+  "note": "系统原生打印对话框无法在无头 Linux 中断言；仅验证菜单关闭且应用未崩溃"
+ },
+ {
+  "id": "menu.kbd",
+  "area": "四方格菜单",
+  "control": "快捷键提示（读得清）",
+  "action": "提示字号 ≥ 12px、字重 ≥ 500、对比度提高；每一项对应真实快捷键（见下方快捷键审计）",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "tabs.new",
+  "area": "标签页",
+  "control": "+ 新建标签页",
+  "action": "点击后新增首页标签并激活",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "tabs.switch",
+  "area": "标签页",
+  "control": "标签切换",
+  "action": "点击标签激活对应页面",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "tabs.close",
+  "area": "标签页",
+  "control": "× 关闭按钮",
+  "action": "点击关闭当前标签；hit area ≥ 20×20、字号 ≥ 14px；出现关闭动画幽灵元素后消失；中键关闭",
+  "status": "FIXED",
+  "note": "× 关闭按钮从 14×14/10px 放大到 22×22/17px，对比度提高"
+ },
+ {
+  "id": "tabs.last",
+  "area": "标签页",
+  "control": "关闭最后一个标签",
+  "action": "自动新建首页，应用不退出",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "home.submit",
+  "area": "首页",
+  "control": "搜索框 / 发送按钮",
+  "action": "Chat：Enter 与点击发送进入 AI；Shift+Enter 换行不提交；空输入无效；Search：进入搜索引擎",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "chat.question",
+  "area": "Chat 页",
+  "control": "问题：改写查询 chip / 重新搜索 / 引用 [n] / 来源卡片 / 复制",
+  "action": "chip 可编辑；编辑后回车重新搜索只用新查询；点击引用和来源卡片在新标签打开；复制写入剪贴板",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "chat.rerun",
+  "area": "Chat 页",
+  "control": "↻ 重新搜索 按钮",
+  "action": "点击后用当前 chip 内容新开一次会话",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "chat.sentence",
+  "area": "Chat 页",
+  "control": "句子分析",
+  "action": "输入句子：翻译 + 着色成分 + 结构拆解渲染",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "chat.article",
+  "area": "Chat 页",
+  "control": "长文翻译 + 复制译文按钮",
+  "action": "输入多段文字：双栏译文；点击复制译文写入剪贴板",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "chat.word",
+  "area": "Chat 页",
+  "control": "单词：AI 词条",
+  "action": "输入单词（无词典）：AI 词条 + 标注",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "chat.ggb",
+  "area": "Chat 页",
+  "control": "GeoGebra 工具",
+  "action": "问题“画出 sin”：工具调用成功，面板出现",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "lists.history",
+  "area": "历史页",
+  "control": "链接 / ✕ / 搜索 / 清除",
+  "action": "点击链接在新标签打开；搜索过滤；✕ 删除；清除按钮清空",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "lists.x",
+  "area": "书签页 / 列表",
+  "control": "✕ 删除按钮",
+  "action": "书签页：链接打开、✕ 删除；✕ 点击区域 ≥ 24px",
+  "status": "FIXED",
+  "note": "列表 ✕ 删除按钮由文字小块改为 28×28 点击区域"
+ },
+ {
+  "id": "lists.downloads",
+  "area": "下载页",
+  "control": "取消 / 删除 / 清除 / 搜索",
+  "action": "慢速下载出现取消按钮，点击取消 → cancelled；完成项 ✕ 删除；清除按钮清空；搜索过滤",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "lists.dlopen",
+  "area": "下载页",
+  "control": "打开 / 在文件夹中显示",
+  "action": "点击两个按钮，IPC 正常返回、页面无报错（shell.openPath / showItemInFolder 交给系统文件管理器，Linux 无头环境无法断言其界面）",
+  "status": "NOT-TESTABLE-ON-LINUX",
+  "note": "shell.openPath / showItemInFolder 交给系统文件管理器，Linux 无头环境无法断言其界面"
+ },
+ {
+  "id": "ext.toggle",
+  "area": "拓展页",
+  "control": "内置拓展开关 / 检查更新 / 设置",
+  "action": "词典开关关闭再打开（状态落盘）；检查更新给出结果；设置按钮跳到 词典设置",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "ext.loadfeat",
+  "area": "拓展页",
+  "control": "加载功能拓展… / 删除",
+  "action": "选择文件夹加载示例拓展 → 卡片出现；删除按钮移除",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "ext.chrome",
+  "area": "拓展页",
+  "control": "加载普通浏览器拓展 / 开关 / 删除",
+  "action": "选择 Chrome 拓展目录 → 卡片；开关 → 状态；删除",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "ext.ai",
+  "area": "拓展页",
+  "control": "AI 编写拓展：生成 / 取消 / 安装 / 从 zip 加载",
+  "action": "生成预览弹窗；取消关闭；再次生成并安装；加载 zip 按钮调用文件选择",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "set.nav",
+  "area": "设置页",
+  "control": "左侧导航 7 项",
+  "action": "每项点击后在设置页内切换（含 拓展 / 历史 内嵌），侧边栏保持，hash 更新",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "set.general",
+  "area": "设置页 · 通用",
+  "control": "语言 中文 / English",
+  "action": "切换语言：设置落盘、界面立即变化；版本号为 1.1.0",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "set.greeting",
+  "area": "设置页 · 通用",
+  "control": "显示名称 / 主页问候语 / 保存 / 恢复默认 / 隐藏 ✦",
+  "action": "保存后落盘并绿色提示；主页问候语即时更新（{name}）；留空用默认；隐藏图标；恢复默认",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "chat.agent",
+  "area": "Chat 页 · 智能体搜索",
+  "control": "工具调用循环：web_search / open_page / 所选引擎 / 状态行",
+  "action": "模型发出 web_search×2 → open_page×3；状态行显示 “用 … 搜索”、“阅读：…”；回答仅引用已打开页面；无需搜索的问题不搜索",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "set.privacy",
+  "area": "设置页 · 隐私",
+  "control": "4 个复选框 + 清除按钮",
+  "action": "勾选 / 取消勾选；点击清除后历史清空并显示完成提示",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "set.search",
+  "area": "设置页 · 搜索引擎",
+  "control": "5 个单选行 + 自定义模板 + 保存",
+  "action": "逐个选择并保存（落盘）；自定义缺 %s 报错；自定义有效则保存并用于搜索",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "set.dict",
+  "area": "设置页 · 词典",
+  "control": "划词查词复选框 / 添加词典 / 管理",
+  "action": "复选框切换并落盘；词典 iframe 中“添加词典”导入 .mdx；删除词典",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.fields",
+  "area": "设置页 · AI 模型 · 自定义 API",
+  "control": "预设 / 接口格式 / Base URL / Key / 模型 / 温度 / 保存",
+  "action": "切换预设自动填充；保存后落盘，Key 不回显且加密；“当前使用”标签更新",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "save.feedback",
+  "area": "设置页 · 保存提示",
+  "control": "已保存 提示",
+  "action": "保存后出现绿色对勾 + 绿色 600 字重 ≥14px 的“已保存”，约 3 秒后淡出消失；失败为红色并保留；其它设置（语言/复选框）出现角落提示",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.models",
+  "area": "设置页 · 测试连接",
+  "control": "测试连接（成功）：自动获取模型列表",
+  "action": "显示获取数量；下拉列出模型；点选后立即落盘；仍可输入自定义名",
+  "status": "FIXED",
+  "note": "测试连接新增：自动获取模型列表 + 可输入的模型下拉"
+ },
+ {
+  "id": "api.e401",
+  "area": "设置页 · 测试连接",
+  "control": "401",
+  "action": "失败原因：401 → Key 无效/无权限 + 服务端信息（密钥已脱敏）",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.e404",
+  "area": "设置页 · 测试连接",
+  "control": "404",
+  "action": "失败原因：404 → 路径错误并提示 /v1",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.e429",
+  "area": "设置页 · 测试连接",
+  "control": "429",
+  "action": "失败原因：429 → 限流/额度",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.e5xx",
+  "area": "设置页 · 测试连接",
+  "control": "5xx",
+  "action": "失败原因：5xx → 服务器错误 + 信息",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.ehtml",
+  "area": "设置页 · 测试连接",
+  "control": "非 JSON",
+  "action": "失败原因：非 JSON / 不兼容格式",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.etimeout",
+  "area": "设置页 · 测试连接",
+  "control": "超时",
+  "action": "失败原因：超时（含秒数）",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.erefused",
+  "area": "设置页 · 测试连接",
+  "control": "连接被拒绝",
+  "action": "失败原因：连接被拒绝",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.edns",
+  "area": "设置页 · 测试连接",
+  "control": "DNS 失败",
+  "action": "失败原因：DNS 解析失败或网络不可达",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.etls",
+  "area": "设置页 · 测试连接",
+  "control": "TLS 错误",
+  "action": "失败原因：TLS/证书错误",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.eurl",
+  "area": "设置页 · 测试连接",
+  "control": "URL 无效",
+  "action": "失败原因：无效 URL 格式",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.nomodels",
+  "area": "设置页 · 测试连接",
+  "control": "不支持 /models 但对话可用",
+  "action": "回退到最小对话测试并说明",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.v1fix",
+  "area": "设置页 · 测试连接",
+  "control": "Base URL 缺少 /v1",
+  "action": "自动补全 /v1 并提示、更新输入框",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.anthropic",
+  "area": "设置页 · 测试连接",
+  "control": "Anthropic 格式",
+  "action": "GET /v1/models 带 x-api-key 与 anthropic-version",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.ollama",
+  "area": "设置页 · 测试连接",
+  "control": "Ollama 风格 {models:[{name}]}",
+  "action": "识别并列出模型名",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.english",
+  "area": "设置页 · 测试连接",
+  "control": "英文界面错误文案",
+  "action": "切换到 English 后错误原因为英文",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "api.chaterr",
+  "area": "Chat 页",
+  "control": "对话时 API 失败",
+  "action": "错误页显示具体原因（HTTP 401 + 中文原因），按钮“前往设置”可打开设置",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "local.select",
+  "area": "设置页 · AI 模型 · 本地模型",
+  "control": "模型单选卡片",
+  "action": "未下载的模型也可点选（点卡片任意位置 / 点圆圈）；选中态、“已选择”、落盘；下载按钮不触发选择",
+  "status": "FIXED",
+  "note": "本地模型：未下载的模型也能点选（选择与下载分离），整张卡片可点，「使用本地模型」在已选择时启用"
+ },
+ {
+  "id": "local.progress",
+  "area": "设置页 · 本地模型",
+  "control": "下载 / 取消 / 继续 / 删除（本地模拟 HF）",
+  "action": "下载时进度原位更新；取消 → “继续下载”；完成后“当前使用”；删除后恢复“下载”",
+  "status": "FIXED",
+  "note": "下载进度改为原位更新，避免每 400ms 重绘吞掉点击"
+ },
+ {
+  "id": "local.use",
+  "area": "设置页 · 本地模型",
+  "control": "使用本地模型 按钮 / 选择本地 .gguf",
+  "action": "已选未下载 → 切换来源为本地并自动开始下载；选择 .gguf 文件落盘；“当前使用”标签更新",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "local.metal",
+  "area": "本地模型",
+  "control": "Metal 推理 / 真实 HF 下载",
+  "action": "在 Apple GPU 上用 4.7GB 模型推理（需要 macOS arm64 Metal 与数 GB 下载；Linux 上以 CPU Qwen2.5-0.5B 在 06 套件验证推理、以本地模拟 HF 验证下载）",
+  "status": "NOT-TESTABLE-ON-LINUX",
+  "note": "需要 macOS arm64 Metal 与数 GB 下载；Linux 上以 CPU Qwen2.5-0.5B 在 06 套件验证推理、以本地模拟 HF 验证下载"
+ },
+ {
+  "id": "lookup.card",
+  "area": "划词查词卡片",
+  "control": "双击单词 → 卡片；✕ 与 Esc 关闭",
+  "action": "网页双击单词弹出查词卡片（词典 iframe）；✕ 关闭；再次弹出后 Esc 关闭；✕ ≥ 24px",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "chat.dicttab",
+  "area": "Chat 页 · 词典",
+  "control": "词典标签 / 管理词典…",
+  "action": "查词页词典标签可点；“管理词典…”打开设置",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "kbd.t",
+  "area": "快捷键",
+  "control": "新建标签页（ctrl+t）",
+  "action": "真实键盘事件（跳过）",
+  "status": "SKIP",
+  "note": "需要真实 Mac 键盘验证（CDP 合成按键不触发原生菜单快捷键）"
+ },
+ {
+  "id": "kbd.w",
+  "area": "快捷键",
+  "control": "关闭标签页（ctrl+w）",
+  "action": "真实键盘事件（跳过）",
+  "status": "SKIP",
+  "note": "需要真实 Mac 键盘验证（CDP 合成按键不触发原生菜单快捷键）"
+ },
+ {
+  "id": "kbd.l",
+  "area": "快捷键",
+  "control": "聚焦地址栏（ctrl+l）",
+  "action": "真实键盘事件（跳过）",
+  "status": "SKIP",
+  "note": "需要真实 Mac 键盘验证（CDP 合成按键不触发原生菜单快捷键）"
+ },
+ {
+  "id": "kbd.r",
+  "area": "快捷键",
+  "control": "重新载入（ctrl+r）",
+  "action": "真实键盘事件（跳过）",
+  "status": "SKIP",
+  "note": "需要真实 Mac 键盘验证（CDP 合成按键不触发原生菜单快捷键）"
+ },
+ {
+  "id": "kbd.back",
+  "area": "快捷键",
+  "control": "后退 / 前进（ctrl+bracketleft / ctrl+bracketright）",
+  "action": "真实键盘事件（跳过）",
+  "status": "SKIP",
+  "note": "需要真实 Mac 键盘验证（CDP 合成按键不触发原生菜单快捷键）"
+ },
+ {
+  "id": "kbd.y",
+  "area": "快捷键",
+  "control": "历史记录（ctrl+y）",
+  "action": "真实键盘事件（跳过）",
+  "status": "SKIP",
+  "note": "需要真实 Mac 键盘验证（CDP 合成按键不触发原生菜单快捷键）"
+ },
+ {
+  "id": "kbd.j",
+  "area": "快捷键",
+  "control": "下载内容（ctrl+shift+j）",
+  "action": "真实键盘事件（跳过）",
+  "status": "SKIP",
+  "note": "需要真实 Mac 键盘验证（CDP 合成按键不触发原生菜单快捷键）"
+ },
+ {
+  "id": "kbd.o",
+  "area": "快捷键",
+  "control": "书签（ctrl+shift+o）",
+  "action": "真实键盘事件（跳过）",
+  "status": "SKIP",
+  "note": "需要真实 Mac 键盘验证（CDP 合成按键不触发原生菜单快捷键）"
+ },
+ {
+  "id": "kbd.comma",
+  "area": "快捷键",
+  "control": "设置（ctrl+comma）",
+  "action": "真实键盘事件（跳过）",
+  "status": "SKIP",
+  "note": "需要真实 Mac 键盘验证（CDP 合成按键不触发原生菜单快捷键）"
+ },
+ {
+  "id": "kbd.f",
+  "area": "快捷键",
+  "control": "在页面上查找（ctrl+f）",
+  "action": "真实键盘事件（跳过）",
+  "status": "SKIP",
+  "note": "需要真实 Mac 键盘验证（CDP 合成按键不触发原生菜单快捷键）"
+ },
+ {
+  "id": "kbd.zoom",
+  "area": "快捷键",
+  "control": "放大 / 缩小 / 实际大小（ctrl+equal / ctrl+minus / ctrl+0）",
+  "action": "真实键盘事件（跳过）",
+  "status": "SKIP",
+  "note": "需要真实 Mac 键盘验证（CDP 合成按键不触发原生菜单快捷键）"
+ },
+ {
+  "id": "kbd.devtools",
+  "area": "快捷键",
+  "control": "开发者工具（ctrl+alt+i）",
+  "action": "真实键盘事件（跳过）",
+  "status": "SKIP",
+  "note": "需要真实 Mac 键盘验证（CDP 合成按键不触发原生菜单快捷键）"
+ },
+ {
+  "id": "scan.dom",
+  "area": "全页面扫描",
+  "control": "所有 button / [role] / input / select / a / 自定义控件",
+  "action": "每个可见控件都有事件处理（含委托）且点击点未被遮挡",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "motion.reduced",
+  "area": "动画",
+  "control": "过渡与 prefers-reduced-motion",
+  "action": "菜单 / 标签 / 按钮 / 分段控件 computed transition-duration > 0；开启“减少动态效果”后全部为 0",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "visual.metrics",
+  "area": "可视度",
+  "control": "字重 / 字号 / 对比度 / 点击区域",
+  "action": "菜单项 font-weight ≥ 500；标签标题 ≥ 600(激活)；工具栏按钮 ≥ 32px；--text-secondary 亮度高于 v1.0.0",
+  "status": "PASS",
+  "note": ""
+ },
+ {
+  "id": "errors.none",
+  "area": "稳定性",
+  "control": "页面 console.error / 未捕获异常",
+  "action": "整个审计过程中没有未预期的 console 错误或 pageerror",
+  "status": "PASS",
+  "note": ""
+ }
+]

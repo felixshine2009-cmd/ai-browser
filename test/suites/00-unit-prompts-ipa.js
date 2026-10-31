@@ -14,7 +14,7 @@ module.exports = async ({ test, group, assert, eq }) => {
       assert(/learner's dictionary|bilingual English-Chinese dictionary/.test(P.wordEntry({ local })), 'word');
       // No instructional placeholders inside the JSON example that models copy
       assert(!/"zh"\s*:\s*"中文释义"/.test(P.wordEntry({ local })), 'no zh placeholder in example');
-      assert(!/短英语释义|short English gloss/.test(P.wordEntry({ local })) || local, 'gloss');
+      assert(!/"en"\s*:\s*"short English gloss"/.test(P.wordEntry({ local })), 'gloss placeholder');
     }
     assert(/aib-feature\/1/.test(P.extensionWriter('feature')));
     assert(/manifest_version must be 3/.test(P.extensionWriter('chrome')));

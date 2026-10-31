@@ -14,7 +14,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   const ch = await app.chrome();
   const inv = (...a) => ch.evaluate((a) => window.aib.invoke(...a), a);
   const go = async (u) => { await app.setMode('search'); await app.submit(u); await until(async () => { const t = (await app.tabsState()).tabs.find(x => x.active); return t && t.url.startsWith(u.split('?')[0]) && !t.loading; }, 10000, 'loaded ' + u); await sleep(300); };
-  const openMenuItem = async (action) => { await ch.click('#menu'); const m = await app.waitPage('aibrowser://menu'); await m.click(`[data-action="${action}"]`).catch(e => { if (!/closed/.test(e.message)) throw e; }); return m; };
+  const openMenuItem = async (action) => { { const old = app.pages().find(p => p.url().startsWith('aibrowser://menu')); if (old) { await old.keyboard.press('Escape').catch(() => {}); await until(() => !app.pages().some(p => p.url().startsWith('aibrowser://menu')), 3000, 'old menu closed').catch(() => {}); } } await ch.click('#menu'); const m = await app.waitPage('aibrowser://menu'); await m.click(`[data-action="${action}"]`).catch(e => { if (!/closed/.test(e.message)) throw e; }); return m; };
   const activeUrl = async () => (await app.tabsState()).tabs.find(t => t.active).url;
 
   await test('历史记录：访问的网页被记录，可搜索 / 删除 / 清除', async () => {
@@ -83,7 +83,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   await test('菜单项导航：历史记录/下载内容/拓展/书签/设置 分别打开对应页面', async () => {
     for (const [a, u] of [['history', 'history'], ['downloads', 'downloads'], ['extensions', 'extensions'], ['bookmarks', 'bookmarks'], ['settings', 'settings']]) {
       await openMenuItem(a);
-      await until(async () => (await activeUrl()).startsWith('aibrowser://' + u), 5000, a);
+      await sleep(250); await until(async () => (await activeUrl()).startsWith('aibrowser://' + u), 5000, a + ' (got ' + await activeUrl() + ')');
     }
   });
   await test('检查（DevTools）：菜单项为当前网页打开开发者工具', async () => {
@@ -130,7 +130,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     assert(!a2.exited);
   });
   await test('模型目录 + 引擎状态（引擎在本机可加载或给出可读错误）', async () => {
-    const l = await inv2('lm:list'); assert(l.length >= 3 && l.some(x => x.id.includes('qwen2.5-7b')), JSON.stringify(l.map(x=>x.id))); assert(l[0].file === 'qwen2.5-7b-instruct-q4_k_m.gguf' && l[0].repo === 'Qwen/Qwen2.5-7B-Instruct-GGUF' && !l[0].downloaded);
+    const l = await inv2('lm:list'); assert(l.length >= 3 && l.some(x => x.id.includes('qwen2.5-7b')), JSON.stringify(l.map(x=>x.id))); const q7 = l.find(x => x.id === 'qwen2.5-7b-instruct-q4_k_m'); assert(q7.file === 'qwen2.5-7b-instruct-q4_k_m.gguf' && q7.repo === 'Qwen/Qwen2.5-7B-Instruct-GGUF' && !q7.downloaded);
     const st = await inv2('lm:status'); assert(st.engine === 'ok' || (st.engine === 'error' && st.engineError), JSON.stringify(st));
     console.log('      engine status:', JSON.stringify(st).slice(0, 200));
   });
@@ -147,7 +147,8 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     await a2.submit('aibrowser://settings'); const sp = await a2.waitPage('aibrowser://settings');
     await sp.click('[data-src="local"]');
     await until(async () => (await sp.locator('.model-row').count()) >= 3, 8000, 'rows');
-    assert((await sp.locator('.model-row').first().innerText()).includes('Qwen2.5-7B-Instruct'));
+    await sp.click('.fam-group[data-family="Qwen2.5"] .fam-head'); await sleep(350);
+    assert((await sp.locator('.model-row[data-model="qwen2.5-7b-instruct-q4_k_m"]').innerText()).includes('7B'));
     const row = sp.locator('.model-row[data-model="qwen2.5-1.5b-instruct-q4_k_m"]');
     await row.locator('[data-act="dl"]').click();
     await until(async () => (await sp.locator('.model-row .progress').count()) === 1, 8000, 'progress bar visible');

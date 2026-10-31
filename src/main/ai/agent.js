@@ -11,10 +11,12 @@
 const llm = require('./llm');
 const search = require('./search');
 const features = require('../ext/features');
+const registry = require('./tools');
 const store = require('../store');
 const P = require('./prompts');
 
-const LIMITS = { searches: 4, opens: 8, ms: 90000, rounds: 14 };
+const LIMITS = { searches: 4, opens: 8, ms: 90000, rounds: 14, steps: 12 }; // steps = max tool calls of any kind (settings.agent.maxSteps)
+const maxSteps = () => { try { return Math.max(2, Math.min(30, Number(store.getSettings().agent.maxSteps) || LIMITS.steps)); } catch { return LIMITS.steps; } };
 const ENGINE_IDS = ['bing', 'google', 'baidu', 'duckduckgo'];
 
 const isEn = () => (store.getSettings().lang === 'en');
@@ -62,7 +64,8 @@ async function doSearch(s, emit, q, engine, queries) {
   const use = engine && ENGINE_IDS.includes(engine) ? engine : sel;
   emit(s, { type: 'status', text: L(`用 ${engineName(use)} 搜索：`, `Searching ${engineName(use)}: `) + q });
   if (!queries.includes(q)) { queries.push(q); emit(s, { type: 'queries', queries: queries.slice(), direct: false }); }
-  const r = await search.serp(q, { engine: use });
+  let partition; try { const t = require('../tabs').allTabs().find(x => x.wc.id === s.wcId); if (t && t.incognito) partition = 'aib-incognito'; } catch {}
+  const r = await search.serp(q, { engine: use, partition }); // private chats search through the private session
   if (process.env.AIB_DEBUG_SEARCH) console.error('[serp]', q, JSON.stringify(r.tried));
   if (r.via !== use) {
     const bad = r.tried.filter(t => t.engine === use)[0];
@@ -119,11 +122,33 @@ async function runPipeline(s, ctx, D, queries, direct) {
   if (sources.length) userContent = 'Web sources:\n' + sources.map(p => `[${p.n}] ${p.title} (${p.url})\n${(p.text || p.snippet || '').slice(0, isLocal() ? 1400 : 3800)}`).join('\n\n') + `\n\nQuestion: ${q}`;
   else if (!direct && queries.length) userContent = q + '\n\n(Note: web search found no relevant pages; say so briefly, then answer from general knowledge and mark it as such.)';
   const messages = [{ role: 'system', content: P.answer({ date: today(), local: isLocal() }) }, { role: 'user', content: userContent }];
-  const tools = store.getSettings().ai.source === 'local' ? [] : features.listTools().map(t => ({ name: t.name, description: t.description, parameters: t.parameters }));
+  const tools = store.getSettings().ai.source === 'local' ? [] : registry.all({ web: false }).map(registry.def);
   await answerLoop(s, ctx, D, messages, tools, () => null);
 }
 
-// chat <-> extension-tool loop shared by both paths. `extra(name,args)` may handle additional tools; returns undefined if not its tool.
+// Run ONE registry tool with UI trace events (tool-step run/ok/error) and uniform error handling.
+let stepSeq = 0;
+async function runTool(s, emit, name, args, ctx) {
+  const id = ++stepSeq;
+  emit(s, { type: 'tool-step', id, name, label: registry.summarize(name, args), status: 'run' });
+  const t0 = Date.now();
+  try {
+    const result = await registry.call(name, args, ctx);
+    emit(s, { type: 'tool-step', id, name, label: registry.summarize(name, args, result), status: 'ok', ms: Date.now() - t0 });
+    emit(s, { type: 'tool', name, args, result: slimForUi(result) });
+    return result;
+  } catch (e) {
+    const msg = String((e && e.message) || e).slice(0, 300);
+    emit(s, { type: 'tool-step', id, name, label: registry.summarize(name, args, { error: msg }), status: 'error', error: msg, ms: Date.now() - t0 });
+    emit(s, { type: 'tool', name, args, error: msg });
+    return { error: msg };
+  }
+}
+// big base64 blobs (png exports) must not be replayed through every chat event
+function slimForUi(r) { try { const j = JSON.stringify(r); if (j.length < 60000) return r; return { note: 'large result omitted', size: j.length }; } catch { return r; } }
+function forModel(r) { const j = JSON.stringify(r); return j.length > 7000 ? j.slice(0, 7000) + '…' : j; }
+
+// chat <-> tool loop shared by both paths. `extra(name,args)` may handle additional tools; returns undefined if not its tool.
 async function answerLoop(s, ctx, D, messages, tools, extra, maxRounds = 5) {
   const { emit } = D;
   for (let round = 0; round < maxRounds; round++) {
@@ -134,12 +159,9 @@ async function answerLoop(s, ctx, D, messages, tools, extra, maxRounds = 5) {
     for (const tc of r.toolCalls) {
       let args = {}; try { args = JSON.parse(tc.arguments || '{}'); } catch {}
       let result;
-      try {
-        const x = await extra(tc.name, args);
-        if (x !== undefined && x !== null) result = x;
-        else { result = await features.callTool(tc.name, args, ctx); emit(s, { type: 'tool', name: tc.name, args, result }); }
-      } catch (e) { result = { error: String(e.message || e) }; emit(s, { type: 'tool', name: tc.name, args, error: result.error }); }
-      messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result).slice(0, 7000) });
+      const x = await extra(tc.name, args).catch(e => ({ error: String(e.message || e) }));
+      if (x !== undefined && x !== null) result = x; else result = await runTool(s, emit, tc.name, args, ctx);
+      messages.push({ role: 'tool', tool_call_id: tc.id, content: forModel(result) });
     }
   }
 }
@@ -152,13 +174,14 @@ async function runAgent(s, ctx, D) {
   const queries = []; const used = { searches: 0, opens: 0 }; const t0 = Date.now(); const titles = new Map();
   const left = () => used.searches < LIMITS.searches || used.opens < LIMITS.opens;
   const timeUp = () => Date.now() - t0 > LIMITS.ms;
-  const extTools = features.listTools().map(t => ({ name: t.name, description: t.description, parameters: t.parameters }));
+  const extTools = registry.all({ web: false }).map(registry.def); let stepsUsed = 0; const stepCap = maxSteps();
   const messages = [{ role: 'system', content: P.agent({ date: today(), engine: engineName(selectedEngine()), limits: LIMITS }) }, { role: 'user', content: q }];
   emit(s, { type: 'status', text: L('思考中…', 'Thinking…') });
   emit(s, { type: 'queries', queries: [], direct: false });
 
   const handle = async (name, args) => {
     if (name === 'web_search') {
+      stepsUsed++;
       if (used.searches >= LIMITS.searches || timeUp()) return { error: `search limit reached (${LIMITS.searches}); answer now using the pages you have opened` };
       const query = String(args.query || '').trim().slice(0, 160);
       if (!query) return { error: 'query is required' };
@@ -170,6 +193,7 @@ async function runAgent(s, ctx, D) {
         : { engine: r.via, results: [], note: 'No relevant results from any engine. Try a different, shorter query (other language, name + 简介/profile, etc.) or answer that nothing was found.' };
     }
     if (name === 'open_page') {
+      stepsUsed++;
       const url = String(args.url || '').trim();
       if (!/^https?:\/\//i.test(url)) return { error: 'url must start with http(s)://' };
       if (board.byUrl.has(url) && board.byUrl.get(url).status === 'ok') { const p = board.byUrl.get(url); return { n: p.n, title: p.title, url, text: p.text.slice(0, 5000) }; }
@@ -187,8 +211,10 @@ async function runAgent(s, ctx, D) {
   let toolsOn = true; let nudged = false;
   for (let round = 0; round < LIMITS.rounds; round++) {
     const out = timeUp() || !left();
+    const stepsOut = stepsUsed >= stepCap;
     if (out && !nudged) { nudged = true; messages.push({ role: 'user', content: '(Budget used up — write the final answer now from the pages you opened. Cite only [n] of opened pages.)' }); }
-    const tools = (out ? [] : WEB_TOOLS).concat(extTools);
+    if (stepsOut && !nudged) { nudged = true; messages.push({ role: 'user', content: '(Tool-step limit reached — write the final answer now from what you have.)' }); }
+    const tools = stepsOut ? [] : (out ? [] : WEB_TOOLS).concat(extTools);
     let r;
     try { r = await llm.chat({ messages, tools, signal: s.ac.signal, onDelta: t => emit(s, { type: 'answer-delta', text: t }) }); }
     catch (e) {
@@ -204,10 +230,11 @@ async function runAgent(s, ctx, D) {
       try {
         const x = await handle(tc.name, args);
         if (x !== undefined) return x;
-        const res = await features.callTool(tc.name, args, ctx); emit(s, { type: 'tool', name: tc.name, args, result: res }); return res;
-      } catch (e) { emit(s, { type: 'tool', name: tc.name, args, error: String(e.message || e) }); return { error: String(e.message || e) }; }
+        stepsUsed++;
+        return await runTool(s, emit, tc.name, args, ctx);
+      } catch (e) { return { error: String(e.message || e) }; }
     }));
-    r.toolCalls.forEach((tc, i) => messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(results[i]).slice(0, 7000) }));
+    r.toolCalls.forEach((tc, i) => messages.push({ role: 'tool', tool_call_id: tc.id, content: forModel(results[i]) }));
     emit(s, { type: 'sources', sources: board.pages.filter(p => p.status === 'ok').map(p => ({ n: p.n, url: p.url, title: p.title, site: p.site })) });
     emit(s, { type: 'status', text: L('正在整理回答…', 'Writing the answer…') });
   }
@@ -215,16 +242,57 @@ async function runAgent(s, ctx, D) {
   emit(s, { type: 'sources', sources: board.pages.filter(p => p.status === 'ok').map(p => ({ n: p.n, url: p.url, title: p.title, site: p.site })) });
 }
 
+// ------------------------------------------------------------------ local models: grammar-constrained JSON action loop
+// Small local models cannot do native function calling. When the question looks like it needs a (non-web) tool we run a
+// short loop: the model emits ONE JSON action {tool,args} (llama.cpp grammar guarantees valid JSON that matches a tool
+// schema), we run it, feed the result back, and finish with a normal streamed answer. Returns false when no tool applies.
+const TOOL_HINT = /画|绘|函数|图像|图形|作图|几何|物理|模拟|仿真|受力|抛物|单摆|电路|折射|标签页|隐身|无痕|打开|关闭|切换|历史|设置|扩展|拓展|词典|翻译|语法|知识库|笔记|打印|plot|graph|draw|geogebra|physics|simulat|projectile|pendulum|circuit|tab\b|incognito|private|open |close |history|setting|extension|dictionar|translate|grammar|knowledge|notes?\b|print/i;
+function actionSchema(defs) {
+  return { anyOf: defs.map(d => ({ type: 'object', properties: { tool: { const: d.name }, args: d.parameters && d.parameters.properties && Object.keys(d.parameters.properties).length ? d.parameters : { type: 'object', properties: {} } }, required: ['tool', 'args'] })).concat([{ type: 'object', properties: { tool: { const: 'answer' } }, required: ['tool'] }]) };
+}
+async function runLocalTools(s, ctx, D, maxSteps = 4) {
+  const { emit, today } = D;
+  const defs = registry.all({ web: false }).map(registry.def);
+  if (!defs.length || !TOOL_HINT.test(s.input)) return false;
+  const catalog = defs.map(d => `- ${d.name}(${Object.keys((d.parameters && d.parameters.properties) || {}).join(', ')}): ${String(d.description).split(/(?<=[.。])\s/)[0].slice(0, 160)}`).join('\n');
+  const sys = `You are the tool router of an AI browser. Today: ${today()}.\nTools:\n${catalog}\n\nReply with ONE JSON object: {"tool":"<name>","args":{...}} to call a tool, or {"tool":"answer"} when no (more) tool is needed. Use a tool only when the user's request needs it (draw/plot → GeoGebra, physics problem → physics tools, browser actions, translation, dictionary, notes). Otherwise {"tool":"answer"}.`;
+  const msgs = [{ role: 'system', content: sys }, { role: 'user', content: s.input }];
+  const schema = actionSchema(defs); const done = [];
+  for (let i = 0; i < maxSteps; i++) {
+    let act;
+    try { act = await llm.completeJson(msgs, { signal: s.ac.signal, maxTokens: 600, temperature: 0.1, jsonSchema: schema }); } catch (e) { if (s.ac.signal.aborted) throw e; break; }
+    if (!act || act.tool === 'answer' || !defs.some(d => d.name === act.tool)) break;
+    const result = await runTool(s, emit, act.tool, act.args || {}, ctx);
+    done.push({ tool: act.tool, args: act.args, result });
+    msgs.push({ role: 'assistant', content: JSON.stringify(act) });
+    msgs.push({ role: 'user', content: 'Tool result: ' + forModel(result) + '\nNext action (JSON)?' });
+  }
+  if (!done.length) return false;
+  emit(s, { type: 'queries', queries: [], direct: true });
+  emit(s, { type: 'sources', sources: [] });
+  emit(s, { type: 'status', text: L('正在生成回答…', 'Writing the answer…') });
+  const ans = [{ role: 'system', content: P.answer({ date: today(), local: true }) }, { role: 'user', content: s.input + '\n\n(Tools already executed for this request, results:\n' + done.map(d => `${d.tool}(${JSON.stringify(d.args)}) -> ${forModel(d.result).slice(0, 900)}`).join('\n') + '\nBriefly tell the user what was done / the result. Do not claim anything the results do not show.)' }];
+  await llm.chat({ messages: ans, signal: s.ac.signal, onDelta: t => emit(s, { type: 'answer-delta', text: t }) });
+  return true;
+}
+
 // entry used by chat.js
 async function run(s, ctx, D) {
   const local = D.isLocal();
   if (s.queriesOverride) return runPipeline(s, ctx, D, s.queriesOverride, false);
-  if (local) return runPipeline(s, ctx, D, null, false);
+  // local frameworks (LM Studio / Ollama / oMLX / vLLM …) usually support native tool calling → use the full agent first
+  const fwChat = local && /^fw:/.test(llm.roleOf({ local: store.getSettings().ai.local }, 'chat'));
+  if (local && !fwChat) {
+    if (await runLocalTools(s, ctx, D).catch(e => { if (s.ac.signal.aborted) throw e; console.error('local tool loop failed:', e && e.message); return false; })) return;
+    return runPipeline(s, ctx, D, null, false);
+  }
   try { return await runAgent(s, ctx, D); }
   catch (e) {
     if (e.code !== 'TOOLS_UNSUPPORTED') throw e;
-    return runPipeline(s, ctx, D, null, false); // API without tool calling → fixed pipeline with the same engine
+    // no native tools: grammar/JSON action loop first (same registry), then the fixed search pipeline
+    if (await runLocalTools(s, ctx, D).catch(() => false)) return;
+    return runPipeline(s, ctx, D, null, false);
   }
 }
 
-module.exports = { run, runAgent, runPipeline, planQueries, WEB_TOOLS, LIMITS };
+module.exports = { run, runAgent, runPipeline, runLocalTools, runTool, planQueries, WEB_TOOLS, LIMITS };

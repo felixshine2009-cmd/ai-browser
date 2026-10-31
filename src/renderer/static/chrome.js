@@ -2,6 +2,7 @@
   await I18N.init();
   const $ = id => document.getElementById(id);
   const tabsEl = $('tabs'), addr = $('addr');
+  document.addEventListener('keydown', (ev) => { if (!(ev.ctrlKey || ev.metaKey)) return; window.aib.invoke('kbd:key', { code: ev.code, ctrl: ev.ctrlKey, meta: ev.metaKey, shift: ev.shiftKey, alt: ev.altKey }).then(ok => { }).catch(() => {}); });
   let state = { tabs: [], activeId: null, mode: 'chat' };
   const SPARK = '<svg class="spark-inline" viewBox="0 0 100 100" width="14" height="14"><defs><linearGradient id="fgc" gradientUnits="userSpaceOnUse" x1="14" y1="10" x2="86" y2="92"><stop offset="0" stop-color="#fde047"/><stop offset="0.28" stop-color="#fb923c"/><stop offset="0.62" stop-color="#22d3ee"/><stop offset="1" stop-color="#2563eb"/></linearGradient></defs><path d="M50 2 C54 30 70 46 98 50 C70 54 54 70 50 98 C46 70 30 54 2 50 C30 46 46 30 50 2 Z" fill="url(#fgc)"/></svg>';
   const LOCK = '<svg width="12" height="12" viewBox="0 0 16 16"><rect x="4" y="7" width="8" height="7" rx="1.5" fill="none" stroke="currentColor"/><path d="M6 7V5a2 2 0 0 1 4 0v2" fill="none" stroke="currentColor"/></svg>';
@@ -13,7 +14,7 @@
     tabsEl.innerHTML = '';
     for (const tb of state.tabs) {
       const el = document.createElement('div');
-      el.className = 'tab' + (tb.active ? ' active' : '') + (!firstRender && !seen.has(tb.id) ? ' enter' : '');
+      el.className = 'tab' + (tb.active ? ' active' : '') + (tb.incognito ? ' incognito' : '') + (!firstRender && !seen.has(tb.id) ? ' enter' : '');
       seen.add(tb.id);
       el.dataset.id = tb.id;
       const fav = document.createElement('div'); fav.className = 'favicon' + (tb.icon === 'spark' ? ' fav-spark' : '');
@@ -23,10 +24,11 @@
       const ti = document.createElement('div'); ti.className = 'title';
       ti.textContent = tb.kind === 'home' ? I18N.t('tab.newtab') : (tb.kind === 'chat' ? (tb.display || tb.title) : (tb.title || tb.url));
       const x = document.createElement('div'); x.className = 'close-tab'; x.textContent = '×'; x.dataset.close = tb.id; x.title = I18N.t('tab.close');
-      el.append(fav, ti, x);
+      if (tb.incognito) { const bd = document.createElement('span'); bd.className = 'incog-badge'; bd.textContent = I18N.t('tab.incognito'); el.append(fav, bd, ti, x); } else el.append(fav, ti, x);
       nextEls.set(tb.id, el);
       tabsEl.appendChild(el);
     }
+    { const a = state.tabs.find(t => t.active); document.body.classList.toggle('incog-active', !!(a && a.incognito)); }
     // closing animation: a non-interactive ghost of each tab that just disappeared collapses in place
     if (!firstRender) {
       prevIds.filter(id => !nextEls.has(id)).forEach(id => {
@@ -47,6 +49,7 @@
       $('fwd').classList.toggle('disabled', !a.canForward);
       $('reload').classList.toggle('loading', a.loading);
       $('bookmark').classList.toggle('bookmarked', !!a.bookmarked);
+      cwsUpdate(a);
       $('lock').innerHTML = a.icon === 'spark' ? '✦' : LOCK;
       $('lock').classList.toggle('spark', a.icon === 'spark');
       if (document.activeElement !== addr) addr.value = a.display || '';
@@ -76,6 +79,20 @@
   $('fwd').onclick = () => window.aib.invoke('nav:forward');
   $('reload').onclick = () => window.aib.invoke('nav:reload');
   $('bookmark').onclick = () => window.aib.invoke('bm:toggle');
+  // Chrome Web Store page -> one-click "Add to browser"
+  let cwsBusy = false, cwsUrl = '', cwsMsgT = null;
+  function cwsUpdate(a) {
+    const b = $('cwsadd'); if (!b) return;
+    b.hidden = !a.storeExt || (a.storeExt.installed && !cwsBusy && !b.dataset.flash);
+    if (a.storeExt) { cwsUrl = a.storeExt.id; if (!cwsBusy && !b.dataset.flash) { b.textContent = t('cws.add'); b.className = 'cws-add'; } }
+  }
+  $('cwsadd').onclick = async () => {
+    if (cwsBusy) return; const b = $('cwsadd'); cwsBusy = true; b.className = 'cws-add busy'; b.textContent = t('cws.installing');
+    const r = await window.aib.invoke('cx:installStore', cwsUrl);
+    cwsBusy = false; b.dataset.flash = '1';
+    if (r.ok) { b.className = 'cws-add ok'; b.textContent = t('cws.done') + ' · ' + r.ext.name; } else { b.className = 'cws-add bad'; b.textContent = t('cws.fail') + ' ' + r.error; b.title = r.error; }
+    clearTimeout(cwsMsgT); cwsMsgT = setTimeout(() => { delete b.dataset.flash; const a = state && state.tabs.find(x => x.active); if (a) cwsUpdate(a); }, r.ok ? 4000 : 9000);
+  };
   $('menu').onclick = () => window.aib.invoke('menu:toggle');
   document.querySelectorAll('#modeseg .seg').forEach(s => s.onclick = async () => {
     const next = s.dataset.mode;

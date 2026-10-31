@@ -7,54 +7,35 @@ const { app } = require('electron');
 
 let llamaMod = null, llama = null, model = null, modelKey = null, ctx = null, loading = null;
 
-// Only models whose Hugging Face resolve URL returned HTTP 200 (verified 2026-10-31), incl. hf-mirror.com.
-// tags: general | translate | light — shown in the settings UI. ram: approximate unified-memory / RAM to run comfortably.
-const CATALOG = [
-  { id: 'qwen2.5-7b-instruct-q4_k_m', name: 'Qwen2.5-7B-Instruct Q4_K_M', size: '4.7 GB', bytes: 4683073856, ram: '16 GB+',
-    repo: 'Qwen/Qwen2.5-7B-Instruct-GGUF', file: 'qwen2.5-7b-instruct-q4_k_m.gguf',
-    note: '通用推荐 · 中英双语', tags: ['general'], license: 'Apache-2.0', arch: 'qwen2' },
-  { id: 'qwen3-4b-q4_k_m', name: 'Qwen3-4B Q4_K_M', size: '2.5 GB', bytes: 2497280960, ram: '12 GB+',
-    repo: 'bartowski/Qwen_Qwen3-4B-GGUF', file: 'Qwen_Qwen3-4B-Q4_K_M.gguf',
-    note: '通用推荐 · 比 2.5-3B 更强', tags: ['general'], license: 'Apache-2.0', arch: 'qwen3' },
-  { id: 'hunyuan-mt-7b-q4_k_m', name: 'Hunyuan-MT-7B Q4_K_M', size: '4.6 GB', bytes: 4624950272, ram: '16 GB+',
-    repo: 'mradermacher/Hunyuan-MT-7B-GGUF', file: 'Hunyuan-MT-7B.Q4_K_M.gguf',
-    note: '翻译推荐 · 腾讯混元 33 语种', tags: ['translate'], license: 'other', arch: 'hunyuanDense',
-    promptHint: 'translate-only' },
-  { id: 'seed-x-ppo-7b-q4_k_m', name: 'Seed-X-PPO-7B Q4_K_M', size: '4.6 GB', bytes: 4557582848, ram: '16 GB+',
-    repo: 'mradermacher/Seed-X-PPO-7B-GGUF', file: 'Seed-X-PPO-7B.Q4_K_M.gguf',
-    note: '翻译推荐 · 字节 Seed-X（需语言标签）', tags: ['translate'], license: 'Apache-2.0', arch: 'llama',
-    promptHint: 'seed-x' },
-  { id: 'qwen2.5-3b-instruct-q4_k_m', name: 'Qwen2.5-3B-Instruct Q4_K_M', size: '2.1 GB', bytes: 2104932768, ram: '8 GB+',
-    repo: 'Qwen/Qwen2.5-3B-Instruct-GGUF', file: 'qwen2.5-3b-instruct-q4_k_m.gguf',
-    note: '轻量通用 · 8 GB 内存可用', tags: ['general', 'light'], license: 'Apache-2.0', arch: 'qwen2' },
-  { id: 'qwen3-1.7b-q4_k_m', name: 'Qwen3-1.7B Q4_K_M', size: '1.2 GB', bytes: 1282439584, ram: '8 GB+',
-    repo: 'bartowski/Qwen_Qwen3-1.7B-GGUF', file: 'Qwen_Qwen3-1.7B-Q4_K_M.gguf',
-    note: '轻量通用 · 词条/句子尚可', tags: ['general', 'light'], license: 'Apache-2.0', arch: 'qwen3' },
-  { id: 'qwen2.5-1.5b-instruct-q4_k_m', name: 'Qwen2.5-1.5B-Instruct Q4_K_M', size: '1.1 GB', bytes: 1117320736, ram: '8 GB',
-    repo: 'Qwen/Qwen2.5-1.5B-Instruct-GGUF', file: 'qwen2.5-1.5b-instruct-q4_k_m.gguf',
-    note: '轻量 · 能力有限', tags: ['light'], license: 'Apache-2.0', arch: 'qwen2' },
-  { id: 'qwen3-0.6b-q4_k_m', name: 'Qwen3-0.6B Q4_K_M', size: '0.5 GB', bytes: 484220320, ram: '6 GB',
-    repo: 'bartowski/Qwen_Qwen3-0.6B-GGUF', file: 'Qwen_Qwen3-0.6B-Q4_K_M.gguf',
-    note: '极速试用 · 仅适合短任务', tags: ['light'], license: 'Apache-2.0', arch: 'qwen3' },
-  { id: 'qwen2.5-0.5b-instruct-q4_k_m', name: 'Qwen2.5-0.5B-Instruct Q4_K_M', size: '0.5 GB', bytes: 491400032, ram: '6 GB',
-    repo: 'Qwen/Qwen2.5-0.5B-Instruct-GGUF', file: 'qwen2.5-0.5b-instruct-q4_k_m.gguf',
-    note: '极速试用 · 测试用', tags: ['light'], license: 'Apache-2.0', arch: 'qwen2' }
-];
+const { CATALOG: BUILTIN_CATALOG, ramFor, fmtSize, familyOf } = require('./catalog');
+const hub = require('./hub');
+const store = require('../store');
 
 function modelsDir() { return path.join(app.getPath('userData'), 'models'); }
-function modelPathOf(entry) { return path.join(modelsDir(), entry.file); }
+const mlxDirOf = (repo) => path.join(modelsDir(), 'mlx', repo.replace(/\//g, '__'));
+function modelPathOf(entry) { return entry.engine === 'mlx' ? mlxDirOf(entry.repo) : path.join(modelsDir(), entry.file); }
 
+// user-added models (from Hugging Face search / pasted repo) live in settings.ai.local.custom
+function customEntries() {
+  let c = []; try { c = store.getSettings().ai.local.custom || []; } catch {}
+  return c.map(x => ({ ...x, custom: true, display: (x.family || familyOf(x.repo)) + ' ' + x.name, size: fmtSize(x.bytes || 0), ram: ramFor(x.bytes || 0), tags: x.tags || ['custom'], note: x.note || x.repo }));
+}
+function allEntries() { return BUILTIN_CATALOG.concat(customEntries()); }
+function findEntry(id) { return allEntries().find(m => m.id === id); }
+function haveEntry(m) {
+  const p = modelPathOf(m);
+  try {
+    if (m.engine === 'mlx') return fs.existsSync(path.join(p, '.aib-complete'));
+    const sz = fs.statSync(p).size;
+    // Tests use a tiny mock HF payload; accept any non-empty file when AIB_HF_BASE is set.
+    return process.env.AIB_HF_BASE ? sz > 1024 : sz > m.bytes * 0.99;
+  } catch { return false; }
+}
 function listModels(settingsLocal) {
-  const out = CATALOG.map(m => {
+  const out = allEntries().map(m => {
     const p = modelPathOf(m);
-    let have = false, partial = 0;
-    try {
-      const sz = fs.statSync(p).size;
-      // Tests use a tiny mock HF payload; accept any non-empty file when AIB_HF_BASE is set.
-      have = process.env.AIB_HF_BASE ? sz > 1024 : sz > m.bytes * 0.99;
-    } catch {}
-    try { partial = fs.statSync(p + '.part').size; } catch {}
-    return { ...m, path: p, downloaded: have, partial };
+    let partial = 0; if (m.engine !== 'mlx') { try { partial = fs.statSync(p + '.part').size; } catch {} }
+    return { ...m, path: p, downloaded: haveEntry(m), partial };
   });
   return out;
 }
@@ -90,7 +71,7 @@ async function ensureModel(cfg) {
   return loading;
 }
 
-async function chat(cfg, { messages, temperature, onDelta, signal, maxTokens }) {
+async function chat(cfg, { messages, temperature, onDelta, signal, maxTokens, jsonSchema }) {
   const m = await ensureModel(cfg);
   const { LlamaChatSession } = llamaMod;
   const context = await m.createContext({ contextSize: cfg.contextSize || 4096 });
@@ -107,7 +88,9 @@ async function chat(cfg, { messages, temperature, onDelta, signal, maxTokens }) 
     const session = new LlamaChatSession({ contextSequence: context.getSequence() });
     session.setChatHistory(history);
     let content = '';
+    const grammar = jsonSchema ? await llama.createGrammarForJsonSchema(jsonSchema) : undefined; // grammar-constrained JSON (tool-action loop)
     await session.prompt(String(last?.content || ''), {
+      grammar,
       temperature: temperature ?? 0.3, maxTokens: maxTokens || 1500, signal,
       stopOnAbortSignal: true,
       onTextChunk: (t) => { content += t; onDelta && onDelta(t); }
@@ -116,45 +99,18 @@ async function chat(cfg, { messages, temperature, onDelta, signal, maxTokens }) 
   } finally { try { await context.dispose(); } catch {} }
 }
 
-// ---- model download with progress (Hugging Face or hf-mirror.com)
-const active = new Map();
-async function download(id, mirror, onProgress) {
-  const entry = CATALOG.find(m => m.id === id);
+// ---- model download with progress (hf-mirror by default, auto-fallback, resume, sha256) — see hub.js
+async function download(id, onProgress) {
+  const entry = findEntry(id);
   if (!entry) throw new Error('unknown model');
-  if (active.has(id)) return;
-  fs.mkdirSync(modelsDir(), { recursive: true });
-  const dest = modelPathOf(entry), part = dest + '.part';
-  const host = process.env.AIB_HF_BASE || (mirror ? 'https://hf-mirror.com' : 'https://huggingface.co');
-  const url = `${host}/${entry.repo}/resolve/main/${entry.file}`;
-  const ac = new AbortController();
-  active.set(id, ac);
-  try {
-    let have = 0; try { have = fs.statSync(part).size; } catch {}
-    const res = await fetch(url, { headers: have ? { Range: `bytes=${have}-` } : {}, signal: ac.signal, redirect: 'follow' });
-    if (!(res.status === 200 || res.status === 206)) throw new Error('HTTP ' + res.status);
-    if (res.status === 200) have = 0;
-    const total = have + Number(res.headers.get('content-length') || 0);
-    const ws = fs.createWriteStream(part, { flags: have ? 'a' : 'w' });
-    const reader = res.body.getReader();
-    let got = have, lastT = 0;
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      if (!ws.write(value)) await new Promise(r => ws.once('drain', r));
-      got += value.length;
-      const now = Date.now();
-      if (now - lastT > 400) { lastT = now; onProgress && onProgress({ id, got, total }); }
-    }
-    await new Promise(r => ws.end(r));
-    fs.renameSync(part, dest);
-    onProgress && onProgress({ id, got, total: got, done: true });
-    return dest;
-  } finally { active.delete(id); }
+  return hub.download({ id: entry.id, engine: entry.engine, repo: entry.repo, file: entry.file, bytes: entry.bytes, sha256: entry.sha256, dest: modelPathOf(entry) }, onProgress);
 }
-function cancelDownload(id) { const a = active.get(id); if (a) a.abort(); }
+function cancelDownload(id) { hub.cancel(id); }
 function deleteModel(id) {
-  const e = CATALOG.find(m => m.id === id); if (!e) return;
-  for (const f of [modelPathOf(e), modelPathOf(e) + '.part']) { try { fs.unlinkSync(f); } catch {} }
+  const e = findEntry(id); if (!e) return;
+  const p = modelPathOf(e);
+  if (e.engine === 'mlx') { try { fs.rmSync(p, { recursive: true, force: true }); } catch {} return; }
+  for (const f of [p, p + '.part']) { try { fs.unlinkSync(f); } catch {} }
 }
 
-module.exports = { chat, status, listModels, download, cancelDownload, deleteModel, CATALOG, modelsDir };
+module.exports = { chat, status, listModels, download, cancelDownload, deleteModel, findEntry, modelPathOf, haveEntry, CATALOG: BUILTIN_CATALOG, modelsDir };

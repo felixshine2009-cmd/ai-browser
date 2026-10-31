@@ -69,9 +69,10 @@ const doFetch = (u, o) => (electronNet ? electronNet.fetch(u, o) : fetch(u, o));
 const nodeFetch = (u, o) => fetch(u, o); // undici: serves the plain SSR result pages of bing / baidu / ddg reliably
 const HAS_WINDOW = !!BrowserWindow;
 
-function loadHidden(url, timeoutMs = 12000) {
+function loadHidden(url, timeoutMs = 12000, partition = 'persist:serp') {
   return new Promise((resolve, reject) => {
-    const win = new BrowserWindow({ show: false, width: 1200, height: 900, webPreferences: { sandbox: true, contextIsolation: true, partition: 'persist:serp' } });
+    // Incognito callers pass the private in-memory partition so SERP cookies never land in the shared persist:serp jar.
+    const win = new BrowserWindow({ show: false, width: 1200, height: 900, webPreferences: { sandbox: true, contextIsolation: true, partition } });
     win.webContents.setUserAgent(UA);
     let done = false;
     const finish = (err, val) => { if (done) return; done = true; clearTimeout(t); try { win.destroy(); } catch {} err ? reject(err) : resolve(val); };
@@ -169,8 +170,9 @@ function looksBlocked(html, href) {
 
 // One engine, one query -> parsed + junk-filtered results (relevance applied by caller). Throws on network/blocked.
 const lastReq = {};
-async function searchOnce(id, query, custom) {
+async function searchOnce(id, query, custom, partition) {
   const url = engineUrl(id, query, custom);
+  const hidden = (u) => loadHidden(u, 12000, partition || 'persist:serp');
   const { JSDOM, VirtualConsole } = require('jsdom');
   const parse = (page) => {
     if (looksBlocked(page.html, page.href)) throw new Error('blocked (captcha / verification page)');
@@ -181,8 +183,8 @@ async function searchOnce(id, query, custom) {
   const attempts = [];
   // gentle pacing per engine (baidu answers bursts with a captcha page)
   const gap = id === 'baidu' ? 1500 : 0; const wait = gap - (Date.now() - (lastReq[id] || 0)); lastReq[id] = Date.now() + Math.max(0, wait); if (wait > 0) await new Promise(r => setTimeout(r, wait));
-  if (id === 'custom' || id === 'google') { if (HAS_WINDOW) attempts.push(() => loadHidden(url)); attempts.push(() => fetchHtml(url, 12000, nodeFetch)); }
-  else { attempts.push(() => fetchHtml(url, 12000, nodeFetch)); if (electronNet) attempts.push(() => fetchHtml(url, 12000, doFetch)); if (HAS_WINDOW && id !== 'duckduckgo') attempts.push(() => loadHidden(url)); }
+  if (id === 'custom' || id === 'google') { if (HAS_WINDOW) attempts.push(() => hidden(url)); attempts.push(() => fetchHtml(url, 12000, nodeFetch)); }
+  else { attempts.push(() => fetchHtml(url, 12000, nodeFetch)); if (electronNet) attempts.push(() => fetchHtml(url, 12000, doFetch)); if (HAS_WINDOW && id !== 'duckduckgo') attempts.push(() => hidden(url)); }
   let attemptNo = 0;
   if (id === 'baidu') attempts.push(async () => { await new Promise(r => setTimeout(r, 2500)); return fetchHtml(url, 12000, nodeFetch); });
   for (const get of attempts) {
@@ -194,17 +196,19 @@ async function searchOnce(id, query, custom) {
   return parsed.filter(r => !isNavJunk(r));
 }
 
-// serp(query, {engine}) -> { query, via, tried:[{engine,count,error?}], results }
+// serp(query, {engine, partition}) -> { query, via, tried:[{engine,count,error?}], results }
 // Chain: selected engine -> bing -> duckduckgo. A hit list only counts if enough of it is ABOUT the query.
+// partition: pass the active tab's session partition (e.g. 'aib-incognito') so SERP cookies stay private.
 async function serp(query, opts = {}) {
   let s = {}; try { s = store.getSettings().search || {}; } catch {}
   const selected = opts.engine || s.engine || 'bing';
+  const partition = opts.partition || 'persist:serp';
   const fb = (CJK.test(query) ? ['baidu', 'bing', 'duckduckgo'] : FALLBACKS).filter(e => e !== selected);
   const chain = [selected, ...fb];
   const tried = [];
   for (const id of chain) {
     try {
-      const all = await searchOnce(id, query, s.custom);
+      const all = await searchOnce(id, query, s.custom, partition);
       const rel = all.filter(r => isRelevant(r, query));
       tried.push({ engine: id, count: all.length, relevant: rel.length });
       if (rel.length) return { query, via: id, selected, fallback: id !== selected, tried, results: rel.slice(0, 10) };

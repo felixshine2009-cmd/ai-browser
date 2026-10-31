@@ -11,7 +11,7 @@ const DEFAULTS = {
   ai: {
     source: 'api', // 'api' | 'local'
     api: { preset: 'openai', format: 'openai', baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini', temperature: 0.3 },
-    local: { modelPath: '', modelId: '', translateModelId: '', hfMirror: false, contextSize: 4096 }
+    local: { modelPath: '', modelId: '', translateModelId: '', hfMirror: false, contextSize: 4096, engine: 'auto', hub: { endpoint: 'mirror', custom: '' }, custom: [], roles: {}, frameworks: { overrides: {}, custom: [] } }
   },
   dicts: [], // {id,name,mdx,mdd:[],enabled}
   extensions: {}, // id -> {enabled, settings}
@@ -19,7 +19,11 @@ const DEFAULTS = {
   selectionLookup: true,
   displayName: 'Felix', // home greeting: {name}
   greeting: '', // '' = localized default
-  hideSpark: false
+  hideSpark: false,
+  translate: { engine: 'hunyuan' }, // 'hunyuan' (bundled HY-MT, loaded only while translating) | 'chat' (current chat model)
+  kb: { source: 'builtin', api: { baseUrl: '', apiKey: '', model: '' } }, // knowledge base embeddings
+  agent: { maxSteps: 12 },
+  passwords: { save: true, autofill: true }
 };
 
 const ENGINES = {
@@ -90,12 +94,19 @@ function decKey(stored) {
 }
 
 function getSettings() { return settingsFile.data; }
+function getKbApiKey() { return decKey(((settingsFile.data.kb || {}).api || {}).apiKey); }
 function getApiKey() { return decKey(settingsFile.data.ai.api.apiKey); }
 // Settings as exposed to renderer pages: the key is never sent out.
 function publicSettings() {
   const s = JSON.parse(JSON.stringify(settingsFile.data));
   s.ai.api.hasKey = !!s.ai.api.apiKey;
   s.ai.api.apiKey = '';
+  try {
+    const fw = s.ai.local.frameworks || {};
+    for (const o of Object.values(fw.overrides || {})) { o.hasKey = !!o.apiKey; o.apiKey = ''; }
+    for (const c of fw.custom || []) { c.hasKey = !!c.apiKey; c.apiKey = ''; }
+  } catch {}
+  if (s.kb && s.kb.api) { s.kb.api.hasKey = !!s.kb.api.apiKey; s.kb.api.apiKey = ''; }
   return s;
 }
 function patchSettings(patch) {
@@ -107,6 +118,17 @@ function patchSettings(patch) {
     else patch.ai.api.apiKey = encKey(k);
   }
   delete patch.ai?.api?.hasKey;
+  if (patch.kb && patch.kb.api) {
+    if ('apiKey' in patch.kb.api) { const k = patch.kb.api.apiKey; if (k === '' || k == null) delete patch.kb.api.apiKey; else if (k === '__clear__') patch.kb.api.apiKey = ''; else patch.kb.api.apiKey = encKey(k); }
+    delete patch.kb.api.hasKey;
+  }
+  const fwp = patch.ai && patch.ai.local && patch.ai.local.frameworks;
+  if (fwp) {
+    const cur = (((settingsFile.data.ai || {}).local || {}).frameworks) || {};
+    const fix = (o, old) => { if (!o) return; delete o.hasKey; const k = o.apiKey; if (k === '' || k == null) { if (old && old.apiKey) o.apiKey = old.apiKey; else delete o.apiKey; } else if (k === '__clear__') o.apiKey = ''; else if (!/^(enc|b64):/.test(k)) o.apiKey = encKey(k); };
+    for (const [id, o] of Object.entries(fwp.overrides || {})) fix(o, (cur.overrides || {})[id]);
+    if (Array.isArray(fwp.custom)) for (const c of fwp.custom) fix(c, (cur.custom || []).find(x => x.id === c.id));
+  }
   if (patch.dicts) settingsFile.data.dicts = patch.dicts, delete patch.dicts;
   if (patch.chromeExtensions) settingsFile.data.chromeExtensions = patch.chromeExtensions, delete patch.chromeExtensions;
   settingsFile.data = deepMerge(settingsFile.data, patch);
@@ -127,7 +149,8 @@ function searchEngineInfo() {
 }
 
 // ---- history
-function addHistory(url, title) {
+function addHistory(url, title, opts) {
+  if (opts && opts.private) return; // incognito never writes history
   if (!/^https?:/i.test(url)) return;
   const h = historyFile.data;
   const last = h[0];
@@ -136,7 +159,8 @@ function addHistory(url, title) {
   if (h.length > 5000) h.length = 5000;
   historyFile.save();
 }
-function updateHistoryTitle(url, title) {
+function updateHistoryTitle(url, title, opts) {
+  if (opts && opts.private) return; // incognito titles must not leak into the normal store
   const e = historyFile.data.find(x => x.url === url);
   if (e && title) { e.title = title; historyFile.save(); }
 }
@@ -171,7 +195,7 @@ function saveDownloads() { downloadsFile.save(); }
 function flushAll() { [settingsFile, historyFile, bookmarksFile, downloadsFile].forEach(f => f && f.flush()); }
 
 module.exports = {
-  init, getSettings, getApiKey, publicSettings, patchSettings, searchUrl, searchEngineInfo, ENGINES,
+  init, getSettings, getApiKey, getKbApiKey, decKey, publicSettings, patchSettings, searchUrl, searchEngineInfo, ENGINES,
   addHistory, updateHistoryTitle, listHistory, clearHistory, deleteHistory,
   listBookmarks, isBookmarked, toggleBookmark, removeBookmark,
   downloads, saveDownloads, flushAll, DEFAULTS

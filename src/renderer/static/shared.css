@@ -1,5 +1,6 @@
 /* AI Browser Mockups — dark Gemini-inspired palette */
 :root {
+  color-scheme: dark; /* iframes (extension pages) must declare it too, else Chromium paints an opaque WHITE canvas */
   --bg-window: #0a0a0f;
   --bg-toolbar: rgba(14, 18, 20, 0.92);
   --bg-tabbar: #0a0f10;
@@ -331,7 +332,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
 }
 .chip.accent { background: var(--accent-soft); color: var(--green-text); border-color: transparent; }
 .btn-primary {
-  background: var(--accent);
+  background: #2563eb;
   color: #fff;
   padding: 6px 14px;
   border-radius: var(--radius-sm);
@@ -389,7 +390,8 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
   color: var(--text-primary);
 }
 .settings-nav .nav-item.active {
-  background: var(--green-soft); color: var(--green-text);
+  background: rgba(95, 185, 154, 0.30); color: #d6fbe9; font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--green);
 }
 .settings-pane {
   flex: 1;
@@ -1100,3 +1102,11 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
 .model-row .m-state { font-size:13px; color:var(--green-text); width:72px; text-align:right; }
 .btn-dl { font-size:13px; padding:4px 12px; border-radius: var(--radius-sm); border:0.5px solid var(--separator); background: var(--bg-input); color: var(--text-primary); }
 
+
+/* ---- v2: shared dark list card (settings lists, extension settings pages) */
+.card-list { background: #141b1d; border: 1px solid var(--separator); border-radius: 10px; margin: 10px 0; overflow: hidden; }
+.card-list .row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--separator-light); color: var(--text-primary); }
+.card-list .row:last-child { border-bottom: 0; }
+.card-list .row .nm { flex: 1; min-width: 0; }
+.card-list .row .nm b { font-weight: 700; color: var(--text-primary); font-size: 14px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-list .row .nm small { display: block; color: var(--text-secondary); font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

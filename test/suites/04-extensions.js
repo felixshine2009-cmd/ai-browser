@@ -121,7 +121,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   });
   await test('Chrome 拓展（MV3 解压文件夹）：内容脚本 + service worker + storage', async () => {
     fs.writeFileSync(pickFile, JSON.stringify([path.join(FIX, 'chrome-ext')]));
-    const p = await extPage(); await p.click('#loadchrome');
+    const p = await extPage(); await p.click('details.adv-load summary'); await p.click('#loadchrome');
     await until(async () => (await p.locator('#chromes .ext-card').count()) === 1, 10000, 'chrome ext card');
     assert((await p.locator('#chromes .ext-card .name').innerText()).includes('Test MV3 Extension'));
     await app.setMode('search');

@@ -30,6 +30,7 @@ function zipDir(dir, out, keepParent) {
     appVersion: require('../package.json').version,
     extendInfo: { CFBundleDisplayName: 'AI浏览器', LSMinimumSystemVersion: '12.0' },
     // electron's own prebuilt (ad-hoc signed) bundle; re-signing happens on the Mac in install.command
+    icon: path.join(ROOT, 'build', 'icon.icns'),
     osxSign: false, quiet: false
   });
   const appDir = path.join(paths[0], APP_NAME + '.app');
@@ -37,22 +38,29 @@ function zipDir(dir, out, keepParent) {
   const zip = path.join(DIST, 'AI-Browser-mac-arm64.zip');
   zipDir(appDir, zip, true);
   console.log('wrote', zip, (fs.statSync(zip).size / 1048576).toFixed(1) + ' MB');
+  // drag-to-Applications disk image (Linux-capable: ISO-9660 + Rock Ridge volume with a .dmg extension; see scripts/make-dmg.py)
+  try {
+    const py = process.env.AIB_PYTHON || (fs.existsSync('/workspace/bt/venv/bin/python') ? '/workspace/bt/venv/bin/python' : 'python3');
+    const dmg = path.join(DIST, 'AI-Browser-mac-arm64.dmg');
+    execFileSync(py, [path.join(__dirname, 'make-dmg.py'), appDir, dmg, '--volname', 'AI Browser', '--ds-vendor', path.join(__dirname, 'vendor')], { stdio: 'inherit' });
+  } catch (e) { console.warn('dmg skipped:', e.message); }
 
   // source zip (no node_modules / dist)
-  const srcStage = path.join(DIST, '.src', 'ai-browser');
-  fs.rmSync(path.join(DIST, '.src'), { recursive: true, force: true });
+  // (copy into the OS temp dir: copying a project into its own subdirectory is an error)
+  const tmpRoot = fs.mkdtempSync(path.join(require('os').tmpdir(), 'aib-src-'));
+  const srcStage = path.join(tmpRoot, 'ai-browser');
   fs.mkdirSync(srcStage, { recursive: true });
-  const skip = new Set(['node_modules', 'dist', '.git', '.DS_Store']);
+  const skip = new Set(['node_modules', 'dist', '.git', '.DS_Store', 'models', 'shots']);
   fs.cpSync(ROOT, srcStage, { recursive: true, filter: (s) => !skip.has(path.basename(s)) });
   const sz = path.join(DIST, 'AI-Browser-source.zip');
-  zipDir(path.join(DIST, '.src', 'ai-browser'), sz, true);
+  zipDir(srcStage, sz, true);
+  fs.rmSync(tmpRoot, { recursive: true, force: true });
   console.log('wrote', sz, (fs.statSync(sz).size / 1048576).toFixed(1) + ' MB');
 
   for (const f of ['install.command', 'install.sh', 'README.md', 'README_zh.md']) {
     const src = [path.join(ROOT, 'installer', f), path.join(ROOT, f)].find(fs.existsSync);
-    if (src) { fs.copyFileSync(src, path.join(DIST, f)); if (f.startsWith('install')) fs.chmodSync(path.join(DIST, f), 0o755); }
+    if (src) { fs.copyFileSync(src, path.join(DIST, f === 'README_zh.md' ? 'README-zh.md' : f)); if (f.startsWith('install')) fs.chmodSync(path.join(DIST, f), 0o755); }
   }
-  fs.rmSync(path.join(DIST, '.src'), { recursive: true, force: true });
   fs.rmSync(path.join(DIST, '.stage'), { recursive: true, force: true });
   fs.rmSync(out, { recursive: true, force: true });
   console.log('done →', DIST);

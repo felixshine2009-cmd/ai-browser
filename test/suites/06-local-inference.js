@@ -5,8 +5,8 @@ const { launch, sleep, seedSettings } = require('../lib/app');
 const os = require('os'), fs = require('fs'), path = require('path');
 module.exports = async ({ test, group, assert, eq, until, skip }) => {
   group('本地模型：真实推理（node-llama-cpp，Qwen2.5-0.5B 小模型）');
-  const gguf = process.env.AIB_TEST_GGUF || '/workspace/models/q05.gguf';
-  if (!fs.existsSync(gguf)) return skip('真实本地推理', '未找到 GGUF 测试模型 (设置 AIB_TEST_GGUF)');
+  const gguf = process.env.AIB_REAL_INFERENCE ? (process.env.AIB_TEST_GGUF || '/workspace/models/q05.gguf') : '';
+  if (!gguf || !fs.existsSync(gguf)) return skip('真实本地推理', '真实推理默认关闭（CPU 太慢）— 设置 AIB_REAL_INFERENCE=1 与 AIB_TEST_GGUF 运行；需在 Mac 上验证');
   const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'aib-llm-'));
   seedSettings(ud, { ai: { source: 'local', local: { modelPath: gguf } } });
   const app = await launch({ userData: ud });

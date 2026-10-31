@@ -65,12 +65,14 @@
       case 'queries': st.queries = ev.queries; st.direct = ev.direct; renderQueries(); if (ev.direct) setStatus(t('chat.generating')); else if (!ev.queries.length) setStatus(t('chat.thinking')); break;
       case 'search-start': break;
       case 'status': setStatus(ev.text); addTrace(ev.text); break;
-      case 'answer-reset': st.answer = ''; queueRender(); break;
+      case 'answer-reset': st.answer = ''; st.translation = ''; queueRender(); break;
       case 'serp': break;
       case 'pages': st.pages = ev.pages; els.side.style.display = ''; renderPages(); break;
       case 'page-update': { const p = st.pages.find(x => x.n === ev.n); if (p) { p.status = ev.status; if (ev.title) p.title = ev.title; renderPages(); } break; }
       case 'sources': st.sources = ev.sources; st.cites = {}; ev.sources.forEach(s => st.cites[s.n] = s); renderSources(); setStatus(t('chat.generating')); break;
       case 'answer-delta': st.answer += ev.text; setStatus(''); queueRender(); break;
+      case 'tool-step': traceStep(ev); break;
+      case 'notice': if (els.trace) { const d = el('div', 'trace-line notice'); d.textContent = ev.text; els.trace.appendChild(d); } break;
       case 'tool': st.tools.push(ev); renderTools(); if (ev.name === 'ggb_eval' || ev.name === 'ggb_clear' || ev.name === 'ggb_export_png') ensurePlotLayout(); break;
       case 'handler-result': renderHandlerResult(ev); break;
       case 'ai-entry-pending': els.dwrap.innerHTML = `<div class="status-line" style="padding:0 40px">${esc(t('dict.aiGenerating'))}</div>`; break;
@@ -89,6 +91,13 @@
       case 'error': showError(ev); break;
       case 'done': st.done = true; setStatus(''); if (st.kind === 'question') finalizeQuestion(); break;
     }
+  }
+  function traceStep(ev) {
+    if (!els.trace) return;
+    let d = els.trace.querySelector(`[data-step="${ev.id}"]`);
+    if (!d) { d = el('div', 'trace-line step'); d.dataset.step = ev.id; els.trace.appendChild(d); }
+    d.dataset.status = ev.status;
+    d.textContent = (ev.status === 'run' ? t('chat.tool.run') : ev.status === 'ok' ? t('chat.tool.ok') : t('chat.tool.err')) + ' · ' + ev.label + (ev.ms != null && ev.status !== 'run' ? ` · ${ev.ms}ms` : '');
   }
   function addTrace(text) {
     if (!els.trace || !/^(用 |Searching |阅读：|Reading: |.*(不可用|没有找到相关结果|没有相关结果|已改用|nothing relevant|unavailable|had nothing))/.test(text || '')) return;

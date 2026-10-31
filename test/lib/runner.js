@@ -25,6 +25,14 @@ async function until(fn, ms = 15000, msg = 'condition', step = 150) {
   throw new Error(`timeout waiting for ${msg}${last ? ': ' + last.message : ''}`);
 }
 function report() {
+  // merge with earlier runs (keyed by group+name) so RESULTS.md accumulates when suites are run separately
+  if (!process.env.AIB_RESULTS_FRESH) {
+    try {
+      const prev = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'results.json'), 'utf8')); const keys = new Set(results.map(r => r.group + '\u0000' + r.name));
+      const groups = new Set(results.map(r => r.group));
+      for (const r of prev) if (!keys.has(r.group + '\u0000' + r.name) && !groups.has(r.group)) results.push(r);
+    } catch {}
+  }
   const pass = results.filter(r => r.status === 'PASS').length, fail = results.filter(r => r.status === 'FAIL').length, skipped = results.filter(r => r.status === 'SKIP').length;
   let md = `# 测试结果\n\n运行时间: ${new Date().toISOString()}\n\n通过 ${pass} / 失败 ${fail} / 跳过 ${skipped} / 共 ${results.length}\n\n| 分组 | 测试项 | 结果 | 耗时 |\n|---|---|---|---|\n`;
   for (const r of results) md += `| ${r.group} | ${r.name.replace(/\|/g, '/')} | ${r.status}${r.error && r.status !== 'PASS' ? ' — ' + r.error.slice(0, 120).replace(/\|/g, '/') : ''} | ${r.ms}ms |\n`;

@@ -6,6 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { MDX, MDD } = require('js-mdict');
 const store = require('../store');
+let electronApp = null; try { electronApp = require('electron').app; } catch {}
 const { lemmaCandidates } = require('../classify');
 
 const loaded = new Map(); // id -> {mdx, mdds:[], mtime}
@@ -51,6 +52,69 @@ function getTitle(rec, fallback) {
   return fallback;
 }
 
+// ---- dictionaries are COPIED into <userData>/dictionaries/<name>/ so deleting / moving the originals never breaks them
+function dictRoot() { return path.join(process.env.AIB_USER_DATA || electronApp.getPath('userData'), 'dictionaries'); }
+const insideRoot = (p) => { const r = path.resolve(dictRoot()) + path.sep; return path.resolve(p).startsWith(r); };
+const slug = (n) => String(n).replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) || 'dictionary';
+let progressState = { active: false };
+const getProgress = () => progressState;
+
+// every file to copy: the .mdx, all same-name .mdd (.1.mdd, .2.mdd …) and companion files (css/js/fonts/images/subfolders)
+function planCopy(mdxPath) {
+  const dir = path.dirname(mdxPath), base = path.basename(mdxPath, path.extname(mdxPath));
+  const mdds = findMddFiles(mdxPath).map(f => path.basename(f));
+  const files = [];
+  const walk = (d, rel) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (e.name.startsWith('.')) continue;
+      const full = path.join(d, e.name), r = rel ? rel + '/' + e.name : e.name;
+      if (e.isDirectory()) {
+        let hasDict = false; try { hasDict = fs.readdirSync(full).some(x => /\.mdx$/i.test(x)); } catch {}
+        if (!hasDict) walk(full, r); // never pull in another dictionary's folder
+        continue;
+      }
+      if (!e.isFile()) continue;
+      const low = e.name.toLowerCase();
+      if (!rel && (low.endsWith('.mdx') || low.endsWith('.mdd'))) { if (e.name === path.basename(mdxPath) || mdds.includes(e.name)) files.push({ full, rel: r, bytes: fs.statSync(full).size }); continue; }
+      files.push({ full, rel: r, bytes: fs.statSync(full).size });
+    }
+  };
+  walk(dir, '');
+  return { dir, base, files, total: files.reduce((a, f) => a + f.bytes, 0), mdds };
+}
+function copyWithProgress(src, dst, onBytes) {
+  return new Promise((res, rej) => {
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    const rs = fs.createReadStream(src), ws = fs.createWriteStream(dst);
+    rs.on('data', c => onBytes(c.length)); rs.on('error', rej); ws.on('error', rej); ws.on('close', res); rs.pipe(ws);
+  });
+}
+async function importDict(mdxPath, opts = {}) {
+  mdxPath = path.resolve(mdxPath);
+  const dicts = list().slice();
+  if (dicts.some(d => d.origin === mdxPath || d.mdx === mdxPath)) return { dup: true };
+  const plan = planCopy(mdxPath);
+  let name = slug(plan.base), n = 1, target = path.join(dictRoot(), name);
+  while (fs.existsSync(target)) { n++; target = path.join(dictRoot(), name + ' (' + n + ')'); }
+  progressState = { active: true, name: plan.base, got: 0, total: plan.total, files: plan.files.length, done: 0 };
+  try {
+    fs.mkdirSync(target, { recursive: true });
+    for (const f of plan.files) {
+      await copyWithProgress(f.full, path.join(target, f.rel), (b) => { progressState.got += b; opts.onProgress && opts.onProgress(progressState); });
+      progressState.done++;
+    }
+  } catch (e) { try { fs.rmSync(target, { recursive: true, force: true }); } catch {} progressState = { active: false, error: String(e.message || e) }; throw e; }
+  const mdxCopy = path.join(target, path.basename(mdxPath));
+  const mddCopies = plan.mdds.map(f => path.join(target, f)).sort();
+  const id = 'd' + crypto.createHash('md5').update(mdxPath).digest('hex').slice(0, 8);
+  const d = { id, name: plan.base, mdx: mdxCopy, mdd: mddCopies, dir: target, origin: mdxPath, bytes: plan.total, enabled: true };
+  try { const rec = openDict(d); d.name = getTitle(rec, plan.base); }
+  catch (e) { try { fs.rmSync(target, { recursive: true, force: true }); } catch {} progressState = { active: false, error: String(e.message || e) }; throw e; }
+  dicts.push(d); store.patchSettings({ dicts });
+  progressState = { active: false, done: plan.files.length, total: plan.total, got: plan.total, name: d.name, finished: true };
+  return d;
+}
+// legacy synchronous API (kept for tests / callers): registers a dictionary by reference (no copy)
 function add(mdxPath, mddPaths) {
   mdxPath = path.resolve(mdxPath);
   const dicts = list().slice();
@@ -65,7 +129,33 @@ function add(mdxPath, mddPaths) {
   store.patchSettings({ dicts });
   return d;
 }
-function remove(id) { store.patchSettings({ dicts: list().filter(d => d.id !== id) }); loaded.delete(id); }
+// startup migration: path-referenced dictionaries get copied (if the source still exists) or flagged 'source missing'
+async function migrate() {
+  const out = { copied: [], missing: [] };
+  for (const d of list().slice()) {
+    if (d.mdx && insideRoot(d.mdx)) continue;
+    if (!d.mdx || !fs.existsSync(d.mdx)) { store.patchSettings({ dicts: list().map(x => x.id === d.id ? { ...x, missing: true, missingReason: '源文件已不存在：' + d.mdx + ' / source file is gone' } : x) }); out.missing.push(d.name); continue; }
+    try {
+      const plan = planCopy(d.mdx);
+      let name = slug(d.name || plan.base), n = 1, target = path.join(dictRoot(), name);
+      while (fs.existsSync(target)) { n++; target = path.join(dictRoot(), name + ' (' + n + ')'); }
+      fs.mkdirSync(target, { recursive: true });
+      for (const f of plan.files) await copyWithProgress(f.full, path.join(target, f.rel), () => {});
+      const mdxCopy = path.join(target, path.basename(d.mdx));
+      const nd = { ...d, origin: d.mdx, mdx: mdxCopy, mdd: plan.mdds.map(f => path.join(target, f)).sort(), dir: target, bytes: plan.total, missing: false, missingReason: '' };
+      store.patchSettings({ dicts: list().map(x => x.id === d.id ? nd : x) }); loaded.delete(d.id); out.copied.push(d.name);
+    } catch (e) { store.patchSettings({ dicts: list().map(x => x.id === d.id ? { ...x, missing: true, missingReason: '复制失败：' + e.message + ' / copy failed' } : x) }); out.missing.push(d.name); }
+  }
+  return out;
+}
+function dirSize(p) { let t = 0; try { for (const e of fs.readdirSync(p, { withFileTypes: true })) { const f = path.join(p, e.name); t += e.isDirectory() ? dirSize(f) : fs.statSync(f).size; } } catch {} return t; }
+function listWithInfo() { return list().map(d => ({ ...d, bytes: d.dir ? dirSize(d.dir) : (d.bytes || 0), copied: !!(d.mdx && insideRoot(d.mdx)), missing: d.missing || (d.mdx && !fs.existsSync(d.mdx)) })); }
+function remove(id) {
+  const d = list().find(x => x.id === id);
+  store.patchSettings({ dicts: list().filter(x => x.id !== id) }); loaded.delete(id);
+  // delete the app's own copy (never an original the user pointed at)
+  if (d && d.dir && insideRoot(d.dir)) { try { fs.rmSync(d.dir, { recursive: true, force: true }); } catch {} }
+}
 function setEnabled(id, v) { store.patchSettings({ dicts: list().map(d => d.id === id ? { ...d, enabled: !!v } : d) }); }
 function move(id, delta) {
   const a = list().slice(); const i = a.findIndex(d => d.id === id); const j = i + delta;
@@ -212,4 +302,4 @@ function handleProtocol(req) {
   }
 }
 
-module.exports = { list, enabled, add, remove, setEnabled, move, rename, lookup, suggest, handleProtocol, entryDocument, resource, findMddFiles };
+module.exports = { list, listWithInfo, enabled, add, importDict, migrate, getProgress, dictRoot, remove, setEnabled, move, rename, lookup, suggest, handleProtocol, entryDocument, resource, findMddFiles };

@@ -18,6 +18,7 @@ module.exports = {
   },
   rpc: {
     list: function () { return aib.host.dictionary.list(); },
+    progress: function () { return aib.host.dictionary.progress(); },
     pickAndAdd: function () { return aib.host.dictionary.pickAndAdd(); },
     remove: function (a) { return aib.host.dictionary.remove(a.id); },
     setEnabled: function (a) { return aib.host.dictionary.setEnabled(a.id, a.enabled); },
