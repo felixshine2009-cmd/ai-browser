@@ -65,7 +65,7 @@ async function run0(s) {
   let cl = s.kindOverride ? { kind: s.kindOverride, word: s.input } : classify(s.input);
   if (cl.kind === 'word' && cl.phrase) {
     // multi-word candidate: only treat as dictionary phrase if a handler finds it
-    const r = await features.runInputHandlers('word', { kind: 'word', word: cl.word, phrase: true }, ctx).catch(() => null);
+    const r = await features.runInputHandlers('word', { kind: 'word', word: cl.word, phrase: true }, ctx).catch(e => translateFail(s, e));
     if (r) { emit(s, { type: 'kind', kind: 'word' }); emit(s, { type: 'handler-result', extId: r.extId, result: r.result, word: cl.word }); return finish(s); }
     cl = /\?|^(what|why|how|when|where|who|which)\b/i.test(cl.word) ? { kind: 'question' } : { kind: 'sentence' };
   }
@@ -168,9 +168,16 @@ function progressStatus(s) {
   const zh = store.getSettings().lang !== 'en';
   return (p) => emit(s, { type: 'status', text: (zh ? '下载翻译模型 ' : 'Downloading translation model ') + (p.total ? Math.round(p.got / p.total * 100) + '%' : '') });
 }
+function translateFail(s, e) {
+  const zh = store.getSettings().lang !== 'en';
+  const msg = String((e && e.message) || e || 'unknown').slice(0, 200);
+  emit(s, { type: 'status', text: (zh ? '翻译模型下载/加载失败：' : 'Translation model download/load failed: ') + msg });
+  emit(s, { type: 'translate-error', error: msg });
+  return null;
+}
 async function runSentence(s) {
-  // HY-MT (bundled, lazy-loaded) produces the translation; the chat model only does the grammar analysis.
-  const tp = useHunyuan() ? translator.translate(s.input, { signal: s.ac.signal, onProgress: progressStatus(s) }).then(r => r.text).catch(() => null) : Promise.resolve(null);
+  // HY-MT (downloaded on first use, lazy-loaded) produces the translation; the chat model only does the grammar analysis.
+  const tp = useHunyuan() ? translator.translate(s.input, { signal: s.ac.signal, onProgress: progressStatus(s) }).then(r => r.text).catch(e => translateFail(s, e)) : Promise.resolve(null);
   const j = await llm.completeJson([{ role: 'system', content: P.sentence({ local: isLocal() }) }, { role: 'user', content: s.input }], { signal: s.ac.signal });
   const tr = await tp;
   if (tr && j && typeof j === 'object') { j.translation_llm = j.translation; j.translation = tr; j.translation_model = 'HY-MT1.5'; }
@@ -184,7 +191,8 @@ async function runArticle(s, target) {
   if (useHunyuan()) {
     try {
       emit(s, { type: 'status', text: store.getSettings().lang !== 'en' ? '加载混元翻译模型…' : 'Loading Hunyuan translation model…' });
-      await translator.translate(paras.join('\n\n'), { target, signal: s.ac.signal, onProgress: progressStatus(s), onDelta: t => emit(s, { type: 'translation-delta', text: t }) });
+      try { await translator.translate(paras.join('\n\n'), { target, signal: s.ac.signal, onProgress: progressStatus(s), onDelta: t => emit(s, { type: 'translation-delta', text: t }) }); }
+      catch (e) { translateFail(s, e); throw e; }
       return;
     } catch (e) { if (s.ac.signal.aborted) throw e; console.error('hunyuan translate failed, falling back to chat model:', e && e.message); emit(s, { type: 'answer-reset' }); }
   }

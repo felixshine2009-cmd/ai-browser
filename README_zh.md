@@ -1,15 +1,23 @@
 [English](README.md) | [**中文**](README_zh.md)
 
-# AI 浏览器 v2.0.0
+# AI 浏览器 v2.1.0
 
 一个内置 AI **聊天模式**的桌面浏览器（Electron / Chromium）：词典查询（MDX/MDD）、长难句分析、翻译、带引用的**智能搜索**、本地知识库和 GeoGebra 画图。AI 通过统一的工具注册表，可以直接操作浏览器。
 
+**网页版（PWA）：** https://felixshine2009-cmd.github.io/ai-browser/ ——使用你自己的 API Key 聊天，含 GeoGebra 与物理仿真；仅桌面版功能显示为灰色。iPhone 可在 Safari 中“添加到主屏幕”。
+
 面向 **Apple 芯片（M1/M2/M3）macOS 12+**。应用在 Linux 上用 xvfb + Playwright 做了端到端测试；需要真机验证的部分见“已知限制”。
+
+## 2.1.0 新内容
+
+* **高中物理可视化**：确定性 2D 引擎，覆盖力学、振动与波、电磁学、光学、热学、近代物理；场景 JSON 加载前校验（出错时 AI 重试）；播放 / 暂停 / 单步 / 调速、矢量、轨迹、实时曲线；15 个示例场景；Agent 工具 `phys_validate`、`phys_load`、`phys_play`、`phys_pause`、`phys_step`、`phys_reset`、`phys_set_speed`、`phys_state`、`phys_list_examples`、`phys_load_example`。
+* **更多 Agent 工具**：书签、下载、页内查找、缩放、安全设置修改、Chrome 拓展管理、知识库删除 / 清空、本地模型管理（不含密码）。
+* 隐身标签页读取页面使用私有会话。
+* 翻译模型下载失败时在聊天界面显示明确原因。
 
 ## 2.0.0 新内容
 
 * **完整 GeoGebra 数学应用**（离线）：绘图 / 几何 / 3D / CAS / 科学计算器 / 套件，屏幕数学键盘（123 / f(x) / ABC / 符号），保存/打开 `.ggb`，导出 PNG，AI 通过 `ggb_*` 工具控制。
-* **高中物理可视化**：确定性 2D 引擎，覆盖力学、振动与波、电磁学、光学、热学、近代物理；场景 JSON 加载前校验（出错时 AI 重试）；播放 / 暂停 / 单步 / 调速、矢量、轨迹、实时曲线；15 个示例场景；`phys_*` Agent 工具。
 * **新应用图标**（圆环 + 极光）。
 * 移除问候语前的装饰符号。
 
@@ -33,8 +41,6 @@
 | 文件 | 说明 |
 |---|---|
 | `AI-Browser-mac-arm64.zip` | 未签名的 `AI Browser.app`（macOS arm64）— 已含 EmbeddingGemma（知识库）；HY-MT 翻译模型在第一次使用时下载 |
-| `AI-Browser-win-x64-setup.exe` | Windows 安装程序（x64，NSIS 向导：选目录、桌面 / 开始菜单快捷方式）。未签名，SmartScreen 可能提示 — 点“更多信息 → 仍要运行” |
-| `AI-Browser-win-x64-portable.zip` | Windows 便携版（x64）：解压到任意位置，运行 `AI Browser.exe` |
 | `install.command` / `install.sh` | 解压 → 拷贝到 `/Applications` → `xattr -cr` → 启动 |
 | `AI-Browser-source.zip` | 源码（不含 `node_modules` 和模型文件） |
 | `README.md` / `README-zh.md` | 英文 / 中文说明 |
@@ -45,7 +51,7 @@
 2. 双击 `install.command`（或运行 `bash install.sh`）。
 3. 若 macOS 提示无法验证开发者：系统设置 → 隐私与安全性 → 仍要打开；或运行 `xattr -cr "/Applications/AI Browser.app" && open "/Applications/AI Browser.app"`。
 
-**Windows：** 运行 `AI-Browser-win-x64-setup.exe`（或解压便携版后启动 `AI Browser.exe`）。Windows 版只内置 EmbeddingGemma（llama.cpp CPU + Vulkan 后端）；混元翻译模型（HY-MT，约 1.1 GB）在第一次翻译时下载——默认走 hf-mirror，有进度、可续传；MLX 只支持 Apple 芯片，在 Windows 上已隐藏；查看已保存密码会请求 Windows Hello（或 PIN / 密码）；快捷键用 Ctrl 代替 ⌘。这个版本在 Linux 上构建，还没有在真实 Windows 上运行过 — 遇到问题请反馈。
+**Windows：** 暂停——v1.1.1 之后没有 Windows 构建（最后一版 Windows 安装包见 [v1.1.1](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/v1.1.1)），后续版本会恢复。
 
 ## 首次使用
 
@@ -74,7 +80,7 @@
 
 ## 拓展
 
-* **功能拓展**（`aib-feature/1`，见 [`docs/EXTENSION_STANDARD.md`](docs/EXTENSION_STANDARD.md)）：预装词典和 GeoGebra；拓展可在 `manifest.contributes.tools` 中声明 Agent 工具。
+* **功能拓展**（`aib-feature/1`，见 [`docs/EXTENSION_STANDARD.md`](docs/EXTENSION_STANDARD.md)）：预装词典、GeoGebra 和物理仿真；拓展可在 `manifest.contributes.tools` 中声明 Agent 工具。
 * **Chrome 拓展**（MV3）：在浏览器内直接从 Chrome 应用商店安装。覆盖范围受 Electron 扩展 API 限制（已测试内容脚本、service worker、`chrome.storage`；工具栏弹窗有限）。
 * GeoGebra 仅限**非商业**使用，遵循 [GeoGebra 许可](https://www.geogebra.org/license)。
 
@@ -102,11 +108,12 @@ xvfb-run -a node test/run-all.js 16       # 单个测试，例如 密码 + 打�
 4. 搜索引擎可能对脚本请求出验证码；已有回退链和相关性过滤。
 5. 未内置 `mlx-lm`（`pip3 install mlx-lm`），也可通过“本地框架”使用 oMLX。
 
-## v2 预告
+## 路线图
 
-* 完整 GeoGebra（全部应用、网页数学键盘、离线包），可由 Agent 驱动。
-* 二维物理引擎，让 AI 把解题过程可视化（力学、波、电磁、光学、热学、近代物理）。
-* 英文 GitHub Wiki。
+* **网页版（PWA）**已上线（GitHub Pages）——下一批加入 WebGPU 本地模型（WebLLM / transformers.js）。
+* **v3**：首次安装的引导设置界面。
+* Windows 构建将在后续版本恢复。
+* 英文 GitHub Wiki（源文件在 `docs/wiki`）。
 * v3 设想：AI 修改浏览器自身代码来增加功能。
 
 许可：MIT。作者：Felix。
