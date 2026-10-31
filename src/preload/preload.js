@@ -2,7 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const EVENTS = new Set(['tabs:state', 'settings:changed', 'chat:event', 'panel:call', 'downloads:changed', 'history:changed',
-  'bookmarks:changed', 'ext:changed', 'lm:progress', 'find:result', 'find:focus', 'addr:focus', 'overlay:leave', 'vkeyboard:cmd']);
+  'bookmarks:changed', 'ext:changed', 'lm:progress', 'find:result', 'find:focus', 'addr:focus', 'overlay:leave', 'vkeyboard:cmd', 'selfmod:changed']);
 
 if (location.protocol === 'aibrowser:') {
   // Internal pages only: privileged bridge (main re-checks sender URL on every call).

@@ -286,7 +286,23 @@
     "onboard.done.hint": "需要时可在「设置 → 通用」重新打开本向导。",
     "onboard.reopen": "重新打开设置向导",
     "onboard.reopenLabel": "首次设置向导",
-    "onboard.reopenHint": "语言、名称、AI 模型、搜索引擎与词典的引导步骤。"
+    "onboard.reopenHint": "语言、名称、AI 模型、搜索引擎与词典的引导步骤。",
+    "selfmod.title": "AI 自修改代码",
+    "selfmod.sub": "补丁只写入本机 overlay，永不覆盖安装包；不触及密码与密钥。需你明确批准后才会生效。",
+    "selfmod.pending": "待批准的补丁",
+    "selfmod.none": "当前没有待批准的补丁。可由 Agent 调用 code_propose_patch 提出。",
+    "selfmod.approve": "批准并应用",
+    "selfmod.reject": "拒绝",
+    "selfmod.rollback": "一键回滚",
+    "selfmod.history": "版本历史",
+    "selfmod.histEmpty": "暂无历史",
+    "selfmod.confirmApply": "确定应用此补丁到 overlay？可随时回滚。",
+    "selfmod.confirmRollback": "确定回滚此补丁？",
+    "selfmod.applied": "已应用",
+    "selfmod.safeOn": "安全模式已开启：所有 overlay 已禁用（上次启动可能失败）。",
+    "selfmod.safeOff": "关闭安全模式",
+    "selfmod.safeOffHint": "安全模式关闭中，overlay 可生效。",
+    "selfmod.safeEnable": "开启安全模式"
   },
   "en": {
     "tab.newtab": "New Tab",
@@ -575,6 +591,22 @@
     "onboard.done.hint": "You can reopen this wizard anytime from Settings → General.",
     "onboard.reopen": "Reopen setup wizard",
     "onboard.reopenLabel": "First-run setup wizard",
-    "onboard.reopenHint": "Guided steps for language, name, AI model, search engine and dictionaries."
+    "onboard.reopenHint": "Guided steps for language, name, AI model, search engine and dictionaries.",
+    "selfmod.title": "AI self-modifying code",
+    "selfmod.sub": "Patches write only to a local overlay — the app bundle is never overwritten; passwords and secrets are blocked. Nothing applies without your explicit approval.",
+    "selfmod.pending": "Pending patch",
+    "selfmod.none": "No pending patch. The agent can call code_propose_patch to propose one.",
+    "selfmod.approve": "Approve & apply",
+    "selfmod.reject": "Reject",
+    "selfmod.rollback": "Roll back",
+    "selfmod.history": "Version history",
+    "selfmod.histEmpty": "No history yet",
+    "selfmod.confirmApply": "Apply this patch to the overlay? You can roll it back anytime.",
+    "selfmod.confirmRollback": "Roll back this patch?",
+    "selfmod.applied": "Applied",
+    "selfmod.safeOn": "Safe mode is on: all overlays are disabled (previous launch may have failed).",
+    "selfmod.safeOff": "Turn off safe mode",
+    "selfmod.safeOffHint": "Safe mode is off; overlays can apply.",
+    "selfmod.safeEnable": "Enable safe mode"
   }
 }

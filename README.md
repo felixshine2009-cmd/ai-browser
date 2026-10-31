@@ -1,6 +1,6 @@
 [**English**](README.md) | [中文](README_zh.md)
 
-# AI Browser v3.1.0
+# AI Browser v3.2.0
 
 A desktop browser (Electron / Chromium) with an AI **Chat mode** built in: dictionary lookup (MDX/MDD), sentence analysis, translation, **agentic web search** with cited answers, a local knowledge base, and GeoGebra plotting. An AI agent can drive the browser itself through a single tool registry.
 
@@ -8,7 +8,13 @@ A desktop browser (Electron / Chromium) with an AI **Chat mode** built in: dicti
 
 Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on Linux (xvfb + Playwright); things that need a real Mac are listed under *Known limitations*.
 
+## What's new in 3.2.0
+
+* **AI self-modifying code (sandboxed)**: the agent can propose patches; you see a unified diff and must explicitly approve. Patches write only to a userData overlay — the app bundle is never overwritten. One-click rollback, version history, and safe mode after launch failures. Passwords, secrets, preload and `store.js` are blocked.
+* Agent tools: `code_propose_patch`, `code_pending_patch`, `code_list_patches`, `code_rollback`, `code_safe_mode`. Open `aibrowser://selfmod` or Settings → General.
+
 ## What's new in 3.1.0
+
 
 * **Collapsible math / chemistry virtual keyboard** on the home page (collapsed by default) and in Chat follow-up: tabs for Math, Chem, Greek and Ops; inserts at the caret.
 * Agent tools `vkeyboard_toggle`, `vkeyboard_insert`, `vkeyboard_catalog`.

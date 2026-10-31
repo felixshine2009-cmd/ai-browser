@@ -567,6 +567,7 @@
     obRow.innerHTML = `<label>${esc(t('onboard.reopenLabel'))}</label><div class="hint">${esc(t('onboard.reopenHint'))}</div><div class="inline" style="margin-top:8px"><button class="btn-secondary" id="obreopen">${esc(t('onboard.reopen'))}</button></div>`;
     p.appendChild(obRow);
     $('obreopen').onclick = async () => { await window.aib.invoke('settings:patch', { onboarding: { completed: false, skipped: false } }); location.href = 'aibrowser://onboarding'; };
+    const sm=document.createElement('div'); sm.className='form-row'; sm.style.marginTop='12px'; sm.innerHTML=`<label>${esc(t('selfmod.title'))}</label><div class="hint">${esc(t('selfmod.sub'))}</div><div class="inline" style="margin-top:8px"><button class="btn-secondary" id="opensm">${esc(t('selfmod.title'))}</button></div>`; p.appendChild(sm); $('opensm').onclick=()=>{ location.href='aibrowser://selfmod'; };
 
   }
   // ---------------- privacy

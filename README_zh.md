@@ -1,6 +1,6 @@
 [English](README.md) | [**中文**](README_zh.md)
 
-# AI 浏览器 v3.1.0
+# AI 浏览器 v3.2.0
 
 一个内置 AI **聊天模式**的桌面浏览器（Electron / Chromium）：词典查询（MDX/MDD）、长难句分析、翻译、带引用的**智能搜索**、本地知识库和 GeoGebra 画图。AI 通过统一的工具注册表，可以直接操作浏览器。
 
@@ -8,7 +8,13 @@
 
 面向 **Apple 芯片（M1/M2/M3）macOS 12+**。应用在 Linux 上用 xvfb + Playwright 做了端到端测试；需要真机验证的部分见“已知限制”。
 
+## 3.2.0 新内容
+
+* **AI 自修改代码（沙箱）**：Agent 可提出补丁；你查看 unified diff 并明确批准后才生效。补丁只写入 userData overlay，永不覆盖安装包。支持一键回滚、版本历史、启动失败后的安全模式。密码、密钥、preload、`store.js` 被禁止修改。
+* Agent 工具：`code_propose_patch`、`code_pending_patch`、`code_list_patches`、`code_rollback`、`code_safe_mode`。打开 `aibrowser://selfmod` 或「设置 → 通用」。
+
 ## 3.1.0 新内容
+
 
 * **可折叠数学 / 化学虚拟键盘**：主页（默认折叠）与 Chat 追问区；数学 / 化学 / 希腊字母 / 运算符号分页，在光标处插入。
 * Agent 工具 `vkeyboard_toggle`、`vkeyboard_insert`、`vkeyboard_catalog`。
