@@ -25,7 +25,6 @@ Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on 
 
 | File | Description |
 |---|---|
-| `AI-Browser-mac-arm64.dmg` | Disk image with the drag-to-Applications layout (app + Applications shortcut). Built on Linux, so it has not been mounted on a real Mac yet — use the zip if it won't open |
 | `AI-Browser-mac-arm64.zip` | Unsigned `AI Browser.app` (macOS arm64) — includes EmbeddingGemma (knowledge base); the HY-MT translation model downloads on first use |
 | `AI-Browser-win-x64-setup.exe` | Windows installer (x64, NSIS wizard: pick a folder, desktop + Start-menu shortcuts). Unsigned, so SmartScreen may warn — *More info → Run anyway* |
 | `AI-Browser-win-x64-portable.zip` | Windows portable build (x64): unzip anywhere and run `AI Browser.exe` |
@@ -33,9 +32,7 @@ Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on 
 | `AI-Browser-source.zip` | Source (no `node_modules`, no model files) |
 | `README.md` / `README-zh.md` | English / Chinese README |
 
-**macOS, easiest:** open the `.dmg` and drag *AI Browser* onto *Applications*.
-
-**macOS, with the script:**
+**macOS:**
 
 1. Put `AI-Browser-mac-arm64.zip` and `install.command` in the same folder.
 2. Double-click `install.command` (or run `bash install.sh`).
