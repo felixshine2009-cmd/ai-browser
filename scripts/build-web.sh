@@ -7,7 +7,7 @@ rm -rf "$OUT"; mkdir -p "$OUT"
 ( cd "$ROOT/web" && find . -mindepth 1 -maxdepth 1 ! -name ggb ! -name physics -exec cp -a {} "$OUT/" \; )
 mkdir -p "$OUT/ggb" "$OUT/physics"
 cp -a "$ROOT/extensions/builtin/geogebra/ggb/." "$OUT/ggb/"
-cp "$ROOT/extensions/builtin/physics/sim.js" "$OUT/physics/"; cp -a "$ROOT/extensions/builtin/physics/examples" "$OUT/physics/"
+cp "$ROOT/extensions/builtin/physics/sim.js" "$ROOT/extensions/builtin/physics/modules.js" "$OUT/physics/"; node "$ROOT/scripts/sync-web-physics.js" "$OUT/panels-phys.html"; cp -a "$ROOT/extensions/builtin/physics/examples" "$OUT/physics/"
 touch "$OUT/.nojekyll"
 if [ "${2:-}" = "zip" ]; then
   python3 - "$OUT" "$ROOT/dist-web.zip" <<'PY'

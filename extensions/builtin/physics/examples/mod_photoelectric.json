@@ -1,0 +1,14 @@
+{
+  "topic": "modern.photoelectric",
+  "zh": "光电效应（ν、W₀、h、Uc）",
+  "meta": {
+    "zh": "光电效应（ν、W₀、h、Uc）",
+    "title": "Photoelectric effect"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "photoelectric"
+    }
+  ]
+}

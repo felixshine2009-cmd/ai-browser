@@ -10,6 +10,9 @@ module.exports = {
     phys_set_speed: function (args, ctx) { return call(ctx, 'setSpeed', { speed: args && args.speed }); },
     phys_state: function (args, ctx) { return call(ctx, 'state', {}); },
     phys_list_examples: function (args, ctx) { return call(ctx, 'listExamples', {}); },
-    phys_load_example: function (args, ctx) { return call(ctx, 'loadExample', { id: args && (args.id || args.example) }); }
+    phys_load_example: function (args, ctx) { return call(ctx, 'loadExample', { id: args && (args.id || args.example) }); },
+    phys_set_param: function (args, ctx) { return call(ctx, 'setParam', args || {}); },
+    phys_update: function (args, ctx) { return call(ctx, 'update', args || {}); },
+    phys_list_params: function (args, ctx) { return call(ctx, 'listParams', {}); }
   }
 };

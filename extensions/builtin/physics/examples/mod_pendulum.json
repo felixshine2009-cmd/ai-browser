@@ -1,0 +1,14 @@
+{
+  "topic": "oscillation.pendulum",
+  "zh": "单摆（摆长、摆角、阻尼）",
+  "meta": {
+    "zh": "单摆（摆长、摆角、阻尼）",
+    "title": "Pendulum"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "pendulum"
+    }
+  ]
+}

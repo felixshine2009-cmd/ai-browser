@@ -1,0 +1,14 @@
+{
+  "topic": "optics.refraction",
+  "zh": "折射与全反射（n₁、n₂、临界角）",
+  "meta": {
+    "zh": "折射与全反射（n₁、n₂、临界角）",
+    "title": "Refraction / TIR"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "refraction"
+    }
+  ]
+}

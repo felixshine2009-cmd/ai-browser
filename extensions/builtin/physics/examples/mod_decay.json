@@ -1,0 +1,14 @@
+{
+  "topic": "modern.decay",
+  "zh": "半衰期与放射性衰变",
+  "meta": {
+    "zh": "半衰期与放射性衰变",
+    "title": "Radioactive decay"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "decay"
+    }
+  ]
+}

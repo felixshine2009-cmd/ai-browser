@@ -1,22 +1,52 @@
 <!doctype html>
 <html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>
-:root{--bg:#0b1416;--panel:#121c1f;--border:#1e2c30;--text:#e8f0ea;--muted:#8aa096;--accent:#3d9b6e;--btn:#1a282c}
-*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Noto Sans SC",sans-serif;overflow:hidden}
+:root{--bg:#0b1416;--panel:#121c1f;--border:#1e2c30;--text:#e8f0ea;--muted:#8aa096;--accent:#3d9b6e;--btn:#1a282c;--danger:#fca5a5;--safe-b:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;max-width:100vw;background:var(--bg);color:var(--text);font:12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Noto Sans SC",sans-serif;overflow:hidden}
 #chrome{display:flex;flex-direction:column;height:100%}
-#bar,#side{display:flex;gap:6px;align-items:center;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
-#bar button,#side button,select{appearance:none;border:1px solid var(--border);background:var(--btn);color:var(--text);border-radius:6px;padding:5px 9px;font:600 12px inherit;cursor:pointer}
+#bar{display:flex;gap:6px;align-items:center;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+#bar button,select,.ibtn{appearance:none;border:1px solid var(--border);background:var(--btn);color:var(--text);border-radius:6px;padding:5px 9px;font:600 12px inherit;cursor:pointer;min-height:36px}
+@media (pointer:coarse){#bar button,select,.ibtn,input[type=checkbox]{min-height:44px;min-width:44px}input[type=checkbox]{width:22px;height:22px}}
 #bar button.active{background:var(--accent);border-color:var(--accent);color:#04140c}
 #wrap{flex:1;display:flex;min-height:0}
 #stage{flex:1;position:relative;min-width:0}
 #cv{position:absolute;inset:0;width:100%;height:100%}
-#pc{display:block;width:200px;height:140px;max-width:100%;background:#0b1416;border:1px solid var(--border);border-radius:6px}
-#plot{width:220px;border-left:1px solid var(--border);background:#0e1719;padding:6px;overflow:auto}
-#plot h4{margin:0 0 6px;font-size:12px;color:var(--muted);font-weight:600}
-#toast{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:#163528;color:#b7f0cf;padding:5px 10px;border-radius:8px;opacity:0;transition:opacity .2s;z-index:3}
-#err{color:#fca5a5;padding:8px;display:none}
-label.chk{display:flex;gap:4px;align-items:center;color:var(--muted)}
+#side{width:min(320px,42vw);border-left:1px solid var(--border);background:#0e1719;display:flex;flex-direction:column;min-width:0}
+#plot{padding:6px;border-bottom:1px solid var(--border)}
+#pc{display:block;width:100%;height:120px;background:#0b1416;border:1px solid var(--border);border-radius:6px}
+#params{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:6px 8px calc(12px + var(--safe-b))}
+#params details{border:1px solid var(--border);border-radius:8px;margin:0 0 8px;background:var(--panel)}
+#params summary{cursor:pointer;padding:8px 10px;font-weight:700;list-style:none;display:flex;justify-content:space-between;align-items:center;min-height:40px}
+#params summary::-webkit-details-marker{display:none}
+#params .body{padding:0 8px 8px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 0 6px}
+.row.full{grid-template-columns:1fr}
+.field{display:flex;flex-direction:column;gap:2px}
+.field label{color:var(--muted);font-size:11px}
+.field input[type=number],.field input[type=text],.field input[type=color],.field select{width:100%;min-height:36px;background:var(--btn);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font:600 12px inherit}
+.field input[type=range]{width:100%}
+.unit{color:var(--muted);font-size:10px;margin-left:2px}
+#toast{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:#163528;color:#b7f0cf;padding:5px 10px;border-radius:8px;opacity:0;transition:opacity .2s;z-index:3;max-width:90%;text-align:center}
+  .slrow{display:grid;grid-template-columns:1fr 92px;gap:6px;align-items:center}
+.field input.bad{border-color:#f87171;background:#3a1a1a}
+#readout{white-space:pre-wrap;word-break:break-word;font:11px/1.5 ui-monospace,Menlo,monospace;color:var(--muted);margin-top:6px;max-height:34vh;overflow:auto}
+#err{color:var(--danger);padding:6px;display:none;font-size:12px;white-space:pre-wrap}
+.chk{display:flex;gap:4px;align-items:center;color:var(--muted)}
+.row-actions{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+h4{margin:0 0 6px;font-size:12px;color:var(--muted)}
+#sideToggle{display:none}
+@media (max-width:700px){
+  #wrap{flex-direction:column}
+  #side{width:100%;max-height:48%;border-left:0;border-top:1px solid var(--border)}
+  #side.collapsed{display:none}
+  #sideToggle{display:inline-flex}
+  #stage{min-height:200px}
+}
+input[type=file]{display:none}
 </style>
+<script src="modules.js"></script>
 <script src="sim.js"></script>
 </head><body>
 <div id="chrome">
@@ -28,119 +58,374 @@ label.chk{display:flex;gap:4px;align-items:center;color:var(--muted)}
     <label>Speed <input id="spd" type="range" min="0.25" max="4" step="0.25" value="1" style="width:90px"></label>
     <label class="chk"><input id="vec" type="checkbox" checked> Vectors</label>
     <label class="chk"><input id="trail" type="checkbox" checked> Trails</label>
-    <select id="ex"></select>
+    <select id="ex" title="Examples"></select>
+    <button id="sideToggle" type="button">Params</button>
+    <button id="btnExport" type="button" title="Export JSON">Export</button>
+    <button id="btnImport" type="button" title="Import JSON">Import</button>
+    <input id="file" type="file" accept="application/json,.json">
   </div>
   <div id="wrap">
     <div id="stage"><canvas id="cv"></canvas><div id="toast"></div></div>
-    <div id="plot"><h4 id="title">—</h4><canvas id="pc" width="200" height="140"></canvas><div id="readout"></div><div id="err"></div></div>
+    <div id="side">
+      <div id="plot"><h4 id="title">—</h4><canvas id="pc" width="280" height="120"></canvas><div id="readout"></div><div id="err"></div></div>
+      <div id="params"></div>
+    </div>
   </div>
 </div>
 <script>
 (function(){
-  var scene0=null, scene=null, playing=false, speed=1, showVec=true, showTrail=true, raf=0, acc=0;
+  var scene0=null, scene=null, playing=false, speed=1, showVec=true, showTrail=true, raf=0, acc=0, liveApply=true;
   var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
   var pc=document.getElementById('pc'), pctx=pc.getContext('2d');
   var toastEl=document.getElementById('toast'), toastT;
-  function toast(m){toastEl.textContent=m;toastEl.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(function(){toastEl.style.opacity=0},1600)}
-  function resize(){var r=cv.parentElement.getBoundingClientRect();var d=devicePixelRatio||1;cv.width=r.width*d;cv.height=r.height*d;ctx.setTransform(d,0,0,d,0,0)}
-  window.addEventListener('resize',resize); resize();
+  function toast(m){toastEl.textContent=m;toastEl.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(function(){toastEl.style.opacity=0},1800)}
+  function resize(){var r=cv.parentElement.getBoundingClientRect();var d=devicePixelRatio||1;cv.width=r.width*d;cv.height=r.height*d;ctx.setTransform(d,0,0,d,0,0); draw();}
+  window.addEventListener('resize',resize); try{new ResizeObserver(resize).observe(cv.parentElement)}catch(e){} resize();
 
+  function showErr(msg){ var err=document.getElementById('err'); if(!msg){err.style.display='none';err.textContent='';return} err.style.display='block'; err.textContent=msg; }
   function loadScene(raw){
-    var v=PhysSim.validate(raw); var err=document.getElementById('err');
-    if(!v.ok){err.style.display='block';err.textContent=v.errors.join('; ');throw new Error(v.errors.join('; '))}
-    err.style.display='none'; scene0=PhysSim.clone(raw); scene=PhysSim.defaults(PhysSim.clone(raw));
+    var v=PhysSim.validate(raw);
+    if(!v.ok){ showErr(v.errors.join('\n')); throw new Error(v.errors.join('; ')); }
+    showErr(''); scene0=PhysSim.clone(raw); scene=PhysSim.defaults(PhysSim.clone(raw));
     document.getElementById('title').textContent=(scene.meta.zh||scene.meta.title||scene.topic)+' · t=0';
-    draw(); return {ok:true, topic:scene.topic};
+    renderParams(); draw(); return {ok:true, topic:scene.topic};
   }
-  function reset(){ if(!scene0)return; scene=PhysSim.defaults(PhysSim.clone(scene0)); draw(); toast('Reset'); }
+  function reset(){ if(!scene0)return; scene=PhysSim.defaults(PhysSim.clone(scene0)); document.getElementById('title').textContent=(scene.meta.zh||scene.meta.title||scene.topic)+' · t=0'; renderParams(); draw(); toast('Reset'); }
+  function commitLive(){
+    if(!scene) return;
+    var snap=PhysSim.clone(scene); delete snap.t; delete snap.history;
+    (snap.bodies||[]).forEach(function(b){ delete b.trail; delete b.ax; delete b.ay; });
+    var v=PhysSim.validate(snap);
+    if(!v.ok){ showErr(v.errors.join('\n')); return false; }
+    showErr(''); scene0=PhysSim.clone(snap); return true;
+  }
 
   function worldToScreen(x,y){
     var w=scene.world, W=cv.clientWidth, H=cv.clientHeight;
-    var sx=(x-w.xmin)/(w.xmax-w.xmin)*W, sy=(w.ymax-y)/(w.ymax-w.ymin)*H; return {x:sx,y:sy};
+    return {x:(x-w.xmin)/(w.xmax-w.xmin)*W, y:(w.ymax-y)/(w.ymax-w.ymin)*H};
   }
   function drawArrow(x,y,dx,dy,color){
-    var len=Math.hypot(dx,dy); if(len<1)return;
+    var L=Math.hypot(dx,dy)||1e-9, ux=dx/L, uy=dy/L;
     ctx.strokeStyle=color; ctx.fillStyle=color; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+dx,y+dy); ctx.stroke();
-    var ang=Math.atan2(dy,dx); ctx.beginPath(); ctx.moveTo(x+dx,y+dy);
-    ctx.lineTo(x+dx-8*Math.cos(ang-0.4),y+dy-8*Math.sin(ang-0.4));
-    ctx.lineTo(x+dx-8*Math.cos(ang+0.4),y+dy-8*Math.sin(ang+0.4)); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x+dx,y+dy); ctx.lineTo(x+dx-8*ux+4*uy,y+dy-8*uy-4*ux); ctx.lineTo(x+dx-8*ux-4*uy,y+dy-8*uy+4*ux); ctx.closePath(); ctx.fill();
+  }
+  function drawModule(){
+    var W=cv.clientWidth, H=cv.clientHeight; ctx.clearRect(0,0,W,H);
+    scene._mod.forEach(function(m,mi){
+      var v=PhysModules.viz(m), b=v.box, bw=b[1]-b[0], bh=b[3]-b[2]; var sc=Math.min((W-20)/bw,(H-20)/bh); var ox=(W-bw*sc)/2, oy=(H-bh*sc)/2;
+      function X(x){return ox+(x-b[0])*sc} function Y(y){return H-oy-(y-b[2])*sc}
+      ctx.lineWidth=2; ctx.lineJoin='round';
+      v.items.forEach(function(it){
+        ctx.strokeStyle=ctx.fillStyle=it.c||'#e8f0ea';
+        if(it.t==='line'){ ctx.beginPath(); ctx.moveTo(X(it.x1),Y(it.y1)); ctx.lineTo(X(it.x2),Y(it.y2)); ctx.stroke(); }
+        else if(it.t==='circle'){ ctx.beginPath(); ctx.arc(X(it.x),Y(it.y),Math.max(2,it.r*sc),0,Math.PI*2); if(it.fill) ctx.fill(); else ctx.stroke(); }
+        else if(it.t==='arrow'){ drawArrow(X(it.x1),Y(it.y1),X(it.x2)-X(it.x1),Y(it.y2)-Y(it.y1),it.c||'#e8f0ea'); }
+        else if(it.t==='poly'){ if(it.pts.length<2) return; ctx.beginPath(); it.pts.forEach(function(p,i){ if(i===0) ctx.moveTo(X(p.x),Y(p.y)); else ctx.lineTo(X(p.x),Y(p.y)); }); ctx.stroke(); }
+        else if(it.t==='rect'){ ctx.fillRect(X(it.x),Y(it.y+it.h),it.w*sc,it.h*sc); }
+        else if(it.t==='text'){ ctx.font='13px sans-serif'; ctx.fillText(it.s,X(it.x),Y(it.y)); }
+      });
+    });
+    document.getElementById('title').textContent=(scene.meta.zh||scene.meta.title||scene.topic)+' · t='+scene.t.toFixed(2)+'s';
+    pc.style.display='none';
+    updateReadout();
+  }
+  function fmt(v){ if(typeof v!=='number') return String(v); var a=Math.abs(v); return (a!==0&&(a>=1e5||a<1e-3))?v.toExponential(3):(+v.toFixed(4)).toString(); }
+  function updateReadout(){
+    var rd=document.getElementById('readout'); var d=PhysSim.derived(scene), lines=[];
+    for(var k in d) lines.push(k+' = '+fmt(d[k]));
+    if(!(scene.modules&&scene.modules.length)) lines=scene.bodies.slice(0,4).map(function(b){ return b.id+': x='+b.x.toFixed(2)+' y='+b.y.toFixed(2)+' v=('+b.vx.toFixed(2)+','+b.vy.toFixed(2)+')'; }).concat(lines);
+    rd.textContent=lines.join('\n');
   }
   function draw(){
     if(!scene) return;
-    var W=cv.clientWidth, H=cv.clientHeight;
-    ctx.clearRect(0,0,W,H);
-    // grid
-    ctx.strokeStyle='#152226'; ctx.lineWidth=1;
+    if(scene._mod && scene._mod.length) return drawModule();
+    pc.style.display='block'; var W=cv.clientWidth, H=cv.clientHeight; ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle='#1e2c30'; ctx.lineWidth=1;
     var w=scene.world;
-    for(var x=Math.ceil(w.xmin); x<=w.xmax; x++){ var a=worldToScreen(x,w.ymin), b=worldToScreen(x,w.ymax); ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke(); }
-    for(var y=Math.ceil(w.ymin); y<=w.ymax; y++){ var a=worldToScreen(w.xmin,y), b=worldToScreen(w.xmax,y); ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke(); }
-    // walls / mirrors / lenses
-    ctx.strokeStyle='#4b6b5c'; ctx.lineWidth=2;
-    (scene.walls||[]).forEach(function(wl){ var a=worldToScreen(wl.x1,wl.y1),b=worldToScreen(wl.x2,wl.y2); ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke(); });
-    if(scene.optics){
-      ctx.strokeStyle='#94a3b8'; (scene.optics.mirrors||[]).forEach(function(m){ var a=worldToScreen(m.x1,m.y1),b=worldToScreen(m.x2,m.y2); ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke(); });
-      ctx.strokeStyle='#38bdf8'; (scene.optics.lenses||[]).forEach(function(L){ var a=worldToScreen(L.x,L.y-L.h/2),b=worldToScreen(L.x,L.y+L.h/2); ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke(); });
-      ctx.strokeStyle='#fbbf24'; ctx.lineWidth=1.5;
-      (scene.optics.paths||[]).forEach(function(path){ if(path.length<2)return; ctx.beginPath(); var p0=worldToScreen(path[0].x,path[0].y); ctx.moveTo(p0.x,p0.y);
-        for(var i=1;i<path.length;i++){ var p=worldToScreen(path[i].x,path[i].y); ctx.lineTo(p.x,p.y);} ctx.stroke(); });
-    }
-    // fields hint
-    (scene.fields||[]).forEach(function(f){
-      ctx.fillStyle='rgba(56,189,248,0.08)'; ctx.fillRect(0,0,W,H);
-      ctx.fillStyle='#7dd3fc'; ctx.font='11px sans-serif';
-      ctx.fillText(f.type==='E'?('E = ('+(f.Ex||0)+', '+(f.Ey||0)+')'):('B₂ = '+(f.Bz||0)), 8, 16);
-    });
-    // trails + bodies
+    for(var gx=Math.ceil(w.xmin); gx<=w.xmax; gx++){ var a=worldToScreen(gx,w.ymin), b=worldToScreen(gx,w.ymax); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+    for(var gy=Math.ceil(w.ymin); gy<=w.ymax; gy++){ var a=worldToScreen(w.xmin,gy), b=worldToScreen(w.xmax,gy); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+    ctx.strokeStyle='#3d9b6e'; ctx.beginPath(); var o=worldToScreen(0,0); ctx.moveTo(0,o.y); ctx.lineTo(W,o.y); ctx.moveTo(o.x,0); ctx.lineTo(o.x,H); ctx.stroke();
+    (scene.walls||[]).forEach(function(wl){ var a=worldToScreen(wl.x1,wl.y1), b=worldToScreen(wl.x2,wl.y2); ctx.strokeStyle='#8aa096'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); });
+    (scene.springs||[]).forEach(function(sp){ var A=scene.bodies.find(function(b){return b.id===sp.a}); var B=scene.bodies.find(function(b){return b.id===sp.b}); if(!A||!B)return; var a=worldToScreen(A.x,A.y), b=worldToScreen(B.x,B.y); ctx.strokeStyle='#fbbf24'; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); });
     scene.bodies.forEach(function(b){
-      if(showTrail && b.trail && b.trail.length>1){ ctx.strokeStyle=b.color||'#3d9b6e'; ctx.globalAlpha=0.45; ctx.beginPath();
-        var p0=worldToScreen(b.trail[0].x,b.trail[0].y); ctx.moveTo(p0.x,p0.y);
-        for(var i=1;i<b.trail.length;i++){ var p=worldToScreen(b.trail[i].x,b.trail[i].y); ctx.lineTo(p.x,p.y);} ctx.stroke(); ctx.globalAlpha=1; }
-      var p=worldToScreen(b.x,b.y); var r=(b.radius||0.2)/(w.xmax-w.xmin)*W;
-      ctx.fillStyle=b.color||'#3d9b6e'; ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(3,r),0,Math.PI*2); ctx.fill();
-      if(b.label){ ctx.fillStyle='#e8f0ea'; ctx.font='600 11px sans-serif'; ctx.fillText(b.label, p.x+r+3, p.y-2); }
+      if(showTrail && b.trail && b.trail.length>1){ ctx.strokeStyle=b.color||'#3d9b6e'; ctx.globalAlpha=.5; ctx.beginPath(); b.trail.forEach(function(p,i){ var s=worldToScreen(p.x,p.y); if(i===0)ctx.moveTo(s.x,s.y); else ctx.lineTo(s.x,s.y); }); ctx.stroke(); ctx.globalAlpha=1; }
+      var s=worldToScreen(b.x,b.y); var r=Math.max(3,(b.radius||.25)/(w.xmax-w.xmin)*W);
+      ctx.fillStyle=b.color||'#3d9b6e'; ctx.beginPath(); ctx.arc(s.x,s.y,r,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#e8f0ea'; ctx.font='11px sans-serif'; ctx.fillText(b.label||b.id, s.x+r+2, s.y-2);
+      if(showVec){ var vs=PhysSim.vectors(scene).find(function(v){return v.id===b.id}); if(vs){ drawArrow(s.x,s.y,vs.v.x*8,-vs.v.y*8,'#fde047'); if(vs.f){ drawArrow(s.x,s.y,vs.f.x*2,-vs.f.y*2,'#f87171'); }; } }
     });
-    // springs
-    ctx.strokeStyle='#86efac'; ctx.setLineDash([4,3]);
-    (scene.springs||[]).forEach(function(sp){ var a=scene.bodies.find(x=>x.id===sp.a), b=scene.bodies.find(x=>x.id===sp.b); if(!a||!b)return;
-      var pa=worldToScreen(a.x,a.y), pb=worldToScreen(b.x,b.y); ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);ctx.stroke(); });
-    ctx.setLineDash([]);
-    if(showVec){ var vs=PhysSim.vectors(scene); var scaleV=8, scaleF=4;
-      vs.forEach(function(v){ var p=worldToScreen(v.x,v.y);
-        drawArrow(p.x,p.y,v.v.x*scaleV,-v.v.y*scaleV,'#fde047');
-        drawArrow(p.x,p.y,v.f.x*scaleF,-v.f.y*scaleF,'#f87171'); }); }
-    // circuit readout
-    var rd=document.getElementById('readout'); var lines=['t = '+scene.t.toFixed(3)+' s'];
-    if(scene.circuit){ var c=scene.circuit; if(c.type==='RC') lines.push('Vc = '+(c.Vc||0).toFixed(3)+' V', 'I = '+(c.I||0).toFixed(4)+' A');
-      if(c.type==='AC') lines.push('V = '+(c.V||0).toFixed(3)+' V', 'I = '+(c.I||0).toFixed(4)+' A'); }
-    rd.textContent=lines.join('\n');
-    document.getElementById('title').textContent=(scene.meta.zh||scene.meta.title||'')+' · t='+scene.t.toFixed(2)+'s';
+    document.getElementById('title').textContent=(scene.meta.zh||scene.meta.title||scene.topic)+' · t='+scene.t.toFixed(2)+'s';
     drawPlots();
+    updateReadout();
   }
   function drawPlots(){
     pctx.clearRect(0,0,pc.width,pc.height);
-    if(!scene||!scene.plots||!scene.plots.length) return;
-    var p=scene.plots[0]; var h=p.history||[]; if(h.length<2)return;
-    var minV=Infinity,maxV=-Infinity,minT=h[0].t,maxT=h[h.length-1].t;
-    h.forEach(function(pt){ if(pt.v<minV)minV=pt.v; if(pt.v>maxV)maxV=pt.v; });
-    if(minV===maxV){minV-=1;maxV+=1;}
-    pctx.strokeStyle='#3d9b6e'; pctx.beginPath();
-    h.forEach(function(pt,i){ var x=(pt.t-minT)/((maxT-minT)||1)*(pc.width-10)+5; var y=pc.height-5-(pt.v-minV)/((maxV-minV)||1)*(pc.height-10);
-      if(i===0)pctx.moveTo(x,y); else pctx.lineTo(x,y); }); pctx.stroke();
-    pctx.fillStyle='#8aa096'; pctx.font='10px sans-serif'; pctx.fillText(p.label||p.of||'plot', 6, 12);
+    (scene.plots||[]).forEach(function(p,i){
+      var h=p.history||[]; if(h.length<2) return;
+      var minT=h[0].t, maxT=h[h.length-1].t, minV=Infinity, maxV=-Infinity;
+      h.forEach(function(pt){ if(pt.v<minV)minV=pt.v; if(pt.v>maxV)maxV=pt.v; });
+      if(minV===maxV){minV-=1;maxV+=1;}
+      pctx.strokeStyle='#3d9b6e'; pctx.beginPath();
+      h.forEach(function(pt,i){ var x=(pt.t-minT)/((maxT-minT)||1)*(pc.width-10)+5; var y=pc.height-5-(pt.v-minV)/((maxV-minV)||1)*(pc.height-10);
+        if(i===0)pctx.moveTo(x,y); else pctx.lineTo(x,y); }); pctx.stroke();
+      pctx.fillStyle='#8aa096'; pctx.font='10px sans-serif'; pctx.fillText(p.label||p.of||'plot', 6, 12);
+    });
   }
-
   function tick(ts){
     if(!playing||!scene){ if(raf){clearInterval(raf);} raf=0; return; }
     if(!tick.prev) tick.prev=ts; var dt=(ts-tick.prev)/1000; tick.prev=ts;
     acc+=dt*speed; var stepDt=scene.dt; var maxSteps=40;
-    while(acc>=stepDt && maxSteps-- >0){ PhysSim.step(scene,1); // for RC plots: inject circuit into plot
+    while(acc>=stepDt && maxSteps-- >0){ PhysSim.step(scene,1);
       if(scene.circuit && scene.plots[0]){ var c=scene.circuit; var v=c.type==='RC'?c.Vc:c.V; scene.plots[0].history.push({t:scene.t,v:v||0}); if(scene.plots[0].history.length>600)scene.plots[0].history.shift(); }
       acc-=stepDt; }
     draw();
   }
-  // timer (not requestAnimationFrame): hidden / occluded panel frames still advance when the AI drives them
   function play(){ playing=true; document.getElementById('play').classList.add('active'); tick.prev=0; if(!raf) raf=setInterval(function(){ if(!playing){ clearInterval(raf); raf=0; return; } tick(performance.now()); },16); }
   function pause(){ playing=false; document.getElementById('play').classList.remove('active'); }
+
+  // ---------- parameter editor ----------
+  function el(tag, cls, html){ var e=document.createElement(tag); if(cls)e.className=cls; if(html!=null)e.innerHTML=html; return e; }
+  function field(label, unit, input){ var f=el('div','field'); var l=el('label','',label+(unit?' <span class="unit">'+unit+'</span>':'')); f.appendChild(l); f.appendChild(input); return f; }
+  function num(val, step, on){ var i=document.createElement('input'); i.type='number'; i.step=step||'any'; i.value=val==null?'':val; i.oninput=function(){ on(parseFloat(i.value)); }; return i; }
+  function txt(val, on){ var i=document.createElement('input'); i.type='text'; i.value=val||''; i.oninput=function(){ on(i.value); }; return i; }
+  function chk(val, on){ var i=document.createElement('input'); i.type='checkbox'; i.checked=!!val; i.onchange=function(){ on(i.checked); }; return i; }
+  function setPath(obj, path, value){
+    var parts=String(path).split('.'); var cur=obj;
+    for(var i=0;i<parts.length-1;i++){
+      var p=parts[i], m=p.match(/^(.+)\[(\d+)\]$/);
+      if(m){ cur=cur[m[1]][parseInt(m[2],10)]; }
+      else cur=cur[p];
+      if(cur==null) throw new Error('path not found: '+path);
+    }
+    var last=parts[parts.length-1], lm=last.match(/^(.+)\[(\d+)\]$/);
+    if(lm) cur[lm[1]][parseInt(lm[2],10)]=value; else cur[last]=value;
+  }
+  function applyModule(i, key, value){
+    if(!scene) throw new Error('no scene');
+    var r=PhysSim.setModuleParam(scene, i, key, value);
+    if(!r.ok){ showErr(r.errors.join('\n')); throw new Error(r.errors.join('; ')); }
+    scene0.modules=PhysSim.clone(scene.modules); showErr(''); draw(); return {ok:true, module:i, key:key, value:r.value};
+  }
+  function applyParam(path, value, opts){
+    if(!scene) throw new Error('no scene');
+    var mm=/^modules\[(\d+)\]\.(\w+)$/.exec(String(path)); if(mm) return applyModule(parseInt(mm[1],10), mm[2], value);
+    if(/^\w+$/.test(String(path)) && scene.modules && scene.modules.length && !(path in scene)) { var pl=PhysModules.paramList(scene.modules[0].kind); if(pl.some(function(p){return p.key===path;})) return applyModule(0, path, value); }
+    setPath(scene, path, value);
+    if(opts && opts.toBase !== false){
+      try { setPath(scene0, path, value); } catch(e) {}
+    }
+    var v=PhysSim.validate(Object.assign({}, scene0||scene, {bodies:(scene0||scene).bodies}));
+    // re-validate a cleaned snapshot
+    var snap=PhysSim.clone(scene0||scene);
+    v=PhysSim.validate(snap);
+    if(!v.ok){ showErr(v.errors.join('\n')); throw new Error(v.errors.join('; ')); }
+    showErr('');
+    if(liveApply){ draw(); }
+    return {ok:true, path:path, value:value};
+  }
+  var openSections={};
+  function renderParamsKeepOpen(){ document.querySelectorAll('#params details[open]').forEach(function(d){ openSections[d.dataset.sec]=true; }); renderParams(); }
+  function renderParams(){
+    var box=document.getElementById('params'); if(!scene){ box.innerHTML=''; return; }
+    box.innerHTML='';
+    function sec(id, title, build){
+      var d=el('details'); d.dataset.sec=id; if(openSections[id]) d.open=true;
+      d.addEventListener('toggle', function(){ openSections[id]=d.open; });
+      var s=el('summary','',title); d.appendChild(s); var body=el('div','body'); build(body); d.appendChild(body); box.appendChild(d);
+    }
+    (scene.modules||[]).forEach(function(mod,mi){
+      var reg=PhysModules.REGISTRY[mod.kind]; var M=scene._mod[mi]; if(openSections['mod-'+mi]===undefined) openSections['mod-'+mi]=true;
+      sec('mod-'+mi, (reg?reg.zh+' · '+reg.title:mod.kind)+' · 全部参数 All parameters', function(body){
+        PhysModules.paramList(mod.kind).forEach(function(p){
+          var f=el('div','field');
+          f.appendChild(el('label','',(p.zh||'')+' <b>'+(p.label&&p.label!==p.key?p.label:p.key)+'</b>'+(p.unit?' <span class="unit">['+p.unit+']</span>':'')+(p.alias?' <span class="unit">(alias 别名)</span>':'')));
+          if(p.enum){ var sel=document.createElement('select'); sel.dataset.param=p.key; p.enum.forEach(function(o){ var op=document.createElement('option'); op.value=o; op.textContent=o; sel.appendChild(op); }); sel.value=PhysModules.getParam(M,p.key);
+            sel.onchange=function(){ try{ applyModule(mi,p.key,sel.value); }catch(e){} }; f.appendChild(sel); }
+          else{
+            var row=el('div','slrow'); var rg=document.createElement('input'); rg.type='range'; rg.min=p.min; rg.max=p.max; rg.step=p.step||'any'; var nb=document.createElement('input'); nb.type='number'; nb.step='any'; nb.dataset.param=p.key; nb.min=p.min; nb.max=p.max;
+            var cur=PhysModules.getParam(M,p.key); rg.value=cur; nb.value=+Number(cur).toPrecision(6);
+            function push(v,src){ if(!isFinite(v)){ return; } try{ applyModule(mi,p.key,v); nb.classList.remove('bad'); if(src!==rg) rg.value=v; if(src!==nb) nb.value=+Number(v).toPrecision(6); }catch(e){ nb.classList.add('bad'); } }
+            rg.oninput=function(){ push(parseFloat(rg.value),rg); }; nb.oninput=function(){ push(parseFloat(nb.value),nb); };
+            row.appendChild(rg); row.appendChild(nb); f.appendChild(row);
+          }
+          if(p.hint) f.appendChild(el('div','unit',p.hint));
+          body.appendChild(f);
+        });
+      });
+    });
+    sec('world','World / 世界', function(body){
+      var r=el('div','row');
+      r.appendChild(field('xmin','m', num(scene.world.xmin, 0.1, function(v){ applyParam('world.xmin', v); })));
+      r.appendChild(field('xmax','m', num(scene.world.xmax, 0.1, function(v){ applyParam('world.xmax', v); })));
+      body.appendChild(r); r=el('div','row');
+      r.appendChild(field('ymin','m', num(scene.world.ymin, 0.1, function(v){ applyParam('world.ymin', v); })));
+      r.appendChild(field('ymax','m', num(scene.world.ymax, 0.1, function(v){ applyParam('world.ymax', v); })));
+      body.appendChild(r); r=el('div','row');
+      r.appendChild(field('g','m/s²', num(scene.g, 0.1, function(v){ applyParam('g', v); })));
+      r.appendChild(field('air drag','', num(scene.world.air||0, 0.01, function(v){ applyParam('world.air', v); })));
+      body.appendChild(r); r=el('div','row');
+      r.appendChild(field('dt','s', num(scene.dt, 0.001, function(v){ applyParam('dt', v); })));
+      r.appendChild(field('speed','×', num(speed, 0.25, function(v){ speed=v||1; document.getElementById('spd').value=speed; })));
+      body.appendChild(r);
+    });
+    sec('planet','Planet 天体 (G, M, R → g)', function(body){
+      var pl=scene.planet||{G:6.674e-11,M:5.972e24,R:6.371e6}; var r=el('div','row');
+      function setPl(k,v){ if(!scene.planet){ scene.planet={G:6.674e-11,M:5.972e24,R:6.371e6}; scene0.planet=PhysSim.clone(scene.planet); } applyParam('planet.'+k,v); scene.g=scene.planet.G*scene.planet.M/(scene.planet.R*scene.planet.R); scene0.g=scene.g; }
+      r.appendChild(field('G','N·m²/kg²', num(pl.G,1e-12,function(v){ setPl('G',v); })));
+      r.appendChild(field('M','kg', num(pl.M,1e22,function(v){ setPl('M',v); })));
+      body.appendChild(r); r=el('div','row'); r.appendChild(field('R','m', num(pl.R,1e5,function(v){ setPl('R',v); })));
+      body.appendChild(r); body.appendChild(el('div','unit','g = GM/R² (editing planet overrides g)'));
+    });
+    scene.bodies.forEach(function(b, i){
+      sec('body-'+b.id, 'Body 物体 · '+(b.label||b.id), function(body){
+        var r=el('div','row');
+        r.appendChild(field('id','', txt(b.id, function(v){ /* id rename skipped for safety */ }))); r.querySelector('input').disabled=true;
+        r.appendChild(field('label','', txt(b.label||'', function(v){ applyParam('bodies['+i+'].label', v); })));
+        body.appendChild(r); r=el('div','row');
+        r.appendChild(field('x','m', num(b.x, 0.01, function(v){ applyParam('bodies['+i+'].x', v); })));
+        r.appendChild(field('y','m', num(b.y, 0.01, function(v){ applyParam('bodies['+i+'].y', v); })));
+        body.appendChild(r); r=el('div','row');
+        r.appendChild(field('vx','m/s', num(b.vx, 0.01, function(v){ applyParam('bodies['+i+'].vx', v); })));
+        r.appendChild(field('vy','m/s', num(b.vy, 0.01, function(v){ applyParam('bodies['+i+'].vy', v); })));
+        body.appendChild(r); r=el('div','row');
+        r.appendChild(field('mass','kg', num(b.mass, 0.01, function(v){ applyParam('bodies['+i+'].mass', v); })));
+        r.appendChild(field('radius','m', num(b.radius, 0.01, function(v){ applyParam('bodies['+i+'].radius', v); })));
+        body.appendChild(r); r=el('div','row');
+        r.appendChild(field('q','C', num(b.q||0, 0.01, function(v){ applyParam('bodies['+i+'].q', v); })));
+        var col=document.createElement('input'); col.type='color'; col.value= /^#/.test(b.color||'')?b.color:'#3d9b6e'; col.oninput=function(){ applyParam('bodies['+i+'].color', col.value); };
+        r.appendChild(field('color','', col));
+        body.appendChild(r); r=el('div','row');
+        var f1=el('div','field'); f1.appendChild(el('label','','fixed')); f1.appendChild(chk(b.fixed, function(v){ applyParam('bodies['+i+'].fixed', v); })); r.appendChild(f1);
+        r.appendChild(field('e (restitution)','', num(b.e==null?0.8:b.e, 0.01, function(v){ applyParam('bodies['+i+'].e', v); })));
+        body.appendChild(r); r=el('div','row');
+        r.appendChild(field('kinetic μ 动摩擦','', num(b.mu!=null?b.mu:(b.friction||0), 0.01, function(v){ applyParam('bodies['+i+'].mu', v); })));
+        r.appendChild(field('static μ₀ 静摩擦','', num(b.mu0!=null?b.mu0:(b.mu!=null?b.mu:(b.friction||0)), 0.01, function(v){ applyParam('bodies['+i+'].mu0', v); })));
+        body.appendChild(r); r=el('div','row');
+        r.appendChild(field('bounce','', num(b.bounce==null?1:b.bounce, 0.01, function(v){ applyParam('bodies['+i+'].bounce', v); })));
+        body.appendChild(r);
+        var act=el('div','row-actions');
+        var del=el('button','ibtn','Remove body'); del.onclick=function(){ if(scene.bodies.length<=1){toast('Need ≥1 body');return;} scene.bodies.splice(i,1); scene0.bodies.splice(i,1); renderParams(); draw(); }; act.appendChild(del);
+        body.appendChild(act);
+      });
+    });
+    var addBody=el('div','row-actions'); var ab=el('button','ibtn','+ Body'); ab.onclick=function(){ var id='b'+(scene.bodies.length+1); var nb={id:id,x:0,y:2,vx:0,vy:0,mass:1,radius:0.25,q:0,color:'#3d9b6e',label:id}; scene.bodies.push(nb); scene0.bodies.push(PhysSim.clone(nb)); openSections['body-'+id]=true; renderParams(); draw(); }; addBody.appendChild(ab); box.appendChild(addBody);
+
+    (scene.springs||[]).forEach(function(sp,i){
+      sec('spring-'+i,'Spring 弹簧 · '+(sp.a||'?')+'-'+(sp.b||'?'), function(body){
+        var r=el('div','row');
+        r.appendChild(field('a','id', txt(sp.a||'', function(v){ applyParam('springs['+i+'].a', v); })));
+        r.appendChild(field('b','id', txt(sp.b||'', function(v){ applyParam('springs['+i+'].b', v); })));
+        body.appendChild(r); r=el('div','row');
+        r.appendChild(field('k','N/m', num(sp.k==null?20:sp.k, 0.1, function(v){ applyParam('springs['+i+'].k', v); })));
+        r.appendChild(field('rest','m', num(sp.rest==null?1:sp.rest, 0.01, function(v){ applyParam('springs['+i+'].rest', v); })));
+        body.appendChild(r); r=el('div','row');
+        r.appendChild(field('damping','', num(sp.damping||0, 0.01, function(v){ applyParam('springs['+i+'].damping', v); })));
+        body.appendChild(r);
+        var act=el('div','row-actions'); var del=el('button','ibtn','Remove spring'); del.onclick=function(){ scene.springs.splice(i,1); scene0.springs.splice(i,1); renderParams(); draw(); }; act.appendChild(del); body.appendChild(act);
+      });
+    });
+    var addSp=el('div','row-actions'); var as=el('button','ibtn','+ Spring'); as.onclick=function(){ if(scene.bodies.length<2){toast('Need 2 bodies');return;} var sp={a:scene.bodies[0].id,b:scene.bodies[1].id,k:20,rest:1,damping:0}; scene.springs=scene.springs||[]; scene0.springs=scene0.springs||[]; scene.springs.push(sp); scene0.springs.push(PhysSim.clone(sp)); renderParams(); draw(); }; addSp.appendChild(as); box.appendChild(addSp);
+
+    (scene.fields||[]).forEach(function(f,i){
+      sec('field-'+i,'Field 场 · '+(f.type||'?'), function(body){
+        var r=el('div','row');
+        var sel=document.createElement('select'); ['E','B'].forEach(function(t){ var o=document.createElement('option'); o.value=t; o.textContent=t; if(f.type===t)o.selected=true; sel.appendChild(o); });
+        sel.onchange=function(){ applyParam('fields['+i+'].type', sel.value); }; r.appendChild(field('type','', sel));
+        body.appendChild(r); r=el('div','row');
+        if(f.type==='E'){ r.appendChild(field('|E| 场强','V/m', num(Math.hypot(PhysSim.fieldE(f).x,PhysSim.fieldE(f).y),0.1,function(v){ delete f.Ex; delete f.Ey; applyParam('fields['+i+'].mag',v); if(scene0&&scene0.fields[i]){ delete scene0.fields[i].Ex; delete scene0.fields[i].Ey; scene0.fields[i].mag=v; } delete f.U; })));
+          r.appendChild(field('angle 方向角','° (90=up)', num(f.angle==null?90:f.angle,1,function(v){ if(f.Ex!=null||f.Ey!=null){ var m=Math.hypot(f.Ex||0,f.Ey||0); delete f.Ex; delete f.Ey; f.mag=m; if(scene0.fields[i]){ delete scene0.fields[i].Ex; delete scene0.fields[i].Ey; scene0.fields[i].mag=m; } } applyParam('fields['+i+'].angle',v); })));
+          body.appendChild(r); r=el('div','row');
+          r.appendChild(field('U 电压','V', num(f.U==null?'':f.U,1,function(v){ applyParam('fields['+i+'].U',v); })));
+          r.appendChild(field('d 板间距','m', num(f.d==null?'':f.d,0.01,function(v){ applyParam('fields['+i+'].d',v); })));
+          body.appendChild(r); r=el('div','row');
+          r.appendChild(field('Ex','N/C', num(f.Ex||0,0.1,function(v){applyParam('fields['+i+'].Ex',v);}))); r.appendChild(field('Ey','N/C', num(f.Ey||0,0.1,function(v){applyParam('fields['+i+'].Ey',v);}))); }
+        else { r.appendChild(field('|B| 磁感应强度','T', num(Math.abs(PhysSim.fieldB(f)),0.01,function(v){ var dir=PhysSim.fieldB(f)<0?'in':'out'; delete f.Bz; if(scene0.fields[i]) delete scene0.fields[i].Bz; applyParam('fields['+i+'].mag',v); applyParam('fields['+i+'].dir',dir); })));
+          var ds=document.createElement('select'); ['out','in'].forEach(function(o){ var op=document.createElement('option'); op.value=o; op.textContent=o==='out'?'out ⊙ 垂直纸面向外':'in ⊗ 向里'; ds.appendChild(op); }); ds.value=PhysSim.fieldB(f)<0?'in':'out';
+          ds.onchange=function(){ var m=Math.abs(PhysSim.fieldB(f)); delete f.Bz; if(scene0.fields[i]) delete scene0.fields[i].Bz; applyParam('fields['+i+'].mag',m); applyParam('fields['+i+'].dir',ds.value); };
+          r.appendChild(field('direction 方向','', ds)); }
+        body.appendChild(r);
+        var act=el('div','row-actions'); var del=el('button','ibtn','Remove field'); del.onclick=function(){ scene.fields.splice(i,1); scene0.fields.splice(i,1); renderParams(); draw(); }; act.appendChild(del); body.appendChild(act);
+      });
+    });
+    var addF=el('div','row-actions'); var af=el('button','ibtn','+ E field'); af.onclick=function(){ var f={type:'E',Ex:0,Ey:10}; scene.fields=scene.fields||[]; scene0.fields=scene0.fields||[]; scene.fields.push(f); scene0.fields.push(PhysSim.clone(f)); renderParams(); }; var afb=el('button','ibtn','+ B field'); afb.onclick=function(){ var f={type:'B',Bz:1}; scene.fields=scene.fields||[]; scene0.fields=scene0.fields||[]; scene.fields.push(f); scene0.fields.push(PhysSim.clone(f)); renderParams(); }; addF.appendChild(af); addF.appendChild(afb); box.appendChild(addF);
+
+    (scene.walls||[]).forEach(function(wl,i){
+      sec('wall-'+i,'Wall / incline 墙 · #'+(i+1), function(body){
+        var r=el('div','row');
+        r.appendChild(field('x1','m', num(wl.x1,0.1,function(v){applyParam('walls['+i+'].x1',v);})));
+        r.appendChild(field('y1','m', num(wl.y1,0.1,function(v){applyParam('walls['+i+'].y1',v);})));
+        body.appendChild(r); r=el('div','row');
+        r.appendChild(field('x2','m', num(wl.x2,0.1,function(v){applyParam('walls['+i+'].x2',v);})));
+        r.appendChild(field('y2','m', num(wl.y2,0.1,function(v){applyParam('walls['+i+'].y2',v);})));
+        body.appendChild(r); r=el('div','row');
+        r.appendChild(field('bounce','', num(wl.bounce==null?1:wl.bounce,0.01,function(v){applyParam('walls['+i+'].bounce',v);})));
+        r.appendChild(field('kinetic μ 动摩擦','', num(wl.mu!=null?wl.mu:(wl.friction||0),0.01,function(v){applyParam('walls['+i+'].mu',v);})));
+        body.appendChild(r); r=el('div','row');
+        r.appendChild(field('static μ₀ 静摩擦','', num(wl.mu0!=null?wl.mu0:(wl.mu!=null?wl.mu:(wl.friction||0)),0.01,function(v){applyParam('walls['+i+'].mu0',v);})));
+        body.appendChild(r);
+        var act=el('div','row-actions'); var del=el('button','ibtn','Remove wall'); del.onclick=function(){ scene.walls.splice(i,1); scene0.walls.splice(i,1); renderParams(); draw(); }; act.appendChild(del); body.appendChild(act);
+      });
+    });
+    var addW=el('div','row-actions'); var aw=el('button','ibtn','+ Wall'); aw.onclick=function(){ var wl={x1:-5,y1:0,x2:5,y2:0,bounce:1,friction:0}; scene.walls=scene.walls||[]; scene0.walls=scene0.walls||[]; scene.walls.push(wl); scene0.walls.push(PhysSim.clone(wl)); renderParams(); draw(); }; addW.appendChild(aw); box.appendChild(addW);
+
+    if(scene.optics){
+      sec('optics','Optics 光学', function(body){
+        (scene.optics.lenses||[]).forEach(function(L,i){
+          var r=el('div','row');
+          r.appendChild(field('lens['+i+'].x','m', num(L.x,0.1,function(v){applyParam('optics.lenses['+i+'].x',v);})));
+          r.appendChild(field('f','m', num(L.f,0.01,function(v){applyParam('optics.lenses['+i+'].f',v);})));
+          body.appendChild(r);
+        });
+        (scene.optics.mirrors||[]).forEach(function(M,i){
+          var r=el('div','row');
+          r.appendChild(field('mirror['+i+'] x1','m', num(M.x1,0.1,function(v){applyParam('optics.mirrors['+i+'].x1',v);})));
+          r.appendChild(field('y1','m', num(M.y1,0.1,function(v){applyParam('optics.mirrors['+i+'].y1',v);})));
+          body.appendChild(r);
+        });
+        (scene.optics.interfaces||[]).forEach(function(I,i){
+          var r=el('div','row');
+          r.appendChild(field('n1','', num(I.n1,0.01,function(v){applyParam('optics.interfaces['+i+'].n1',v);})));
+          r.appendChild(field('n2','', num(I.n2,0.01,function(v){applyParam('optics.interfaces['+i+'].n2',v);})));
+          body.appendChild(r);
+        });
+        (scene.optics.rays||[]).forEach(function(R,i){
+          var r=el('div','row');
+          r.appendChild(field('ray['+i+'].angle','rad', num(R.angle,0.01,function(v){applyParam('optics.rays['+i+'].angle',v);})));
+          r.appendChild(field('x','m', num(R.x,0.1,function(v){applyParam('optics.rays['+i+'].x',v);})));
+          body.appendChild(r);
+        });
+      });
+    }
+    if(scene.circuit){
+      sec('circuit','Circuit 电路 · '+(scene.circuit.type||''), function(body){
+        var c=scene.circuit, r=el('div','row');
+        ['R','C','L','emf','V0','frequency','amplitude'].forEach(function(k){
+          if(c[k]==null && !(k in c)) return;
+          r.appendChild(field(k,'', num(c[k], 0.01, function(v){ applyParam('circuit.'+k, v); })));
+          if(r.children.length===2){ body.appendChild(r); r=el('div','row'); }
+        });
+        if(r.children.length) body.appendChild(r);
+      });
+    }
+    if(scene.thermal){
+      sec('thermal','Thermal 热学', function(body){
+        var r=el('div','row');
+        ['n','T','V','p'].forEach(function(k){ if(scene.thermal[k]==null) return; r.appendChild(field(k,'', num(scene.thermal[k],0.01,function(v){applyParam('thermal.'+k,v);}))); });
+        body.appendChild(r);
+      });
+    }
+    if(scene.photoelectric){
+      sec('pe','Photoelectric 光电', function(body){
+        var r=el('div','row');
+        r.appendChild(field('frequency','Hz', num(scene.photoelectric.frequency,1e12,function(v){applyParam('photoelectric.frequency',v);})));
+        r.appendChild(field('work function','eV', num(scene.photoelectric.workFunction||scene.photoelectric.W,0.01,function(v){applyParam('photoelectric.workFunction',v);})));
+        body.appendChild(r);
+      });
+    }
+    var io=el('div','row-actions');
+    var applyBtn=el('button','ibtn','Apply & reset'); applyBtn.onclick=function(){ if(commitLive()){ reset(); toast('Applied'); } }; io.appendChild(applyBtn);
+    box.appendChild(io);
+  }
 
   document.getElementById('play').onclick=play;
   document.getElementById('pause').onclick=pause;
@@ -149,14 +434,25 @@ label.chk{display:flex;gap:4px;align-items:center;color:var(--muted)}
   document.getElementById('spd').oninput=function(e){ speed=parseFloat(e.target.value)||1; };
   document.getElementById('vec').onchange=function(e){ showVec=e.target.checked; draw(); };
   document.getElementById('trail').onchange=function(e){ showTrail=e.target.checked; draw(); };
+  document.getElementById('sideToggle').onclick=function(){ document.getElementById('side').classList.toggle('collapsed'); };
+  document.getElementById('btnExport').onclick=function(){
+    if(!scene0) return;
+    var blob=new Blob([JSON.stringify(scene0,null,2)],{type:'application/json'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(scene0.topic||'scene')+'.json'; a.click(); URL.revokeObjectURL(a.href); toast('Exported');
+  };
+  document.getElementById('btnImport').onclick=function(){ document.getElementById('file').click(); };
+  document.getElementById('file').onchange=async function(){
+    var f=this.files&&this.files[0]; this.value=''; if(!f) return;
+    try{ var j=JSON.parse(await f.text()); pause(); loadScene(j); play(); toast('Imported '+f.name); }
+    catch(e){ showErr(String(e.message||e)); toast('Import failed'); }
+  };
 
-  // examples
   fetch('examples/index.json').then(r=>r.json()).then(function(list){
     var sel=document.getElementById('ex');
-    list.forEach(function(it){ var o=document.createElement('option'); o.value=it.id; o.textContent=(it.zh||it.title||it.id); sel.appendChild(o); });
+    (list.examples||list).forEach(function(it){ var o=document.createElement('option'); o.value=it.id||it.file&&it.file.replace(/\.json$/,''); o.textContent=(it.zh||it.title||o.value); sel.appendChild(o); });
     sel.onchange=function(){ fetch('examples/'+sel.value+'.json').then(r=>r.json()).then(function(j){ pause(); loadScene(j); play(); }); };
-    if(list[0]) sel.onchange();
-  }).catch(function(e){ document.getElementById('err').style.display='block'; document.getElementById('err').textContent=String(e); });
+    if(sel.options.length) sel.onchange();
+  }).catch(function(e){ showErr(String(e)); });
 
   var methods={
     load: async function(a){ pause(); var r=loadScene(a.scene||a); play(); return r; },
@@ -166,14 +462,18 @@ label.chk{display:flex;gap:4px;align-items:center;color:var(--muted)}
     reset: async function(){ pause(); reset(); return {t:0}; },
     setSpeed: async function(a){ speed=Number(a.speed)||1; document.getElementById('spd').value=speed; return {speed}; },
     state: async function(){ if(!scene) return {empty:true}; return {topic:scene.topic,t:scene.t,playing:playing,
-      bodies:scene.bodies.map(function(b){return {id:b.id,x:b.x,y:b.y,vx:b.vx,vy:b.vy,q:b.q}}),
-      circuit:scene.circuit||null}; },
+      bodies:scene.bodies.map(function(b){return {id:b.id,x:b.x,y:b.y,vx:b.vx,vy:b.vy,q:b.q,mass:b.mass}}),
+      circuit:scene.circuit||null, world:scene.world, g:scene.g, modules:scene.modules, derived:PhysSim.derived(scene), warnings:PhysSim.validate(scene0||scene).warnings}; },
     listExamples: async function(){ var r=await fetch('examples/index.json'); return await r.json(); },
-    loadExample: async function(a){ var r=await fetch('examples/'+(a.id||a.example)+'.json'); var j=await r.json(); pause(); loadScene(j); play(); return {ok:true,topic:j.topic}; },
-    validate: async function(a){ return PhysSim.validate(a.scene||a); }
+    loadExample: async function(a){ var r=await fetch('examples/'+(a.id||a.example)+'.json'); var j=await r.json(); pause(); loadScene(j); var se=document.getElementById('ex'); if(se) se.value=a.id||a.example; play(); return {ok:true,topic:j.topic}; },
+    validate: async function(a){ return PhysSim.validate(a.scene||a); },
+    exportScene: async function(){ return {scene: scene0}; },
+    setParam: async function(a){ if(a.module!=null&&a.key) return applyModule(parseInt(a.module,10),a.key,a.value); return applyParam(a.path||a.key, a.value); },
+    update: async function(a){ if(a.changes&&typeof a.changes==='object'){ var out=[]; Object.keys(a.changes).forEach(function(k){ out.push(applyParam(k,a.changes[k])); }); return {ok:true,applied:out}; } if(a.module!=null&&a.key) return applyModule(parseInt(a.module,10),a.key,a.value); return applyParam(a.path||a.key, a.value); },
+    listParams: async function(a){ if(!scene) return {empty:true}; return {modules:scene.modules.map(function(m,i){ return {index:i,kind:m.kind,params:PhysModules.paramList(m.kind).map(function(p){ return {key:p.key,zh:p.zh,unit:p.unit,min:p.min,max:p.max,enum:p.enum,alias:!!p.alias,value:PhysModules.getParam(scene._mod[i],p.key)}; })}; }), kinds:PhysModules.kinds()}; }
   };
   window.addEventListener('message',function(ev){ var m=ev.data; if(ev.source!==parent||!m||!m.aibPanelCall)return;
-    Promise.resolve().then(function(){ return methods[m.method]((m.args)||{}); })
+    Promise.resolve().then(function(){ if(!methods[m.method]) throw new Error('unknown method '+m.method); return methods[m.method]((m.args)||{}); })
       .then(function(r){ parent.postMessage({aibPanelReply:m.aibPanelCall,result:r},'*'); },
            function(e){ parent.postMessage({aibPanelReply:m.aibPanelCall,error:String(e&&e.message||e)},'*'); }); });
 })();

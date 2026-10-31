@@ -6,7 +6,7 @@ test/results.json
 *.log
 models/
 node_modules
-web/ggb/
+web/ggb
 web/physics/
 web-tests/node_modules/
 web-tests/test-results/

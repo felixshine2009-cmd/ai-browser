@@ -1,0 +1,14 @@
+{
+  "topic": "thermal.gas",
+  "zh": "理想气体过程（等温/等压/等容/绝热）",
+  "meta": {
+    "zh": "理想气体过程（等温/等压/等容/绝热）",
+    "title": "Ideal gas processes"
+  },
+  "bodies": [],
+  "modules": [
+    {
+      "kind": "gas"
+    }
+  ]
+}

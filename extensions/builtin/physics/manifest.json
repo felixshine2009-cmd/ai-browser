@@ -2,7 +2,7 @@
   "standard": "aib-feature/1",
   "id": "aib.physics",
   "name": "高中物理可视化",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "description": "2D physics engine for Chinese high-school physics with AI scene JSON + canvas visualization.",
   "update_url": "https://example.invalid/aib/aib.physics/update.json",
   "permissions": [
@@ -39,7 +39,7 @@
       },
       {
         "name": "phys_load",
-        "description": "Load a physics scene JSON into the visualizer (opens the panel). Scene fields: topic, zh, world{xmin,xmax,ymin,ymax,air}, g, bodies[{id,x,y,vx,vy,mass,radius,q,color,label,fixed,bounce,e}], springs[{a,b,k,rest,damping}], fields[{type:'E'|'B',Ex,Ey,Bz}], walls, optics{rays,mirrors,lenses,interfaces}, circuit{type:'RC'|'AC',...}, plots[{id,of:'body.prop'}], dt. Coordinates: +x right, +y up; gravity pulls -y.",
+        "description": "Load a physics scene JSON into the visualizer (opens the panel). Scene fields: topic, zh, world{xmin,xmax,ymin,ymax,air}, g, bodies[{id,x,y,vx,vy,mass,radius,q,color,label,fixed,bounce,e,mu,mu0}], springs[{a,b,k,rest,damping}], fields[{type:'E',Ex,Ey | mag,angle | U,d,angle}, {type:'B',Bz | mag,dir:'out'|'in'}], walls[{x1,y1,x2,y2,bounce,mu,mu0}], planet{G,M,R}, modules[{kind,<params>}] (kinds: projectile,incline,circular,pendulum,spring,collision,gravitation,shm,wave,plates,circuit,transformer,induction,refraction,lens,mirror,gas,photoelectric,decay — call phys_list_params for every parameter, unit and range), optics{rays,mirrors,lenses,interfaces}, circuit{type:'RC'|'AC',...}, plots[{id,of:'body.prop'}], dt. Coordinates: +x right, +y up; gravity pulls -y.",
         "parameters": {
           "type": "object",
           "properties": {
@@ -132,6 +132,58 @@
           "required": [
             "id"
           ]
+        }
+      },
+      {
+        "name": "phys_set_param",
+        "description": "Set ONE parameter and apply live. Module scene: {module:0,key:'v0',value:20} (or path 'modules[0].v0'; aliases such as frequency/speed/wavelength work). Body scene: dotted path e.g. bodies[0].mass, g, world.air, springs[0].k, fields[0].mag, walls[0].mu0. Out-of-range values return an error with the allowed range.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "module": {
+              "type": "integer"
+            },
+            "key": {
+              "type": "string"
+            },
+            "value": {}
+          },
+          "required": [
+            "value"
+          ]
+        }
+      },
+      {
+        "name": "phys_update",
+        "description": "Update several parameters at once: {changes:{'modules[0].v0':20,'modules[0].angle':30}} or a single {path|key,value}. Same validation as phys_set_param.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "changes": {
+              "type": "object"
+            },
+            "path": {
+              "type": "string"
+            },
+            "module": {
+              "type": "integer"
+            },
+            "key": {
+              "type": "string"
+            },
+            "value": {}
+          }
+        }
+      },
+      {
+        "name": "phys_list_params",
+        "description": "List every customisable parameter of the loaded module scene (key, Chinese name, unit, min, max, enum, current value) and all module kinds. Call this before phys_set_param when unsure of a key.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
         }
       }
     ],
