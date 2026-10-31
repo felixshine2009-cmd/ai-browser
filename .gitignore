@@ -4,3 +4,4 @@ dist/
 *.part
 test/results.json
 *.log
+models/

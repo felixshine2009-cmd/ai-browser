@@ -61,10 +61,38 @@ async function launch(opts = {}) {
     async tabsState() { const ch = await app.chrome(); return ch.evaluate(() => window.aib.invoke('tabs:state')); },
     async submit(text) { const ch = await app.chrome(); await ch.focus('#addr'); await sleep(80); await ch.fill('#addr', text); await ch.press('#addr', 'Enter'); },
     async setMode(m) { const ch = await app.chrome(); await ch.click(`#modeseg [data-mode="${m}"]`); },
-    screenshot(file) {
+    async screenshot(file) {
+      // Playwright CDP screenshot of the focused page (or the chrome chrome) — no X11/ffmpeg.
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      const disp = process.env.DISPLAY || ':99';
-      execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'x11grab', '-i', disp, '-frames:v', '1', file]);
+      const page = (() => { try { return app.ctx.pages().find(p => { try { return p.url().startsWith('aibrowser://chrome'); } catch { return false; } }) || app.ctx.pages()[0]; } catch { return null; } })();
+      if (!page) throw new Error('no page for screenshot');
+      await page.screenshot({ path: file, type: 'png' });
+    },
+    // Send a real accelerator keystroke into the Electron window via CDP (replaces xdotool).
+    // Combos like 'Control+Shift+N', 'Control+T', 'Control+equal'. Focuses the chrome UI first.
+    async key(...combos) {
+      const ch = await app.chrome();
+      await ch.bringToFront().catch(() => {});
+      try { await ch.locator('body').focus(); } catch {}
+      for (const raw of combos) {
+        let c = String(raw);
+        // normalise aliases used by the audit suite (xdotool-style) to Playwright's Control/Meta/Alt/Shift+key
+        c = c.replace(/cmdorctrl/ig, process.platform === 'darwin' ? 'Meta' : 'Control');
+        c = c.replace(/\bctrl\b/ig, 'Control').replace(/\bcmd\b/ig, 'Meta').replace(/\bcommand\b/ig, 'Meta');
+        c = c.replace(/\balt\b/ig, 'Alt').replace(/\boption\b/ig, 'Alt').replace(/\bshift\b/ig, 'Shift');
+        c = c.replace(/bracketleft/ig, '[').replace(/bracketright/ig, ']');
+        c = c.replace(/\bequal\b/ig, '=').replace(/\bminus\b/ig, '-').replace(/\bcomma\b/ig, ',');
+        // Playwright wants e.g. Control+Shift+KeyN or Control+KeyT for letters; keep simple form which works for accelerators
+        const bits = c.split('+').map(x => x.trim()).filter(Boolean);
+        const mods = new Set(['Control', 'Meta', 'Alt', 'Shift']);
+        const out = bits.map(b => {
+          if (mods.has(b)) return b;
+          if (/^[a-z]$/i.test(b)) return b.toLowerCase(); // Playwright accepts 't' with Control+t
+          return b;
+        });
+        await ch.keyboard.press(out.join('+'));
+        await sleep(80);
+      }
     },
     async close() {
       try { await browser.close(); } catch {}

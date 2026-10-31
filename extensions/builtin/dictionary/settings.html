@@ -1,25 +1,40 @@
 <!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="aibrowser://static/shared.css">
-<style>html,body{width:100%;height:auto;overflow:auto;background:transparent}.row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:.5px solid var(--separator-light)}
-.row .nm{flex:1;min-width:0}.row .nm b{font-weight:500}.row .nm small{display:block;color:var(--text-tertiary);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.list{border:.5px solid var(--separator);border-radius:8px;margin:10px 0}.tg{width:36px;height:22px;border-radius:11px;background:#3f3f46;position:relative;cursor:pointer}.tg.on{background:var(--success)}
-.tg::after{content:"";position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:2px;left:2px}.tg.on::after{left:auto;right:2px}
-button.s{padding:3px 9px;border-radius:6px;background:var(--bg-input);border:.5px solid var(--separator);color:var(--text-primary);cursor:pointer}</style></head>
-<body style="padding:0"><div id="hint" style="color:var(--text-secondary);font-size:12px"></div>
-<div id="list" class="list"></div><button class="btn-primary" id="add" style="cursor:pointer"></button><div id="msg" style="margin-top:8px;font-size:12px;color:var(--text-secondary)"></div>
+<meta name="color-scheme" content="dark"><style>
+html{color-scheme:dark;background:#141b1d;color:#f7f7f9}html,body{width:100%;height:auto;overflow:auto;background:#141b1d;color:#f7f7f9;font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif}
+.list{background:#141b1d;border:1px solid rgba(255,255,255,.22);border-radius:10px;margin:10px 0;overflow:hidden}
+.row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.14);color:#f7f7f9}.row:last-child{border-bottom:0}
+.row .nm{flex:1;min-width:0}.row .nm b{display:block;font-weight:700;font-size:14px;color:#f7f7f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .nm small{display:block;color:#d0d3d9;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tg{flex:none;width:40px;height:24px;border-radius:12px;background:#5b6068;position:relative;cursor:pointer;transition:background-color .15s}.tg.on{background:#2fae84}
+.tg::after{content:"";position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left .15s,right .15s}.tg.on::after{left:auto;right:2px}
+button.s{flex:none;width:30px;height:28px;border-radius:6px;background:#2a3336;border:1px solid rgba(255,255,255,.3);color:#f7f7f9;font-weight:700;font-size:14px;cursor:pointer}
+button.s:hover{background:#3a4549}button.s.rm{color:#ff9a9a;border-color:rgba(255,120,120,.55)}
+#prog{display:none;margin:8px 0;font-size:13px;font-weight:600;color:#f7f7f9}#prog .bar{height:8px;border-radius:4px;background:#2a3336;overflow:hidden;margin-top:4px}#prog .bar i{display:block;height:100%;width:0;background:#2fae84;transition:width .2s}
+.row.missing .nm small.warn{color:#ffb4b4}.row .conf{display:flex;gap:6px;align-items:center;font-weight:700;font-size:13px;color:#ffd0d0}.row .conf button{width:auto;padding:0 10px}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:1px 6px;border-radius:999px;background:#24413a;color:#b9f3dc;margin-left:6px}
+#hint{color:#d0d3d9;font-size:13px;font-weight:600;line-height:1.5}</style></head>
+<body style="padding:0"><div id="hint"></div>
+<div id="list" class="list"></div><button class="btn-primary" id="add" style="cursor:pointer"></button><div id="prog"><span id="progt"></span><div class="bar"><i></i></div></div><div id="msg" style="margin-top:8px;font-size:13px;font-weight:600;color:#d0d3d9"></div>
 <script src="aibext://aib.dictionary/__sdk.js"></script>
 <script>
 const S={zh:{hint:'导入 .mdx（同目录下同名 .mdd 自动加载）。可启用/停用与排序；顺序即查词标签页顺序。',add:'添加词典 (.mdx)…',empty:'尚未添加词典。',err:'添加失败：',ok:'已添加：'},
 en:{hint:'Import .mdx files (a same-named .mdd in the folder is loaded automatically). Order = tab order.',add:'Add dictionary (.mdx)…',empty:'No dictionaries yet.',err:'Failed: ',ok:'Added: '}};
 let L='zh';const $=id=>document.getElementById(id);
-async function render(){const l=await aibExt.call('list');const el=$('list');el.innerHTML='';if(!l.length){el.innerHTML='<div class="row" style="color:var(--text-tertiary)">'+S[L].empty+'</div>';}
-l.forEach((d,i)=>{const r=document.createElement('div');r.className='row';r.dataset.id=d.id;
-r.innerHTML='<div class="nm"><b></b><small></small></div><button class="s up">↑</button><button class="s dn">↓</button><div class="tg"></div><button class="s rm">✕</button>';
-r.querySelector('b').textContent=d.name;r.querySelector('small').textContent=d.mdx+(d.mdd&&d.mdd.length?'  + '+d.mdd.length+' mdd':'');
+const SZ=function(b){return b>=1073741824?(b/1073741824).toFixed(2)+' GB':b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB'};
+const T2={zh:{copied:'已复制到应用数据',ref:'引用原路径',missing:'源文件缺失',del:'删除',confirm:'删除词典及其复制的文件？',yes:'确认删除',no:'取消',copying:'正在复制词典… ',size:'占用 '},en:{copied:'copied to app data',ref:'linked to original path',missing:'source missing',del:'Delete',confirm:'Delete this dictionary and its copied files?',yes:'Delete',no:'Cancel',copying:'Copying dictionary… ',size:'Size '}};
+async function render(){const l=await aibExt.call('list');const el=$('list');el.innerHTML='';if(!l.length){el.innerHTML='<div class="row" style="color:#d0d3d9;font-weight:600">'+S[L].empty+'</div>';}
+l.forEach((d,i)=>{const r=document.createElement('div');r.className='row'+(d.missing?' missing':'');r.dataset.id=d.id;
+r.innerHTML='<div class="nm"><b></b><small class="path"></small><small class="info"></small></div><button class="s up" title="↑">↑</button><button class="s dn" title="↓">↓</button><div class="tg" role="switch"></div><button class="s rm" title="✕">✕</button>';
+r.querySelector('b').textContent=r.querySelector('b').title=d.name;
+const sm=r.querySelector('.path');sm.textContent=sm.title=d.mdx+(d.mdd&&d.mdd.length?'  + '+d.mdd.length+' mdd':'');
+const inf=r.querySelector('.info');inf.textContent=(d.missing?T2[L].missing+(d.missingReason?': '+d.missingReason:''):(T2[L].size+SZ(d.bytes||0)+' · '+(d.copied?T2[L].copied:T2[L].ref)));if(d.missing)inf.classList.add('warn');inf.title=inf.textContent;
 const tg=r.querySelector('.tg');if(d.enabled!==false)tg.classList.add('on');
 tg.onclick=async()=>{await aibExt.call('setEnabled',{id:d.id,enabled:d.enabled===false});render()};
 r.querySelector('.up').onclick=async()=>{await aibExt.call('move',{id:d.id,delta:-1});render()};
 r.querySelector('.dn').onclick=async()=>{await aibExt.call('move',{id:d.id,delta:1});render()};
-r.querySelector('.rm').onclick=async()=>{await aibExt.call('remove',{id:d.id});render()};el.appendChild(r)})}
+r.querySelector('.rm').onclick=function(){const c=document.createElement('div');c.className='conf';c.innerHTML='<span></span><button class="s yes"></button><button class="s no"></button>';c.querySelector('span').textContent=T2[L].confirm;c.querySelector('.yes').textContent=T2[L].yes;c.querySelector('.no').textContent=T2[L].no;
+c.querySelector('.yes').onclick=async()=>{await aibExt.call('remove',{id:d.id});render()};c.querySelector('.no').onclick=render;r.querySelectorAll('.up,.dn,.tg,.rm').forEach(function(x){x.style.display='none'});r.appendChild(c)};
+el.appendChild(r)})}
 aibExt.ready.then(info=>{L=info.lang==='en'?'en':'zh';$('hint').textContent=S[L].hint;$('add').textContent=S[L].add;render()});
-$('add').onclick=async()=>{try{const r=await aibExt.call('pickAndAdd');$('msg').textContent=r&&r.added&&r.added.length?S[L].ok+r.added.join(', '):(r&&r.errors&&r.errors.length?S[L].err+r.errors.join('; '):'');render()}catch(e){$('msg').textContent=S[L].err+e.message}};
+$('add').onclick=async()=>{let poll;try{$('prog').style.display='block';poll=setInterval(async function(){try{const p=await aibExt.call('progress');if(p&&p.active){$('progt').textContent=T2[L].copying+SZ(p.got||0)+' / '+SZ(p.total||0)+' ('+(p.done||0)+'/'+(p.files||0)+')';$('prog').querySelector('i').style.width=Math.round((p.got||0)/Math.max(1,p.total||1)*100)+'%'}}catch(e){}},200);const r=await aibExt.call('pickAndAdd');clearInterval(poll);$('prog').style.display='none';$('msg').textContent=r&&r.added&&r.added.length?S[L].ok+r.added.join(', '):(r&&r.errors&&r.errors.length?S[L].err+r.errors.join('; '):'');render()}catch(e){clearInterval(poll);$('prog').style.display='none';$('msg').textContent=S[L].err+e.message}};
 </script></body></html>

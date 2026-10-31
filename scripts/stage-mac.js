@@ -21,6 +21,9 @@ function stage() {
   delete pkg.devDependencies; delete pkg.scripts;
   fs.writeFileSync(path.join(STAGE, 'package.json'), JSON.stringify(pkg, null, 2));
   copy('src'); copy('extensions'); copy('docs');
+  // bundled GGUF models (EmbeddingGemma for the knowledge base, HY-MT1.5 for translation); symlinks are dereferenced
+  const md = path.join(ROOT, 'models');
+  if (fs.existsSync(md)) { fs.mkdirSync(path.join(STAGE, 'models'), { recursive: true }); for (const f of fs.readdirSync(md)) if (/\.gguf$/.test(f)) fs.copyFileSync(fs.realpathSync(path.join(md, f)), path.join(STAGE, 'models', f)); }
   // resolve with the same lockfile (ignoring devDependencies), but for darwin/arm64
   fs.copyFileSync(path.join(ROOT, 'package-lock.json'), path.join(STAGE, 'package-lock.json'));
   const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';

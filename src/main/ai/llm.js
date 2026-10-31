@@ -111,8 +111,9 @@ async function httpError(res) {
 }
 
 // ---------- OpenAI-compatible
-async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, signal, maxTokens }) {
+async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, signal, maxTokens, jsonSchema }) {
   const body = { model: cfg.model, messages, stream: true, temperature: temperature ?? cfg.temperature };
+  if (jsonSchema && cfg._structured !== false) body.response_format = { type: 'json_schema', json_schema: { name: 'action', schema: jsonSchema } };
   if (maxTokens) body.max_tokens = maxTokens;
   if (tools && tools.length) { body.tools = tools.map(t => ({ type: 'function', function: t })); body.tool_choice = 'auto'; }
   const headers = { 'Content-Type': 'application/json' };
@@ -204,11 +205,57 @@ function currentConfig() {
  * chat({messages, tools?, temperature?, onDelta?, signal?})
  * -> {content, toolCalls:[{id,name,arguments}]}
  */
+const { EventEmitter } = require('events');
+const events = new EventEmitter(); // 'notice' (text) — e.g. MLX failed, falling back to llama.cpp
+
+// role -> target. roles: chat | dictionary | translate | embedding. 'fw:<id>:<model>' | 'mlx:<modelId>' | 'llama:<modelId>' | ''
+function roleOf(c, role) { const r = (c.local && c.local.roles) || {}; return (role && role !== 'chat' && r[role]) || r.chat || ''; }
+function hasRole(role) { try { return !!((store.getSettings().ai.local.roles || {})[role]); } catch { return false; } }
+
+async function chatLocalRouted(c, opts) {
+  const target = roleOf(c, opts.role);
+  const L = (zh, en) => (store.getSettings().lang === 'en' ? en : zh);
+  const fwT = require('./frameworks').parseRole(target);
+  if (fwT) {
+    const api = require('./frameworks').resolve(fwT.fw, fwT.model);
+    const fwKey = (require('./frameworks').targets().find(x => x.id === fwT.fw) || {}).apiKey || '';
+    try { return await chatOpenAI(api, fwKey, opts); }
+    catch (e) {
+      // servers without native tools / structured output: retry once without them (agent falls back to its JSON action loop)
+      const msg = String(e && e.message);
+      if ((opts.jsonSchema) && /response_format|json_schema|grammar|schema|400/i.test(msg)) return chatOpenAI({ ...api, _structured: false }, fwKey, opts);
+      if (opts.signal && opts.signal.aborted) throw e;
+      if (opts.tools && opts.tools.length && /tool|function/i.test(msg)) { const err = new Error('TOOLS_UNSUPPORTED'); err.code = 'TOOLS_UNSUPPORTED'; throw err; }
+      throw friendly(e, fwKey, api.baseUrl);
+    }
+  }
+  const mm = String(target).match(/^mlx:(.+)$/);
+  if (mm) {
+    const loc = getLocal(); const entry = loc.findEntry(mm[1]);
+    try {
+      if (!entry || !loc.haveEntry(entry)) throw new Error(L('MLX 模型尚未下载', 'MLX model is not downloaded yet'));
+      const mlx = require('./mlx');
+      const srv = await mlx.acquire(loc.modelPathOf(entry), { key: opts.role === 'translate' ? 'translate' : 'chat', idleMs: opts.role === 'translate' ? 150000 : 600000 });
+      try { return await chatOpenAI({ baseUrl: srv.baseUrl, model: loc.modelPathOf(entry), temperature: 0.3 }, '', opts); } finally { srv.release(); }
+    } catch (e) {
+      if (opts.signal && opts.signal.aborted) throw e;
+      // graceful fallback: a downloaded GGUF of the same family (or the legacy selected GGUF)
+      const all = loc.listModels(c.local);
+      const fb = (entry && all.find(x => x.engine === 'llama' && x.downloaded && x.family === entry.family && !(x.tags || []).includes('translate') && !(x.tags || []).includes('embedding'))) || all.find(x => x.path === c.local.modelPath && x.downloaded);
+      const fbPath = fb ? fb.path : (c.local.modelPath && require('fs').existsSync(c.local.modelPath) ? c.local.modelPath : '');
+      if (!fbPath) throw Object.assign(new Error(L('MLX 引擎不可用：', 'MLX engine unavailable: ') + e.message), { code: 'NO_LOCAL_MODEL' });
+      events.emit('notice', L(`MLX 无法启动（${e.message}），已改用 llama.cpp`, `MLX could not start (${e.message}); using llama.cpp instead`));
+      return loc.chat({ ...c.local, modelPath: fbPath }, opts);
+    }
+  }
+  const lm = String(target).match(/^llama:(.+)$/);
+  if (lm) { const loc = getLocal(); const entry = loc.findEntry(lm[1]); if (entry) return loc.chat({ ...c.local, modelPath: loc.modelPathOf(entry), modelId: entry.id }, opts); }
+  return getLocal().chat(opts._localOverride || c.local, opts);
+}
+
 async function chat(opts) {
   const c = currentConfig();
-  if (c.source === 'local') {
-    return getLocal().chat(opts._localOverride || c.local, opts);
-  }
+  if (c.source === 'local') return chatLocalRouted(c, opts);
   if (!c.api.baseUrl || !c.api.model) throw Object.assign(new Error('API 未配置：请在 设置 → AI 模型 中填写 Base URL 与模型'), { code: 'NO_CONFIG' });
   const key = store.getApiKey();
   const fn = c.api.format === 'anthropic' ? chatAnthropic : chatOpenAI;
@@ -314,4 +361,4 @@ async function testConnection(override) {
   }
 }
 
-module.exports = { chat, complete, completeJson, extractJson, testConnection, fetchModels, friendly, maskSecrets, PRESETS };
+module.exports = { chat, complete, completeJson, events, hasRole, roleOf, extractJson, testConnection, fetchModels, friendly, maskSecrets, PRESETS };

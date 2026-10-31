@@ -11,6 +11,7 @@ const store = require('../store');
 const P = require('./prompts');
 const ipa = require('./ipa');
 const agent = require('./agent');
+const translator = require('./translate');
 
 const sessions = new Map();
 
@@ -55,6 +56,11 @@ function cancelForWebContents(wcId) { for (const s of sessions.values()) if (s.w
 function get(sid) { return sessions.get(sid); }
 
 async function run(s) {
+  const onNotice = (text) => emit(s, { type: 'notice', text });
+  llm.events.on('notice', onNotice);
+  try { await run0(s); } finally { llm.events.off('notice', onNotice); }
+}
+async function run0(s) {
   const ctx = { wcId: s.wcId, sid: s.sid };
   let cl = s.kindOverride ? { kind: s.kindOverride, word: s.input } : classify(s.input);
   if (cl.kind === 'word' && cl.phrase) {
@@ -126,7 +132,7 @@ function sanitizeEntry(word, raw) {
 
 async function aiEntry(word, signal) {
   const sys = P.wordEntry({ local: isLocal() });
-  let j = await llm.completeJson([{ role: 'system', content: sys }, { role: 'user', content: word }], { signal });
+  let j = await llm.completeJson([{ role: 'system', content: sys }, { role: 'user', content: word }], { signal, role: 'dictionary' });
   let e = sanitizeEntry(word, j);
   if (!e._meta.ok) {
     // One correction retry: tell the model what went wrong, demand real glosses
@@ -136,7 +142,7 @@ async function aiEntry(word, signal) {
         { role: 'user', content: word },
         { role: 'assistant', content: JSON.stringify(j) },
         { role: 'user', content: 'Your JSON used placeholder text (e.g. 中文释义) or invented senses, or had no valid definitions. Reply again with ONLY corrected JSON for "' + word + '": real Chinese glosses, real English definitions, only attested parts of speech. Leave ipa_uk/ipa_us as "".' }
-      ], { signal, maxTokens: 1200 });
+      ], { signal, maxTokens: 1200, role: 'dictionary' });
       e = sanitizeEntry(word, j);
     } catch (err) { if (signal && signal.aborted) throw err; }
   }
@@ -157,8 +163,17 @@ async function runWord(s, word, ctx) {
 }
 
 // ---------- sentence
+const useHunyuan = () => (store.getSettings().translate || {}).engine !== 'chat';
+function progressStatus(s) {
+  const zh = store.getSettings().lang !== 'en';
+  return (p) => emit(s, { type: 'status', text: (zh ? '下载翻译模型 ' : 'Downloading translation model ') + (p.total ? Math.round(p.got / p.total * 100) + '%' : '') });
+}
 async function runSentence(s) {
+  // HY-MT (bundled, lazy-loaded) produces the translation; the chat model only does the grammar analysis.
+  const tp = useHunyuan() ? translator.translate(s.input, { signal: s.ac.signal, onProgress: progressStatus(s) }).then(r => r.text).catch(() => null) : Promise.resolve(null);
   const j = await llm.completeJson([{ role: 'system', content: P.sentence({ local: isLocal() }) }, { role: 'user', content: s.input }], { signal: s.ac.signal });
+  const tr = await tp;
+  if (tr && j && typeof j === 'object') { j.translation_llm = j.translation; j.translation = tr; j.translation_model = 'HY-MT1.5'; }
   emit(s, { type: 'sentence', data: j });
 }
 
@@ -166,6 +181,13 @@ async function runSentence(s) {
 async function runArticle(s, target) {
   const paras = s.input.split(/\n\s*\n|\n/).map(x => x.trim()).filter(Boolean);
   emit(s, { type: 'article-src', paragraphs: paras, target });
+  if (useHunyuan()) {
+    try {
+      emit(s, { type: 'status', text: store.getSettings().lang !== 'en' ? '加载混元翻译模型…' : 'Loading Hunyuan translation model…' });
+      await translator.translate(paras.join('\n\n'), { target, signal: s.ac.signal, onProgress: progressStatus(s), onDelta: t => emit(s, { type: 'translation-delta', text: t }) });
+      return;
+    } catch (e) { if (s.ac.signal.aborted) throw e; console.error('hunyuan translate failed, falling back to chat model:', e && e.message); emit(s, { type: 'answer-reset' }); }
+  }
   let overrideLocal = null, hint = '';
   if (isLocal()) {
     const L = store.getSettings().ai.local;

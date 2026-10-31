@@ -68,7 +68,9 @@ function createLlmServer({ key = 'test-key' } = {}) {
     const question = /Web sources:/.test(lastUser) ? lastUser.split('Question:').pop() : lastUser;
     const hasToolResult = msgs.some(m => m.role === 'tool' || (Array.isArray(m.content) && m.content.some(c => c.type === 'tool_result')));
     let reply = { text: 'ok' };
-    if (/pong/.test(lastUser) && /single word/.test(lastUser)) reply = { text: 'pong' };
+    const scripted = state.script ? state.script({ msgs, system, lastUser, hasToolResult, tools: (j.tools || []).map(t => t.function ? t.function.name : t.name), toolMsgs: msgs.filter(m => m.role === 'tool') }) : null;
+    if (scripted) reply = scripted;
+    else if (/pong/.test(lastUser) && /single word/.test(lastUser)) reply = { text: 'pong' };
     else if (/web-research agent/.test(system)) {
       // Tool-calling agent: search -> open top pages -> answer; same ggb / echo tools as before
       const tools = (j.tools || []).map(t => t.function ? t.function.name : t.name);

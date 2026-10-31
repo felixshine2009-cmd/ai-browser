@@ -2,7 +2,7 @@
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { app, BrowserWindow, protocol, ipcMain, session, dialog, Menu, shell, webContents, net } = require('electron');
+const { app, BrowserWindow, protocol, ipcMain, session, dialog, Menu, shell, webContents, net, systemPreferences } = require('electron');
 
 if (process.env.AIB_USER_DATA) app.setPath('userData', process.env.AIB_USER_DATA);
 
@@ -27,8 +27,8 @@ const mimeOf = f => MIME[path.extname(f).slice(1).toLowerCase()] || 'application
 const fileResponse = (f) => new Response(fs.readFileSync(f), { headers: { 'Content-Type': mimeOf(f), 'Access-Control-Allow-Origin': '*' } });
 
 // ------------------------------------------------------------ protocols
-function registerProtocols() {
-  protocol.handle('aibrowser', (req) => {
+function registerProtocols(proto = protocol) {
+  proto.handle('aibrowser', (req) => {
     const u = new URL(req.url);
     let f = null;
     if (u.hostname === 'static') {
@@ -39,8 +39,8 @@ function registerProtocols() {
     if (!f) return new Response('Not found', { status: 404 });
     return fileResponse(f);
   });
-  protocol.handle('aibdict', (req) => dict.handleProtocol(req));
-  protocol.handle('aibext', (req) => {
+  proto.handle('aibdict', (req) => dict.handleProtocol(req));
+  proto.handle('aibext', (req) => {
     const u = new URL(req.url);
     const id = u.hostname;
     if (u.pathname === '/__sdk.js') return new Response(SDK_JS(id), { headers: { 'Content-Type': 'application/javascript' } });
@@ -50,6 +50,7 @@ function registerProtocols() {
   });
 }
 const SDK_JS = (id) => `(function(){var EXT=${JSON.stringify(id)},n=0,pend={},rr;
+try{var st=document.createElement('style');st.textContent='html{color-scheme:dark}';(document.head||document.documentElement).appendChild(st)}catch(e){}
 window.aibExt={ext:EXT,ready:new Promise(function(r){rr=r}),call:function(name,args){return new Promise(function(res,rej){var i=++n;pend[i]={res:res,rej:rej};parent.postMessage({aibExtCall:i,ext:EXT,name:name,args:args||{}},'*')})}};
 window.addEventListener('message',function(e){var m=e.data;if(e.source!==parent||!m)return;
  if(m.aibExtReply&&pend[m.aibExtReply]){var p=pend[m.aibExtReply];delete pend[m.aibExtReply];m.error?p.rej(new Error(m.error)):p.res(m.result)}
@@ -73,8 +74,8 @@ function broadcast(channel, payload) {
 
 // ------------------------------------------------------------ downloads
 const dlItems = new Map();
-function setupDownloads() {
-  session.defaultSession.on('will-download', (e, item) => {
+function setupDownloads(ses = session.defaultSession) {
+  ses.on('will-download', (e, item) => {
     const dir = process.env.AIB_DOWNLOAD_DIR || app.getPath('downloads');
     fs.mkdirSync(dir, { recursive: true });
     let name = item.getFilename() || 'download';
@@ -179,8 +180,10 @@ function registerIpc() {
     const t = tabsMod.activeTab();
     switch (name) {
       case 'history': case 'downloads': case 'bookmarks': case 'extensions': case 'settings': tabsMod.closeOverlay('menu'); tabsMod.openInternal(name); break;
+      case 'incognito': tabsMod.closeOverlay('menu'); tabsMod.createIncognitoTab(); break;
       case 'find': tabsMod.closeOverlay('menu'); setTimeout(() => tabsMod.showFind(), 50); break;
-      case 'print': tabsMod.closeOverlay('menu'); if (t) setTimeout(() => t.wc.print(), 50); break;
+      case 'print': tabsMod.closeOverlay('menu'); setTimeout(() => global.__aibPrint.printActive(), 50); break;
+      case 'passwords': tabsMod.closeOverlay('menu'); { const st = tabsMod.openInternal('settings'); if (st) st.wc.loadURL('aibrowser://settings#passwords'); } break;
       case 'devtools': tabsMod.closeOverlay('menu'); if (t) t.wc.openDevTools({ mode: 'detach' }); break;
     }
     return true;
@@ -235,6 +238,7 @@ function registerIpc() {
   });
   // chrome extensions
   handle('cx:list', () => chromeExt.list());
+  handle('cx:installStore', async (e, input) => { try { const r = await chromeExt.installFromStore(input); broadcast('ext:changed'); tabsMod.notify(); return { ok: true, ext: r }; } catch (err) { return { ok: false, error: String(err.message || err) }; } });
   handle('cx:add', async () => {
     const p = pick({ properties: ['openFile', 'openDirectory'], filters: [{ name: 'Chrome extension', extensions: ['crx', 'zip'] }, { name: 'All', extensions: ['*'] }], title: '选择扩展文件夹 / .crx / .zip' });
     if (!p[0]) return null;
@@ -249,12 +253,62 @@ function registerIpc() {
   handle('lm:list', () => local().listModels(store.getSettings().ai.local));
   handle('lm:status', () => local().status(store.getSettings().ai.local));
   handle('lm:download', (e, id) => {
-    local().download(id, store.getSettings().ai.local.hfMirror, (p) => broadcast('lm:progress', p)).then(dest => {
-      if (dest && !store.getSettings().ai.local.modelPath) store.patchSettings({ ai: { local: { modelPath: dest, modelId: id } } });
+    local().download(id, (p) => broadcast('lm:progress', p)).then(dest => {
+      const ent = local().findEntry(id);
+      if (dest && ent && ent.engine !== 'mlx' && !ent.tags.includes('translate') && !ent.tags.includes('embedding') && !store.getSettings().ai.local.modelPath) store.patchSettings({ ai: { local: { modelPath: dest, modelId: id } } });
       broadcast('lm:progress', { id, done: true }); broadcast('settings:changed', store.publicSettings());
-    }).catch(err => broadcast('lm:progress', { id, error: String(err.message || err) }));
+    }).catch(err => broadcast('lm:progress', err && err.cancelled ? { id, cancelled: true } : { id, error: String(err.message || err), tried: err && err.tried }));
     return true;
   });
+
+  // ---- knowledge base (EmbeddingGemma by default) + translate status
+  const kbM = () => require('./ai/kb');
+  const htmlToText = (h) => String(h).replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ').replace(/<\/(p|div|li|h\d|tr|br)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n\n').trim();
+  const kbProg = (p) => broadcast('kb:progress', p);
+  const kbErr = (err) => ({ ok: false, error: String(err && err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') });
+  handle('kb:list', () => kbM().list());
+  handle('kb:status', () => ({ ...kbM().status(), ...kbM().list() }));
+  handle('kb:addText', async (e, title, text) => { try { const d = await kbM().addText(String(title || '').slice(0, 200), String(text || ''), { source: 'text' }, kbProg); return { ok: true, doc: d, ...kbM().list() }; } catch (err) { return kbErr(err); } });
+  handle('kb:addFiles', async () => {
+    const files = pick({ properties: ['openFile', 'multiSelections'], filters: [{ name: 'Text / Markdown / HTML / CSV / JSON', extensions: ['txt', 'md', 'markdown', 'html', 'htm', 'csv', 'json', 'log', 'js', 'py', 'java', 'c', 'cpp', 'ts', 'yml', 'yaml', 'xml', 'tex'] }] });
+    const res = [];
+    for (const f of files) {
+      try { let txt = fs.readFileSync(f, 'utf8'); if (/\.html?$/i.test(f)) txt = htmlToText(txt); const d = await kbM().addText(path.basename(f), txt, { source: 'file', path: f }, kbProg); res.push({ file: f, ok: true, chunks: d && d.chunks }); }
+      catch (err) { res.push({ file: f, ...kbErr(err) }); }
+    }
+    return { ok: true, results: res, ...kbM().list() };
+  });
+  handle('kb:addUrl', async (e, url) => {
+    try {
+      const r = await fetch(String(url), { signal: AbortSignal.timeout(20000), headers: { 'User-Agent': 'Mozilla/5.0 AI-Browser' } }); if (!r.ok) throw new Error('HTTP ' + r.status);
+      const html = await r.text(); const m = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      const d = await kbM().addText((m ? htmlToText(m[1]) : '') || String(url), htmlToText(html), { source: 'url', url: String(url) }, kbProg); return { ok: true, doc: d, ...kbM().list() };
+    } catch (err) { return kbErr(err); }
+  });
+  handle('kb:search', async (e, q, k) => { try { return { ok: true, hits: await kbM().search(String(q || ''), Number(k) || 5) }; } catch (err) { return kbErr(err); } });
+  handle('kb:remove', (e, id) => kbM().remove(String(id)));
+  handle('kb:clear', () => kbM().clear());
+  handle('kb:reindex', async () => { try { await kbM().reindex(kbProg); return { ok: true, ...kbM().list() }; } catch (err) { return kbErr(err); } });
+  handle('translate:status', () => require('./ai/translate').status());
+  handle('translate:run', async (e, text, opts) => { try { const r = await require('./ai/translate').translate(String(text || ''), opts || {}); return { ok: true, text: typeof r === 'string' ? r : (r && r.text) || '' }; } catch (err) { return kbErr(err); } });
+  // ---- model hub (Hugging Face via hf-mirror / official / custom, auto-fallback), local frameworks, MLX, roles
+  const hubM = () => require('./ai/hub'), fwM = () => require('./ai/frameworks'), mlxM = () => require('./ai/mlx');
+  handle('hub:search', async (e, q, kind) => { try { return { ok: true, ...(await hubM().search(q, kind === 'mlx' ? 'mlx' : 'gguf')) }; } catch (err) { return { ok: false, error: String(err.message || err), tried: err.tried }; } });
+  handle('hub:files', async (e, repo) => { try { return { ok: true, ...(await hubM().repoFiles(String(repo))) }; } catch (err) { return { ok: false, error: String(err.message || err), tried: err.tried }; } });
+  handle('hub:probe', () => hubM().probe());
+  handle('hub:addCustom', (e, m) => {
+    const L = store.getSettings().ai.local; const fam = require('./ai/catalog').familyOf(m.repo);
+    const id = m.engine === 'mlx' ? 'hf:' + m.repo : 'hf:' + m.repo + '/' + m.file;
+    const name = m.engine === 'mlx' ? m.repo.split('/').pop() + (m.quant ? ' · ' + m.quant : '') : m.file.replace(/\.gguf$/i, '');
+    const entry = { id, repo: m.repo, file: m.file, engine: m.engine === 'mlx' ? 'mlx' : 'llama', bytes: Number(m.bytes) || 0, sha256: m.sha256 || '', family: fam, name, license: m.license || '', snapshot: m.engine === 'mlx' ? undefined : undefined };
+    const custom = (L.custom || []).filter(x => x.id !== id).concat([entry]);
+    store.patchSettings({ ai: { local: { custom } } }); broadcast('settings:changed', store.publicSettings()); return id;
+  });
+  handle('hub:removeCustom', (e, id) => { local().deleteModel(id); const L = store.getSettings().ai.local; const roles = { ...(L.roles || {}) }; for (const k of Object.keys(roles)) if (roles[k].endsWith(id)) roles[k] = ''; store.patchSettings({ ai: { local: { custom: (L.custom || []).filter(x => x.id !== id), roles } } }); broadcast('settings:changed', store.publicSettings()); broadcast('lm:progress', { id, deleted: true }); });
+  handle('fw:detect', () => fwM().detect());
+  handle('fw:test', (e, cfg) => { cfg = cfg || {}; if (!cfg.apiKey && cfg.id) { const t = fwM().targets().find(x => x.id === cfg.id); if (t) cfg.apiKey = t.apiKey; } return fwM().test(cfg); });
+  handle('mlx:status', () => mlxM().status());
+  handle('mlx:recheck', () => { mlxM().detectRuntime(true); return mlxM().status(); });
   handle('lm:cancel', (e, id) => local().cancelDownload(id));
   handle('lm:delete', (e, id) => { local().deleteModel(id); broadcast('lm:progress', { id, deleted: true }); });
   handle('lm:pick', () => { const p = pick({ properties: ['openFile'], filters: [{ name: 'GGUF', extensions: ['gguf'] }] }); if (!p[0]) return null; store.patchSettings({ ai: { local: { modelPath: p[0], modelId: '' } } }); broadcast('settings:changed', store.publicSettings()); return p[0]; });
@@ -269,6 +323,70 @@ function registerIpc() {
     return true;
   });
   handle('app:info', () => ({ version: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome, platform: process.platform, arch: process.arch, userData: app.getPath('userData') }));
+
+
+  // ---- passwords (renderer pages: aibrowser:// only; web pages only reach pw:creds/fill/submit/answer/ready, all checked by sender URL)
+  const pw = () => require('./passwords');
+  const pwPending = new Map(); // wcId -> {username,password,url,at,kind}
+  const tabOf = (wcId) => tabsMod.allTabs().find(t => t.wc.id === wcId);
+  const isWeb = (e) => /^https?:/i.test(e.sender.getURL());
+  ipcMain.handle('pw:creds', (e) => isWeb(e) ? pw().credentialsFor(e.sender.getURL()) : []);
+  ipcMain.handle('pw:fill', (e, id) => isWeb(e) ? pw().fillCredential(e.sender.getURL(), String(id)) : null);
+  const sendPrompt = (wc, p) => { try { wc.send('pw:prompt', { kind: p.kind, username: p.username, host: new URL(p.url).host, lang: store.getSettings().lang }); } catch {} };
+  ipcMain.on('pw:submit', (e, p) => {
+    try {
+      const t = tabOf(e.sender.id); if (!t || t.incognito || !isWeb(e) || !p || typeof p.password !== 'string') return; // never saved in private tabs
+      // the unloading document's own URL (pagehide fires after the sender already points at the next page)
+      const docUrl = /^https?:\/\//i.test(String(p.url || '')) ? String(p.url) : e.sender.getURL();
+      const d = pw().decide(docUrl, String(p.username || ''), p.password);
+      if (d.action === 'none') return;
+      const rec = { username: String(p.username || ''), password: p.password, url: docUrl, at: Date.now(), kind: d.action, shown: 0 };
+      pwPending.set(e.sender.id, rec); sendPrompt(e.sender, rec);
+      if (process.env.AIB_TEST_PW_LOG) fs.appendFileSync(process.env.AIB_TEST_PW_LOG, JSON.stringify({ kind: rec.kind, username: rec.username, url: rec.url }) + '\n');
+    } catch (err) { console.error('pw:submit', err.message); }
+  });
+  ipcMain.on('pw:ready', (e) => { const r = pwPending.get(e.sender.id); if (r && Date.now() - r.at < 30000 && isWeb(e)) sendPrompt(e.sender, r); else if (r) pwPending.delete(e.sender.id); });
+  ipcMain.on('pw:answer', (e, a) => {
+    const r = pwPending.get(e.sender.id); if (!r) return; pwPending.delete(e.sender.id);
+    try {
+      if (a && a.action === 'save') { pw().upsert({ url: r.url, username: r.username, password: r.password }); broadcast('pw:changed'); }
+      else if (a && a.action === 'never') pw().neverFor(pw().originOf(r.url));
+    } catch (err) { console.error('pw:answer', err.message); }
+  });
+  handle('pw:testAnswer', (e, action) => { if (!process.env.AIB_TEST_PW_LOG) return false; const t = tabsMod.activeTab(); const wc = t && t.wc.id; const r = pwPending.get(wc); if (!r) return false; pwPending.delete(wc); if (action === 'save') { pw().upsert({ url: r.url, username: r.username, password: r.password }); } else if (action === 'never') pw().neverFor(pw().originOf(r.url)); return true; });
+  handle('pw:list', (e, q) => pw().list(q));
+  handle('pw:reveal', (e, id) => pw().reveal(String(id)));
+  handle('pw:update', (e, id, patch) => { const r = pw().update(String(id), patch || {}); broadcast('pw:changed'); return r; });
+  handle('pw:add', (e, it) => { const r = pw().upsert(it || {}); broadcast('pw:changed'); return r; });
+  handle('pw:remove', (e, id) => { pw().remove(String(id)); broadcast('pw:changed'); return true; });
+  handle('pw:clear', () => { pw().clearAll(); broadcast('pw:changed'); return true; });
+  handle('pw:never', (e, op, origin) => { if (op === 'remove') pw().removeNever(origin); return pw().neverList(); });
+  handle('pw:import', () => { const p = pick({ properties: ['openFile'], filters: [{ name: 'CSV', extensions: ['csv'] }], title: 'CSV' }); if (!p[0]) return null; const r = pw().importCsv(fs.readFileSync(p[0], 'utf8')); broadcast('pw:changed'); return r; });
+  handle('pw:export', async () => {
+    const csv = await pw().exportCsv();
+    const tf = process.env.AIB_TEST_SAVE_PATH; let dest = tf;
+    if (!dest) { const r = await dialog.showSaveDialog(tabsMod.getWin() || undefined, { defaultPath: 'passwords.csv', filters: [{ name: 'CSV', extensions: ['csv'] }] }); if (r.canceled) return null; dest = r.filePath; }
+    fs.writeFileSync(dest, csv, { mode: 0o600 }); return { path: dest };
+  });
+  handle('pw:lock', () => { pw().lock(); return true; });
+  handle('pw:info', () => ({ touchId: process.platform === 'darwin' && systemPreferences.canPromptTouchID && systemPreferences.canPromptTouchID(), cfg: pw().cfg() }));
+
+  // ---- print / save as PDF (the AI may open the print dialog; it can never read passwords)
+  const printActive = (id) => {
+    const t = id ? tabsMod.getTab(id) : tabsMod.activeTab(); if (!t) return false;
+    if (process.env.AIB_TEST_PRINT_LOG) { fs.appendFileSync(process.env.AIB_TEST_PRINT_LOG, 'print ' + t.wc.getURL() + '\n'); return true; }
+    t.wc.print({ silent: false, printBackground: true }); return true;
+  };
+  const savePdf = async (id) => {
+    const t = id ? tabsMod.getTab(id) : tabsMod.activeTab(); if (!t) throw new Error('no tab');
+    const data = await t.wc.printToPDF({ printBackground: true, preferCSSPageSize: true });
+    let dest = process.env.AIB_TEST_SAVE_PATH;
+    if (!dest) { const r = await dialog.showSaveDialog(tabsMod.getWin() || undefined, { defaultPath: (t.title || 'page').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80) + '.pdf', filters: [{ name: 'PDF', extensions: ['pdf'] }] }); if (r.canceled) return { cancelled: true }; dest = r.filePath; }
+    fs.writeFileSync(dest, data); return { path: dest, bytes: data.length };
+  };
+  global.__aibPrint = { printActive, savePdf };
+  handle('page:print', (e, id) => printActive(id));
+  handle('page:savePdf', (e, id) => savePdf(id));
 
   // selection lookup from web pages (preload content script)
   ipcMain.on('sel:lookup', (e, p) => {
@@ -288,16 +406,18 @@ function registerHostServices() {
   features.registerHost('dictionary', {
     lookup: (w) => dict.lookup(String(w)),
     suggest: (p, n) => dict.suggest(String(p), n || 12),
-    list: () => dict.list(),
+    list: () => dict.listWithInfo(),
     remove: (id) => { dict.remove(id); return true; },
     setEnabled: (id, v) => { dict.setEnabled(id, v); return true; },
     move: (id, d) => { dict.move(id, d); return true; },
-    pickAndAdd: () => {
+    pickAndAdd: async () => {
       const files = pick({ properties: ['openFile', 'multiSelections'], filters: [{ name: 'MDict', extensions: ['mdx'] }], title: '选择 .mdx 词典' });
       const added = [], errors = [];
-      for (const f of files) { try { const r = dict.add(f); if (!r.dup) added.push(r.name); } catch (e) { errors.push(path.basename(f) + ': ' + e.message); } }
-      return { added, errors };
-    }
+      for (const f of files) { try { const r = await dict.importDict(f, { onProgress: (p) => broadcast('dict:progress', p) }); if (!r.dup) added.push(r.name); } catch (e) { errors.push(path.basename(f) + ': ' + e.message); } }
+      broadcast('dict:progress', { active: false }); return { added, errors };
+    },
+    progress: () => dict.getProgress(),
+    listInfo: () => dict.listWithInfo()
   });
   features.setHooks({
     openTab: (u) => tabsMod.createTab(u),
@@ -306,29 +426,66 @@ function registerHostServices() {
   });
 }
 
+// Every accelerator goes through ACTIONS. Menu items and the in-app key handler (before-input-event) call fire(); a short
+// de-dupe window stops a key press from running twice when both paths see it (macOS menu key-equivalents vs. injected keys).
+const ACTIONS = {
+  newtab: () => tabsMod.createTab(),
+  incognito: () => tabsMod.createIncognitoTab(),
+  closetab: () => { const t = tabsMod.activeTab(); if (t) tabsMod.closeTab(t.id); },
+  addr: () => { const w = tabsMod.getWin(); if (w) w.webContents.send('addr:focus'); },
+  print: () => global.__aibPrint.printActive(),
+  pdf: () => global.__aibPrint.savePdf().catch(() => {}),
+  reload: () => { const t = tabsMod.activeTab(); if (t) t.wc.reload(); },
+  back: () => { const t = tabsMod.activeTab(); if (t) t.wc.navigationHistory.goBack(); },
+  forward: () => { const t = tabsMod.activeTab(); if (t) t.wc.navigationHistory.goForward(); },
+  zoomin: () => tabsMod.zoom('in'), zoomout: () => tabsMod.zoom('out'), zoomreset: () => tabsMod.zoom('reset'),
+  devtools: () => { const t = tabsMod.activeTab(); if (t) t.wc.openDevTools({ mode: 'detach' }); },
+  history: () => tabsMod.openInternal('history'), downloads: () => tabsMod.openInternal('downloads'), bookmarks: () => tabsMod.openInternal('bookmarks'),
+  settings: () => tabsMod.openInternal('settings'), find: () => tabsMod.showFind()
+};
+const lastFire = {};
+function fire(name, src = 'menu') { const n = Date.now(); const l = lastFire[name]; if (l && l.src !== src && n - l.t < 200) return; lastFire[name] = { t: n, src }; try { ACTIONS[name](); } catch (e) { console.error('shortcut', name, e.message); } }
+// key table: [code, shift, alt] -> action (primary modifier = Cmd on macOS, Ctrl elsewhere)
+const KEYS = { KeyT: ['newtab'], KeyN: ['', 'incognito'], KeyW: ['closetab'], KeyL: ['addr'], KeyP: ['print', 'pdf'], KeyR: ['reload'], BracketLeft: ['back'], BracketRight: ['forward'],
+  Equal: ['zoomin'], NumpadAdd: ['zoomin'], Minus: ['zoomout'], NumpadSubtract: ['zoomout'], Digit0: ['zoomreset'], KeyY: ['history'], KeyJ: ['', 'downloads'], KeyO: ['', 'bookmarks'], Comma: ['settings'], KeyF: ['find'], KeyI: ['', '', 'devtools'] };
+function handleKey(input) {
+  if (input.type !== 'keyDown') return false;
+  const primary = process.platform === 'darwin' ? input.meta : input.control; if (!primary) return false;
+  const e = KEYS[input.code]; if (!e) return false;
+  const name = input.alt ? e[2] : input.shift ? e[1] : e[0];
+  if (input.alt && input.code !== 'KeyI') return false;
+  if (!name) return false;
+  fire(name, 'key'); return true;
+}
+tabsMod.hooks.shortcut = handleKey;
+// Synthetic (CDP/test) key events skip before-input-event; the chrome page forwards its own keydowns here.
+handle('kbd:key', (e, k) => handleKey({ type: 'keyDown', code: String(k.code || ''), control: !!k.ctrl, meta: !!k.meta, shift: !!k.shift, alt: !!k.alt }));
+
 function buildMenu() {
-  const act = (fn) => () => { const t = tabsMod.activeTab(); fn(t); };
+  const f = (n) => () => fire(n);
   const tpl = [
-    { label: app.name, submenu: [{ role: 'about' }, { type: 'separator' }, { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => tabsMod.openInternal('settings') }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
+    { label: app.name, submenu: [{ role: 'about' }, { type: 'separator' }, { label: '设置…', accelerator: 'CmdOrCtrl+,', click: f('settings') }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
     { label: '文件', submenu: [
-      { label: '新建标签页', accelerator: 'CmdOrCtrl+T', click: () => tabsMod.createTab() },
-      { label: '关闭标签页', accelerator: 'CmdOrCtrl+W', click: () => { const t = tabsMod.activeTab(); if (t) tabsMod.closeTab(t.id); } },
-      { label: '打开地址栏', accelerator: 'CmdOrCtrl+L', click: () => { const w = tabsMod.getWin(); if (w) w.webContents.send('addr:focus'); } },
-      { label: '打印…', accelerator: 'CmdOrCtrl+P', click: act(t => t && t.wc.print()) }] },
-    { label: '编辑', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }, { type: 'separator' }, { label: '在页面上查找', accelerator: 'CmdOrCtrl+F', click: () => tabsMod.showFind() }] },
+      { label: '新建标签页', accelerator: 'CmdOrCtrl+T', click: f('newtab') },
+      { label: '新建隐身标签页', accelerator: 'CmdOrCtrl+Shift+N', click: f('incognito') },
+      { label: '关闭标签页', accelerator: 'CmdOrCtrl+W', click: f('closetab') },
+      { label: '打开地址栏', accelerator: 'CmdOrCtrl+L', click: f('addr') },
+      { label: '打印…', accelerator: 'CmdOrCtrl+P', click: f('print') },
+      { label: '另存为 PDF…', accelerator: 'CmdOrCtrl+Shift+P', click: f('pdf') }] },
+    { label: '编辑', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }, { type: 'separator' }, { label: '在页面上查找', accelerator: 'CmdOrCtrl+F', click: f('find') }] },
     { label: '显示', submenu: [
-      { label: '重新载入', accelerator: 'CmdOrCtrl+R', click: act(t => t && t.wc.reload()) },
-      { label: '后退', accelerator: 'CmdOrCtrl+[', click: act(t => t && t.wc.navigationHistory.goBack()) },
-      { label: '前进', accelerator: 'CmdOrCtrl+]', click: act(t => t && t.wc.navigationHistory.goForward()) },
+      { label: '重新载入', accelerator: 'CmdOrCtrl+R', click: f('reload') },
+      { label: '后退', accelerator: 'CmdOrCtrl+[', click: f('back') },
+      { label: '前进', accelerator: 'CmdOrCtrl+]', click: f('forward') },
       { type: 'separator' },
-      { label: '放大', accelerator: 'CmdOrCtrl+Plus', click: () => tabsMod.zoom('in') },
-      { label: '放大 ', accelerator: 'CmdOrCtrl+=', visible: false, click: () => tabsMod.zoom('in') },
-      { label: '缩小', accelerator: 'CmdOrCtrl+-', click: () => tabsMod.zoom('out') },
-      { label: '实际大小', accelerator: 'CmdOrCtrl+0', click: () => tabsMod.zoom('reset') },
+      { label: '放大', accelerator: 'CmdOrCtrl+Plus', click: f('zoomin') },
+      { label: '放大 ', accelerator: 'CmdOrCtrl+=', visible: false, click: f('zoomin') },
+      { label: '缩小', accelerator: 'CmdOrCtrl+-', click: f('zoomout') },
+      { label: '实际大小', accelerator: 'CmdOrCtrl+0', click: f('zoomreset') },
       { type: 'separator' },
-      { label: '开发者工具', accelerator: 'CmdOrCtrl+Alt+I', click: act(t => t && t.wc.openDevTools({ mode: 'detach' })) },
+      { label: '开发者工具', accelerator: 'CmdOrCtrl+Alt+I', click: f('devtools') },
       { role: 'togglefullscreen' }] },
-    { label: '历史', submenu: [{ label: '历史记录', accelerator: 'CmdOrCtrl+Y', click: () => tabsMod.openInternal('history') }, { label: '下载内容', accelerator: 'CmdOrCtrl+Shift+J', click: () => tabsMod.openInternal('downloads') }, { label: '书签', accelerator: 'CmdOrCtrl+Shift+O', click: () => tabsMod.openInternal('bookmarks') }] },
+    { label: '历史', submenu: [{ label: '历史记录', accelerator: 'CmdOrCtrl+Y', click: f('history') }, { label: '下载内容', accelerator: 'CmdOrCtrl+Shift+J', click: f('downloads') }, { label: '书签', accelerator: 'CmdOrCtrl+Shift+O', click: f('bookmarks') }] },
     // NOT role:'windowMenu' — its built-in Close item also owns Cmd/Ctrl+W and would close the whole window instead of the tab
     { label: '窗口', submenu: [{ role: 'minimize' }, { role: 'zoom' }] }
   ];
@@ -342,8 +499,10 @@ if (!gotLock) { app.quit(); } else {
   app.whenReady().then(async () => {
     store.init();
     registerProtocols();
+    tabsMod.hooks.prepareIncognito = (ses) => { registerProtocols(ses.protocol); setupDownloads(ses); };
     registerIpc();
     registerHostServices();
+  dict.migrate().then(r => { if (r.copied.length || r.missing.length) { console.log('dictionary migration:', JSON.stringify(r)); broadcast('ext:changed'); } }).catch(e => console.error('dictionary migration failed', e));
     setupDownloads();
     features.reload();
     buildMenu();

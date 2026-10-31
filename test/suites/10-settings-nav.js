@@ -10,7 +10,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   const app = await launch({ userData: ud });
   const ch = await app.chrome();
   const act = async () => (await app.tabsState()).tabs.find(t => t.active);
-  const SECTIONS = [['ai', 'ai'], ['search', 'search'], ['dict', 'dict'], ['ext', 'extensions'], ['history', 'history'], ['general', 'general'], ['privacy', 'privacy']];
+  const SECTIONS = [['ai', 'ai'], ['search', 'search'], ['dict', 'dict'], ['kb', 'kb'], ['ext', 'extensions'], ['history', 'history'], ['passwords', 'passwords'], ['general', 'general'], ['privacy', 'privacy']];
   const active = (p) => p.locator('.nav-item.active').getAttribute('data-nav');
   const urlHash = async () => (await act()).url.split('#')[1] || '';
   let sp;
@@ -21,7 +21,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
       await until(async () => (await active(sp)) === id, 3000, 'active ' + id);
       await until(async () => (await urlHash()) === hash, 3000, 'hash ' + hash);
       assert((await act()).url.startsWith('aibrowser://settings'), 'still on settings after ' + id + ': ' + (await act()).url);
-      eq(await sp.locator('.settings-nav .nav-item').count(), 7, 'sidebar visible');
+      eq(await sp.locator('.settings-nav .nav-item').count(), 9, 'sidebar visible');
       assert(await sp.locator('.settings-nav').isVisible(), 'sidebar visible');
       if (id === 'ext') await until(async () => (await sp.locator('#pane .ext-card').count()) >= 2, 8000, 'extension cards embedded');
       else if (id === 'history') await until(async () => (await sp.locator('#pane #lq').count()) === 1, 4000, 'history list embedded');

@@ -2,7 +2,7 @@
   await I18N.init();
   const root = document.getElementById('root');
   const items = [
-    ['history', 'menu.history', '⌘Y'], ['downloads', 'menu.downloads', '⇧⌘J'], ['extensions', 'menu.extensions', ''], ['bookmarks', 'menu.bookmarks', '⇧⌘O'],
+    ['incognito', 'menu.incognito', '⇧⌘N'], ['sep'], ['history', 'menu.history', '⌘Y'], ['downloads', 'menu.downloads', '⇧⌘J'], ['extensions', 'menu.extensions', ''], ['passwords', 'menu.passwords', ''], ['bookmarks', 'menu.bookmarks', '⇧⌘O'],
     ['sep'], ['find', 'menu.find', '⌘F'], ['print', 'menu.print', '⌘P'], ['zoom'], ['devtools', 'menu.devtools', '⌥⌘I'], ['sep'], ['settings', 'menu.settings', '⌘,']
   ];
   let zoomPct = 100;

@@ -10,15 +10,19 @@
   function nm(e) { const i = e.i18n && e.i18n[I18N.lang]; return i ? i.name : e.name; }
   function ds(e) { const i = e.i18n && e.i18n[I18N.lang]; return i ? i.description : e.description; }
 
-  async function load() { if (dead || !root.isConnected) return; feats = await window.aib.invoke('ext:list'); chromes = await window.aib.invoke('cx:list'); render(); }
+  async function load() { if (dead || !root.isConnected) return; feats = await window.aib.invoke('ext:list'); chromes = await window.aib.invoke('cx:list'); render(); showCws(); }
 
+  let cwsNote = null; // survives re-render (installing triggers an ext:changed refresh)
+  const showCws = () => { const st = document.getElementById('cwsstat'); if (st && cwsNote) { st.className = 'test-result ' + cwsNote.cls; st.textContent = cwsNote.text; } };
   function render() {
     root.innerHTML = `<div class="ext-page"><h1>${esc(t('ext.pageTitle'))}</h1><div class="sub">${esc(t('ext.pageSub'))}</div>
       <div class="std-note-plain">${esc(t('ext.std.note'))}</div>
       <div class="ext-sec-title"><span>${esc(t('ext.cat.feature'))}</span><span class="meta-quiet">${esc(t('ext.cat.feature.hint'))}</span><button class="btn-ghost-load" id="loadfeat">${esc(t('ext.load'))}</button></div>
       <div class="ext-grid tight" id="feats"></div>
-      <div class="ext-sec-title"><span>${esc(t('ext.cat.normal'))}</span><span class="meta-quiet">${esc(t('ext.cat.normal.hint'))}</span><button class="btn-ghost-load" id="loadchrome">${esc(t('ext.loadChrome'))}</button></div>
+      <div class="ext-sec-title"><span>${esc(t('ext.cat.normal'))}</span><span class="meta-quiet">${esc(t('ext.cat.normal.hint'))}</span></div>
+      <div class="cws-row"><input type="text" id="cwsin" spellcheck="false" placeholder="${esc(t('cws.placeholder'))}"/><button class="btn-primary" id="cwsgo">${esc(t('cws.addFromStore'))}</button><button class="btn-ghost-load" id="cwsopen">${esc(t('cws.openStore'))}</button><span class="test-result" id="cwsstat"></span></div>
       <div class="ext-grid tight" id="chromes"></div>
+      <details class="adv-load"><summary>${esc(t('cws.advanced'))}</summary><button class="btn-ghost-load" id="loadchrome">${esc(t('ext.loadChrome'))}</button></details>
       <div class="ai-builder compact"><h3>${esc(t('ext.ai.title'))}</h3><p>${esc(t('ext.ai.hint'))}</p>
         <textarea id="aiprompt" placeholder="${esc(t('ext.ai.placeholder'))}"></textarea>
         <div class="actions"><select id="aikind" style="background:var(--bg-input);border:.5px solid var(--separator);border-radius:6px;padding:0 8px;color:var(--text-primary)"><option value="feature">${esc(t('ext.cat.feature'))}</option><option value="chrome">${esc(t('ext.cat.normal'))}</option></select>
@@ -65,6 +69,16 @@
     const stat = (s, bad) => { const x = document.getElementById('aistat'); x.className = 'test-result ' + (bad ? 'bad' : ''); x.textContent = s; };
     const guard = async (fn) => { try { return await fn(); } catch (e) { stat(e.message, true); } };
     document.getElementById('loadfeat').onclick = () => guard(async () => { const m = await window.aib.invoke('ext:installDir'); if (m) { stat(t('ext.installed') + ': ' + m.name); load(); } });
+    document.getElementById('cwsgo').onclick = async () => {
+      const inp = document.getElementById('cwsin'), st = document.getElementById('cwsstat'), go = document.getElementById('cwsgo');
+      const v = inp.value.trim(); if (!v) return; go.disabled = true; cwsNote = { cls: '', text: t('cws.installing') }; showCws();
+      const r = await window.aib.invoke('cx:installStore', v);
+      cwsNote = r.ok ? { cls: 'ok', text: t('cws.done') + ': ' + r.ext.name } : { cls: 'bad', text: r.error };
+      const go2 = document.getElementById('cwsgo'); if (go2) go2.disabled = false; const in2 = document.getElementById('cwsin'); if (r.ok && in2) in2.value = '';
+      showCws(); if (r.ok) load();
+    };
+    document.getElementById('cwsin').onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('cwsgo').click(); };
+    document.getElementById('cwsopen').onclick = () => window.aib.invoke('nav:openUrl', 'https://chromewebstore.google.com/');
     document.getElementById('loadchrome').onclick = () => guard(async () => { const r = await window.aib.invoke('cx:add'); if (r) { stat(t('ext.installed') + ': ' + r.name); load(); } });
     document.getElementById('loadzip').onclick = () => guard(async () => {
       const kind = document.getElementById('aikind').value;
