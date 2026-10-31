@@ -48,7 +48,7 @@ function zipDir(dir, out, keepParent) {
   zipDir(path.join(DIST, '.src', 'ai-browser'), sz, true);
   console.log('wrote', sz, (fs.statSync(sz).size / 1048576).toFixed(1) + ' MB');
 
-  for (const f of ['install.command', 'install.sh', 'README_中文.md']) {
+  for (const f of ['install.command', 'install.sh', 'README.md', 'README_zh.md']) {
     const src = [path.join(ROOT, 'installer', f), path.join(ROOT, f)].find(fs.existsSync);
     if (src) { fs.copyFileSync(src, path.join(DIST, f)); if (f.startsWith('install')) fs.chmodSync(path.join(DIST, f), 0o755); }
   }
