@@ -233,3 +233,10 @@ wireDesktopOnly();
 refreshKb();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 window.__AIB_TOOLS__ = { listTools, callTool };
+if (window.VKeyboard) {
+  const vk = VKeyboard.mount(document.getElementById('vkhost'), { getTarget: () => document.getElementById('q'), collapsed: true });
+  window.__AIB_VK__ = vk;
+  window.__AIB_TOOLS__.vkeyboard_toggle = (a) => { const act=(a&&a.action)||'toggle'; if(act==='show') vk.setCollapsed(false); else if(act==='hide') vk.setCollapsed(true); else vk.setCollapsed(!vk.isCollapsed()); return {ok:true}; };
+  window.__AIB_TOOLS__.vkeyboard_insert = (a) => { vk.setCollapsed(false); if(a&&a.tab) vk.setTab(a.tab); vk.insert(String(a&&a.text||'')); return {ok:true}; };
+  window.__AIB_TOOLS__.vkeyboard_catalog = () => VKeyboard.catalog();
+}
