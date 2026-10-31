@@ -5,31 +5,66 @@
   "version": "1.0.0",
   "description": "AI 调用 GeoGebra 绘制函数图像与几何作图。",
   "update_url": "https://example.invalid/aib/aib.geogebra/update.json",
-  "permissions": ["panels"],
+  "permissions": [
+    "panels"
+  ],
   "entry": "main.js",
   "i18n": {
-    "zh": { "name": "GeoGebra 绘图", "description": "AI 调用 GeoGebra 绘制函数图像与几何作图。" },
-    "en": { "name": "GeoGebra Graphing", "description": "AI-driven GeoGebra for function plots and geometry." }
+    "zh": {
+      "name": "GeoGebra 绘图",
+      "description": "AI 调用 GeoGebra 绘制函数图像与几何作图。"
+    },
+    "en": {
+      "name": "GeoGebra Graphing",
+      "description": "AI-driven GeoGebra for function plots and geometry."
+    }
   },
   "contributes": {
     "inputHandlers": [],
     "tools": [
       {
         "name": "ggb_eval",
-        "description": "Execute GeoGebra commands in the graphing panel (e.g. \"f(x)=sin(x)\", \"g(x)=x^2/4\", \"A=Intersect(f,g,1)\", \"SetColor(f,\\\"Blue\\\")\"). The panel opens automatically. Returns per-command success and the names of all objects.",
-        "parameters": { "type": "object", "properties": { "commands": { "type": "array", "items": { "type": "string" }, "description": "GeoGebra command strings, executed in order" } }, "required": ["commands"] }
+        "description": "Execute GeoGebra commands in the graphing panel; the panel opens automatically. Use English GeoGebra syntax, ONE object per command string, in dependency order: functions \"f(x)=sin(x)\", \"g(x)=x^2/4\"; restricted \"h(x)=If(0<=x<=2π, x^2)\"; points \"A=(1,2)\"; intersections \"A=Intersect(f,g,1)\" (or Intersect(f,g) for all); shapes \"c=Circle((0,0),3)\", \"s=Segment(A,B)\", \"p=Polygon(A,B,C)\"; calculus \"d=Derivative(f)\", \"i=Integral(f,0,1)\"; style \"SetColor(f,\\\"Blue\\\")\". Use * for multiplication of names, ^ for powers, pi/π and sqrt(). Returns per-command success and the names of all objects — re-check failed commands and retry once.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "commands": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "GeoGebra command strings, executed in order"
+            }
+          },
+          "required": [
+            "commands"
+          ]
+        }
       },
       {
         "name": "ggb_clear",
         "description": "Remove all objects from the GeoGebra panel (start a new construction).",
-        "parameters": { "type": "object", "properties": {} }
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
       },
       {
         "name": "ggb_export_png",
         "description": "Export the current GeoGebra view as a PNG (shown to the user as a downloadable image). Returns the byte size.",
-        "parameters": { "type": "object", "properties": {} }
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
       }
     ],
-    "panels": [ { "id": "canvas", "title": "GeoGebra", "page": "panel.html", "location": "side" } ]
+    "panels": [
+      {
+        "id": "canvas",
+        "title": "GeoGebra",
+        "page": "panel.html",
+        "location": "side"
+      }
+    ]
   }
 }

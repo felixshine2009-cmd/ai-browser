@@ -41,15 +41,15 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   await test('测试连接：成功返回 pong；错误 Key 返回错误且不回显密钥', async () => {
     const ch = await app.chrome();
     const ok = await ch.evaluate(() => window.aib.invoke('ai:test', {}));
-    assert(ok.ok, JSON.stringify(ok)); assert(/pong/.test(ok.sample));
+    assert(ok.ok && ok.via === 'models' && ok.count === 4 && ok.models.includes('mock-1'), JSON.stringify(ok));
     const bad = await ch.evaluate(() => window.aib.invoke('ai:test', { apiKey: 'wrong-key-XYZ' }));
     assert(!bad.ok && /401/.test(bad.error), JSON.stringify(bad)); assert(!bad.error.includes('wrong-key-XYZ'));
     const reqs = await (await fetch(`http://127.0.0.1:${llm.port}/__requests`)).json();
-    assert(reqs.some(r => r.auth === 'test-key' && r.stream === true && r.model === 'mock-1'), 'request had bearer key, stream, model, temperature');
+    assert(reqs.some(r => r.auth === 'test-key' && /\/models$/.test(r.path)), 'models request had bearer key');
   });
   await test('单词（无词典）→ AI 生成词条，并明确标注“AI 生成 · 非词典”', async () => {
     const p = await ask('serendipity');
-    await until(async () => (await p.locator('.dict-headword').count()) > 1, 15000, 'ai entry');
+    await until(async () => (await p.locator('.ai-note').count()) >= 1 && (await p.locator('.pos-block .def').count()) >= 1, 15000, 'ai entry');
     assert((await p.locator('.ai-note').innerText()).includes('AI 生成'), 'label');
     assert((await p.locator('.pos-block .def').first().innerText()).includes('意外发现'), 'def');
     assert((await p.locator('.phrase-sec .ph').count()) === 1);
@@ -80,7 +80,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     llm.state.slow = 40;
     const p = await ask('苹果 M1 和 M2 有什么区别？');
     await until(async () => (await p.locator('.q-edit').count()) === 2, 20000, 'rewritten queries');
-    eq(await p.locator('.q-edit').first().inputValue(), 'apple m1 vs m2 comparison');
+    eq(await p.locator('.q-edit').first().inputValue(), '苹果 M1 和 M2 有什么区别？');
     // streaming: answer text must grow over time
     const lens = new Set();
     const t0 = Date.now();
@@ -94,9 +94,9 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     const txt = await p.locator('#answer').innerText(); assert(txt.includes('5nm'), 'answer text');
     // LLM got numbered sources text extracted by Readability (not nav/footer)
     const reqs = await (await fetch(`http://127.0.0.1:${llm.port}/__requests`)).json();
-    const ans = reqs.filter(r => /Web sources:/.test(JSON.stringify(r.messages))).pop();
-    const src = ans.messages.find(m => m.role === 'user').content;
-    assert(/\[1\] Apple M\d chip overview/.test(src) && src.includes('unified memory') && !src.includes('footer'), 'readability extracted article text');
+    const ans = reqs.filter(r => (r.messages || []).some(m => m.role === 'tool' && /"n":1/.test(m.content))).pop();
+    const src = ans.messages.filter(m => m.role === 'tool').map(m => m.content).join('\n');
+    assert(/Apple M\d chip overview/.test(src) && src.includes('unified memory') && !src.includes('footer'), 'readability extracted article text');
     assert(web.hits.filter(h => h.path === '/search').length >= 2, 'default engine SERP fetched for both queries');
     assert(web.hits.some(h => h.path.startsWith('/page/')), 'pages fetched');
     await app.screenshot(path.join(__dirname, '..', '..', 'shots', '02-chat-answer.png'));
@@ -145,13 +145,13 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     eq(cl.count, 0);
     eq(await frame.evaluate(() => ggbApplet.getAllObjectNames().length), 0);
     const reqs = await (await fetch(`http://127.0.0.1:${llm.port}/__requests`)).json();
-    assert(reqs.some(r => (r.tools || []).includes('ggb_eval') && (r.tools || []).includes('ggb_clear') && (r.tools || []).includes('ggb_export_png')), 'tools offered to LLM');
+    assert(reqs.some(r => (r.tools || []).includes('ggb_eval') && (r.tools || []).includes('web_search') && (r.tools || []).includes('open_page')), 'agent tools offered to LLM');
   }, { timeout: 150000 });
   await test('Anthropic 格式（/v1/messages 流式）可用', async () => {
     await patchSettings(app, { ai: { api: { format: 'anthropic', baseUrl: `http://127.0.0.1:${llm.port}`, preset: 'anthropic' } } });
     const ch = await app.chrome();
     const ok = await ch.evaluate(() => window.aib.invoke('ai:test', {}));
-    assert(ok.ok && /pong/.test(ok.sample), JSON.stringify(ok));
+    assert(ok.ok, JSON.stringify(ok));
     const p = await ask('The quick brown fox jumps over the lazy dog near the river.');
     await until(async () => (await p.locator('.tok.subj').count()) === 1, 15000, 'sentence via anthropic');
     const reqs = await (await fetch(`http://127.0.0.1:${llm.port}/__requests`)).json();

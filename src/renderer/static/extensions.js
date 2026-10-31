@@ -1,6 +1,8 @@
-(async function () {
-  await I18N.init();
-  const root = document.getElementById('root');
+(function () {
+  window.mountExtensions = async function mountExtensions(root, hooks) {
+  hooks = hooks || {};
+  const embedded = root !== document.getElementById('root');
+  let dead = false; const offs = [];
   const esc = MD.esc;
   let feats = [], chromes = [], preview = null;
 
@@ -8,7 +10,7 @@
   function nm(e) { const i = e.i18n && e.i18n[I18N.lang]; return i ? i.name : e.name; }
   function ds(e) { const i = e.i18n && e.i18n[I18N.lang]; return i ? i.description : e.description; }
 
-  async function load() { feats = await window.aib.invoke('ext:list'); chromes = await window.aib.invoke('cx:list'); render(); }
+  async function load() { if (dead || !root.isConnected) return; feats = await window.aib.invoke('ext:list'); chromes = await window.aib.invoke('cx:list'); render(); }
 
   function render() {
     root.innerHTML = `<div class="ext-page"><h1>${esc(t('ext.pageTitle'))}</h1><div class="sub">${esc(t('ext.pageSub'))}</div>
@@ -31,7 +33,7 @@
       c.onclick = async (ev) => {
         const act = ev.target.dataset.act; if (!act) return;
         if (act === 'toggle') { feats = await window.aib.invoke('ext:setEnabled', e.id, !e.enabled); render(); }
-        else if (act === 'settings') { location.href = 'aibrowser://settings#dict'; }
+        else if (act === 'settings') { if (hooks.openSettings) hooks.openSettings('dict'); else location.href = 'aibrowser://settings#dict'; }
         else if (act === 'remove') { await window.aib.invoke('ext:uninstall', e.id); load(); }
         else if (act === 'update') {
           const m = c.querySelector('.upd-msg'); m.textContent = t('ext.checking');
@@ -96,8 +98,11 @@
     };
   }
 
-  document.title = t('ext.pageTitle');
+  if (!embedded) document.title = t('ext.pageTitle');
   await load();
-  I18N.onChange(() => { document.title = t('ext.pageTitle'); render(); });
-  window.aib.on('ext:changed', load);
+  I18N.onChange(() => { if (dead || !root.isConnected) return; if (!embedded) document.title = t('ext.pageTitle'); render(); });
+  const off = window.aib.on('ext:changed', load); if (typeof off === 'function') offs.push(off);
+  return { destroy() { dead = true; offs.forEach(f => f()); const m = document.getElementById('modal'); if (m) m.remove(); } };
+  };
+  if (!document.body.dataset.embed) (async function () { await I18N.init(); window.mountExtensions(document.getElementById('root')); })();
 })();

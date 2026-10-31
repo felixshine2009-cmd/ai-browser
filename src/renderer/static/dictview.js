@@ -38,7 +38,11 @@
   function renderAiEntry(container, e) {
     const esc = MD.esc;
     let h = `<div class="ai-label">${esc(t('dict.aiLabel'))}</div><div class="dict-headword">${esc(e.word || '')}</div>`;
-    h += `<div class="dict-ipa">${e.ipa_uk ? `<span class="play">${esc(t('dict.uk'))} ${esc(e.ipa_uk)}</span>` : ''}${e.ipa_us ? `<span class="play">${esc(t('dict.us'))} ${esc(e.ipa_us)}</span>` : ''}</div>`;
+    const uk = (e.ipa_uk || '').trim(), us = (e.ipa_us || '').trim();
+    const same = uk && us && uk === us;
+    const ipaHtml = same ? `<span class="play">${esc(uk)}</span>`
+      : `${uk ? `<span class="play">${esc(t('dict.uk'))} ${esc(uk)}</span>` : ''}${us ? `<span class="play">${esc(t('dict.us'))} ${esc(us)}</span>` : ''}`;
+    if (ipaHtml) h += `<div class="dict-ipa">${ipaHtml}</div>`;
     (e.pos || []).forEach(p => {
       h += `<div class="pos-block"><div class="pos">${esc(p.pos || '')}</div>`;
       (p.defs || []).forEach((d, i) => {

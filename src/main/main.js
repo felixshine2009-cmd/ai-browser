@@ -114,13 +114,6 @@ function handle(channel, fn) {
   });
 }
 
-const AI_GEN_SYS = {
-  feature: `You write "feature extensions" for the AI Browser (standard aib-feature/1). Reply with ONLY a JSON object: {"summary":"一句话说明","files":{"manifest.json":"<json string>","main.js":"<code>", "panel.html":"<optional>"}}.
-manifest.json fields: {"standard":"aib-feature/1","id":"user.<slug>" (lowercase letters/digits/._-, 3-64 chars),"name":"..","version":"1.0.0","description":"..","update_url":"","permissions":[subset of "storage","net","ai","tabs","panels"],"entry":"main.js","contributes":{"inputHandlers":[{"id":"h1","types":["word"|"sentence"|"article"|"question"|"any"],"priority":10}],"tools":[{"name":"snake_case","description":"..","parameters":{JSON schema}}],"settingsPage":"settings.html"?,"panels":[{"id":"p","title":"..","page":"panel.html","location":"side"}]}}.
-main.js runs in a sandbox (no require/process/DOM). It sets module.exports = {inputHandlers:{h1:async(input,ctx)=>({type:"markdown",text:"..."}|{type:"html",html:"..."}|null)}, tools:{name:async(args,ctx)=>json}, rpc:{name:async(args)=>json}}. The global "aib" offers aib.log, aib.storage.get/set (perm storage), aib.net.fetchText(url) (perm net), aib.ai.complete(prompt) (perm ai), aib.tabs.open(url) (perm tabs).`,
-  chrome: `You write Chrome Manifest V3 extensions. Reply with ONLY a JSON object: {"summary":"一句话说明","files":{"manifest.json":"<json string>","content.js":"<code>"}}. Use content_scripts / action / background service worker as needed. manifest_version must be 3. Keep it small and self-contained.`
-};
-
 function registerIpc() {
   // settings & AI
   handle('settings:get', () => store.publicSettings());
@@ -139,7 +132,31 @@ function registerIpc() {
   handle('nav:submit', (e, text) => tabsMod.submit(text));
   handle('nav:open', (e, name) => { tabsMod.openInternal(name); });
   handle('nav:openUrl', (e, url, background) => { tabsMod.createTab(url, { activate: !background }); });
-  handle('mode:set', (e, mode) => { store.patchSettings({ mode: mode === 'search' ? 'search' : 'chat' }); tabsMod.notify(); return mode; });
+  let lastHomeQuery = '';
+  handle('home:query', (e, q) => { if (typeof q === 'string') { lastHomeQuery = q; return true; } return lastHomeQuery; });
+  handle('mode:set', (e, mode, query) => {
+    const next = mode === 'search' ? 'search' : 'chat';
+    const prev = store.getSettings().mode;
+    store.patchSettings({ mode: next });
+    tabsMod.notify();
+    // Chat → Search with a non-empty query: search immediately (do not wait for Enter)
+    if (next === 'search' && prev !== 'search') {
+      let q = (typeof query === 'string' ? query : '').trim();
+      if (!q) {
+        const t = tabsMod.activeTab();
+        if (t && !t.wc.isDestroyed()) {
+          const u = t.wc.getURL() || '';
+          if (u.startsWith('aibrowser://chat')) {
+            try { const sid = new URL(u).searchParams.get('sid'); const sess = chat.get(sid); if (sess && sess.input) q = String(sess.input).trim(); } catch {}
+          } else if (u.startsWith('aibrowser://home')) {
+            // home query is passed from the renderer; nothing else to read here
+          }
+        }
+      }
+      if (q && !tabsMod.looksLikeUrl(q)) tabsMod.submit(q);
+    }
+    return next;
+  });
   handle('menu:toggle', () => tabsMod.toggleMenu());
   handle('tabs:state', () => tabsMod.state());
 
@@ -200,7 +217,7 @@ function registerIpc() {
   handle('ext:uninstall', (e, id) => { features.uninstall(id); broadcast('ext:changed'); });
   handle('ext:aiGenerate', async (e, prompt, kind) => {
     kind = kind === 'chrome' ? 'chrome' : 'feature';
-    const j = await llm.completeJson([{ role: 'system', content: AI_GEN_SYS[kind] }, { role: 'user', content: String(prompt) }], { maxTokens: 4000, temperature: 0.2 });
+    const j = await llm.completeJson([{ role: 'system', content: require('./ai/prompts').extensionWriter(kind) }, { role: 'user', content: String(prompt) }], { maxTokens: 4000, temperature: 0.2 });
     const files = j.files || {};
     const out = { kind, summary: j.summary || '', files, problems: [] };
     try {
@@ -312,7 +329,8 @@ function buildMenu() {
       { label: '开发者工具', accelerator: 'CmdOrCtrl+Alt+I', click: act(t => t && t.wc.openDevTools({ mode: 'detach' })) },
       { role: 'togglefullscreen' }] },
     { label: '历史', submenu: [{ label: '历史记录', accelerator: 'CmdOrCtrl+Y', click: () => tabsMod.openInternal('history') }, { label: '下载内容', accelerator: 'CmdOrCtrl+Shift+J', click: () => tabsMod.openInternal('downloads') }, { label: '书签', accelerator: 'CmdOrCtrl+Shift+O', click: () => tabsMod.openInternal('bookmarks') }] },
-    { role: 'windowMenu' }
+    // NOT role:'windowMenu' — its built-in Close item also owns Cmd/Ctrl+W and would close the whole window instead of the tab
+    { label: '窗口', submenu: [{ role: 'minimize' }, { role: 'zoom' }] }
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(tpl));
 }

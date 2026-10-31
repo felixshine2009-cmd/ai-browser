@@ -17,8 +17,10 @@
       } else r.innerHTML = `<span>${t(it[1])}</span><span class="kbd">${it[2]}</span>`;
       m.appendChild(r);
     }
+    if (!entered) { m.classList.add('enter'); entered = true; }
     root.innerHTML = ''; root.appendChild(m);
   }
+  let entered = false;
   render(); I18N.onChange(render);
   window.aib.invoke('zoom:get').then(z => { zoomPct = Math.round(z * 100); render(); });
   root.addEventListener('click', async (e) => {
@@ -27,5 +29,6 @@
     const a = e.target.closest('[data-action]');
     if (a && a.dataset.action !== 'zoom') window.aib.invoke('menu:action', a.dataset.action);
   });
+  window.aib.on('overlay:leave', () => { const m = document.getElementById('menu'); if (m) { m.classList.remove('enter'); m.classList.add('leave'); } });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.aib.invoke('menu:close'); });
 })();
