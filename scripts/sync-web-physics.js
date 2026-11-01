@@ -3,5 +3,6 @@
 const fs = require('fs'), path = require('path');
 const root = path.join(__dirname, '..');
 let h = fs.readFileSync(path.join(root, 'extensions/builtin/physics/panel.html'), 'utf8');
-h = h.replace('src="modules.js"', 'src="physics/modules.js"').replace('src="sim.js"', 'src="physics/sim.js"').split("fetch('examples/").join("fetch('physics/examples/");
+['modules', 'rigid', 'elements', 'elements-types', 'sim', 'editor'].forEach((f) => { h = h.replace('src="' + f + '.js"', 'src="physics/' + f + '.js"'); });
+h = h.split("fetch('examples/").join("fetch('physics/examples/");
 fs.writeFileSync(process.argv[2] || path.join(root, 'web/panels-phys.html'), h);

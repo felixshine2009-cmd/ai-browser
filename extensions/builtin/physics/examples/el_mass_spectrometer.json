@@ -1,0 +1,92 @@
+{
+ "topic": "elements.mass_spectrometer",
+ "zh": "质谱仪（电场加速 + 磁场偏转）",
+ "meta": {
+  "title": "Mass spectrometer",
+  "zh": "质谱仪（电场加速 + 磁场偏转）"
+ },
+ "g": 9.8,
+ "world": {
+  "xmin": -1.5,
+  "xmax": 6.5,
+  "ymin": -3.5,
+  "ymax": 2
+ },
+ "bodies": [],
+ "elements": [
+  {
+   "x": 2.5,
+   "y": 0.24000000000000002,
+   "angle": 0,
+   "label": "加速板",
+   "color": "#d4a84a",
+   "len": 6,
+   "d": 0.4,
+   "thick": 0.04,
+   "U": 10,
+   "top": "+",
+   "slit": 0.24,
+   "slitX": -2.5,
+   "detect": true,
+   "e": 0.1,
+   "type": "capacitor",
+   "id": "ms_0"
+  },
+  {
+   "x": 2.5,
+   "y": -1.9,
+   "angle": 0,
+   "label": "B ⊗",
+   "color": "#b07cff",
+   "shape": "rect",
+   "w": 6,
+   "h": 3.8,
+   "r": 1.5,
+   "B": 2,
+   "into": true,
+   "type": "fieldB",
+   "id": "ms_1"
+  },
+  {
+   "x": 0,
+   "y": 0.415,
+   "angle": 0,
+   "label": "m₁",
+   "color": "#ff6b6b",
+   "r": 0.02,
+   "mass": 0.002,
+   "mu0": 0,
+   "mu": 0,
+   "e": 0,
+   "q": 0.01,
+   "fixed": false,
+   "gravity": false,
+   "vx": 0,
+   "vy": 0,
+   "omega": 0,
+   "type": "particle",
+   "id": "ms_2"
+  },
+  {
+   "x": 0,
+   "y": 0.415,
+   "angle": 0,
+   "label": "m₂",
+   "color": "#4aa3ff",
+   "r": 0.02,
+   "mass": 0.003,
+   "mu0": 0,
+   "mu": 0,
+   "e": 0,
+   "q": 0.01,
+   "fixed": false,
+   "gravity": false,
+   "vx": 0,
+   "vy": 0,
+   "omega": 0,
+   "type": "particle",
+   "id": "ms_3"
+  }
+ ],
+ "customTypes": []
+}

@@ -37,6 +37,8 @@ html,body{margin:0;height:100%;max-width:100vw;background:var(--bg);color:var(--
 .row-actions{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
 h4{margin:0 0 6px;font-size:12px;color:var(--muted)}
 #sideToggle{display:none}
+#palToggle{display:none}
+body.el #palToggle{display:inline-block}
 @media (max-width:700px){
   #wrap{flex-direction:column}
   #side{width:100%;max-height:48%;border-left:0;border-top:1px solid var(--border)}
@@ -44,10 +46,70 @@ h4{margin:0 0 6px;font-size:12px;color:var(--muted)}
   #sideToggle{display:inline-flex}
   #stage{min-height:200px}
 }
+
+#palette{width:204px;border-right:1px solid var(--border);background:#0e1719;display:none;flex-direction:column;min-width:0;overflow:auto;-webkit-overflow-scrolling:touch}
+body.el #palette{display:flex}
+#palette.collapsed{display:none!important}
+.pal-top{padding:6px;position:sticky;top:0;background:#0e1719;z-index:2}
+.pal-top input{width:100%;min-height:34px;background:var(--btn);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font:600 12px inherit}
+.pal-cat{border-bottom:1px solid var(--border)}
+.pal-cat summary{cursor:pointer;padding:8px 10px;font-weight:700;list-style:none;display:flex;justify-content:space-between;align-items:center;min-height:36px}
+.pal-cat summary::-webkit-details-marker{display:none}
+.pal-cat .cnt{color:var(--muted);font-weight:400;font-size:10px}
+.pal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:2px 6px 8px}
+.pal-item{appearance:none;border:1px solid var(--border);background:var(--btn);color:var(--text);border-radius:8px;padding:3px 2px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:grab;min-height:62px;touch-action:none;font:inherit}
+.pal-item:hover{border-color:var(--accent)}
+.pal-item{-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
+.pal-item img{width:44px;height:44px;display:block;-webkit-user-drag:none;pointer-events:none}
+.pal-glyph{width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:16px}
+.pal-name{font-size:10px;line-height:1.15;text-align:center;word-break:break-word;color:var(--muted)}
+.pal-ghost{position:fixed;z-index:99;pointer-events:none;background:#163528;color:#b7f0cf;border:1px solid var(--accent);border-radius:6px;padding:3px 8px;font-size:11px}
+.pal-empty{grid-column:1/-1;color:var(--muted);font-size:11px;padding:4px}
+.pal-lib{display:flex;flex-wrap:wrap;gap:6px;padding:8px 6px}
+.pal-form{padding:0 6px 10px;display:flex;flex-direction:column;gap:6px}
+.pal-form input{min-height:34px;background:var(--btn);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font:600 12px inherit}
+.pal-msg{color:var(--danger);font-size:11px}
+#ebar{position:absolute;left:6px;top:6px;z-index:2;display:none;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:4px;align-items:center;max-width:calc(100% - 12px);background:rgba(14,23,25,.82);border:1px solid var(--border);border-radius:8px;padding:3px}
+body.el #ebar{display:flex}
+.ebtn,.esel{appearance:none;border:1px solid var(--border);background:var(--btn);color:var(--text);border-radius:6px;min-width:34px;min-height:34px;font:600 13px inherit;cursor:pointer;padding:0 6px}
+.ebtn.on{background:var(--accent);border-color:var(--accent);color:#04140c}
+.ebtn:disabled{opacity:.35;cursor:default}
+#ebar .sep{width:1px;height:20px;background:var(--border);margin:0 2px}
+@media (pointer:coarse){.ebtn,.esel{min-width:44px;min-height:44px}}
+#inspector{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:6px 8px calc(12px + var(--safe-b));display:none}
+body.el #inspector{display:block}
+body.el #params{display:none}
+.ins-head{margin:2px 0 6px;font-size:13px}
+.ins-desc{color:var(--muted);font-size:11px;margin:0 0 6px}
+.ins-empty,.ins-sub{color:var(--muted);font-size:11px;line-height:1.6;margin-bottom:8px}
+.ins-grp{border:1px solid var(--border);border-radius:8px;margin:0 0 8px;background:var(--panel)}
+.ins-grp summary{cursor:pointer;padding:7px 10px;font-weight:700;list-style:none;min-height:34px;display:flex;align-items:center}
+.ins-grp summary::-webkit-details-marker{display:none}
+.ins-body{padding:0 8px 8px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.ins-body .field.wide{grid-column:1/-1}
+.ins-body .slrow{grid-template-columns:minmax(0,1fr) 74px}
+.ins-body .slrow input[type=range]{min-width:0}
+.ins-body .field label b{color:var(--text);font-weight:600;margin-left:2px;opacity:.7}
+.field textarea{width:100%;background:var(--btn);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 6px;font:600 11px ui-monospace,Menlo,monospace}
+.field textarea.bad{border-color:#f87171}
+.ins-err{color:var(--danger);font-size:10px;min-height:0}
+.ins-live{margin:6px 0;font:11px/1.5 ui-monospace,Menlo,monospace;color:var(--muted);white-space:pre-wrap}
+.field input[type=checkbox]{width:22px;height:22px}
+@media (max-width:700px){
+  #palette{width:100%;max-height:34%;border-right:0;border-top:1px solid var(--border);order:2}
+  #stage{order:1}
+  #side{order:3}
+  .pal-grid{grid-template-columns:repeat(4,1fr)}
+  .ins-body{grid-template-columns:1fr}
+}
 input[type=file]{display:none}
 </style>
 <script src="physics/modules.js"></script>
+<script src="physics/rigid.js"></script>
+<script src="physics/elements.js"></script>
+<script src="physics/elements-types.js"></script>
 <script src="physics/sim.js"></script>
+<script src="physics/editor.js"></script>
 </head><body>
 <div id="chrome">
   <div id="bar">
@@ -59,15 +121,20 @@ input[type=file]{display:none}
     <label class="chk"><input id="vec" type="checkbox" checked> Vectors</label>
     <label class="chk"><input id="trail" type="checkbox" checked> Trails</label>
     <select id="ex" title="Examples"></select>
+    <button id="btnEl" type="button" title="元件库编辑器 Element editor">Elements 元件</button>
+    <button id="btnNew" type="button" title="新建空白场景 New blank scene">New 新建</button>
+    <button id="palToggle" type="button">Palette 元件库</button>
     <button id="sideToggle" type="button">Params</button>
     <button id="btnExport" type="button" title="Export JSON">Export</button>
     <button id="btnImport" type="button" title="Import JSON">Import</button>
     <input id="file" type="file" accept="application/json,.json">
   </div>
   <div id="wrap">
-    <div id="stage"><canvas id="cv"></canvas><div id="toast"></div></div>
+    <div id="palette"></div>
+    <div id="stage"><canvas id="cv"></canvas><div id="ebar"></div><div id="toast"></div></div>
     <div id="side">
       <div id="plot"><h4 id="title">—</h4><canvas id="pc" width="280" height="120"></canvas><div id="readout"></div><div id="err"></div></div>
+      <div id="inspector"></div>
       <div id="params"></div>
     </div>
   </div>
@@ -88,7 +155,10 @@ input[type=file]{display:none}
     if(!v.ok){ showErr(v.errors.join('\n')); throw new Error(v.errors.join('; ')); }
     showErr(''); scene0=PhysSim.clone(raw); scene=PhysSim.defaults(PhysSim.clone(raw));
     document.getElementById('title').textContent=(scene.meta.zh||scene.meta.title||scene.topic)+' · t=0';
-    renderParams(); draw(); return {ok:true, topic:scene.topic};
+    var elScene=Array.isArray(raw.elements)&&raw.elements.length>0;
+    setElMode(elScene);
+    if(elScene){ absorbCustom(raw); ed.onSceneLoaded(); showWarnings(); }
+    renderParams(); draw(); return {ok:true, topic:scene.topic, mode:elScene?'elements':'legacy'};
   }
   function reset(){ if(!scene0)return; scene=PhysSim.defaults(PhysSim.clone(scene0)); document.getElementById('title').textContent=(scene.meta.zh||scene.meta.title||scene.topic)+' · t=0'; renderParams(); draw(); toast('Reset'); }
   function commitLive(){
@@ -138,6 +208,7 @@ input[type=file]{display:none}
   }
   function draw(){
     if(!scene) return;
+    if(isEl()) return drawEl();
     if(scene._mod && scene._mod.length) return drawModule();
     pc.style.display='block'; var W=cv.clientWidth, H=cv.clientHeight; ctx.clearRect(0,0,W,H);
     ctx.strokeStyle='#1e2c30'; ctx.lineWidth=1;
@@ -200,6 +271,7 @@ input[type=file]{display:none}
     var last=parts[parts.length-1], lm=last.match(/^(.+)\[(\d+)\]$/);
     if(lm) cur[lm[1]][parseInt(lm[2],10)]=value; else cur[last]=value;
   }
+  function getPath(obj,path){ try{ var cur=obj; String(path).split('.').forEach(function(part){ var m=part.match(/^(.+)\[(\d+)\]$/); if(m) cur=cur[m[1]][parseInt(m[2],10)]; else cur=cur[part]; }); return cur; }catch(e){ return undefined; } }
   function applyModule(i, key, value){
     if(!scene) throw new Error('no scene');
     var r=PhysSim.setModuleParam(scene, i, key, value);
@@ -208,6 +280,7 @@ input[type=file]{display:none}
   }
   function applyParam(path, value, opts){
     if(!scene) throw new Error('no scene');
+    if(isEl()){ var pv=getPath(scene0,path); setPath(scene0,path,value); if(!commitEl()){ try{setPath(scene0,path,pv);}catch(e){} commitEl(); throw new Error(lastErrors.join('; ')); } if(ed) ed.refreshInspector(); return {ok:true,path:path,value:value}; }
     var mm=/^modules\[(\d+)\]\.(\w+)$/.exec(String(path)); if(mm) return applyModule(parseInt(mm[1],10), mm[2], value);
     if(/^\w+$/.test(String(path)) && scene.modules && scene.modules.length && !(path in scene)) { var pl=PhysModules.paramList(scene.modules[0].kind); if(pl.some(function(p){return p.key===path;})) return applyModule(0, path, value); }
     setPath(scene, path, value);
@@ -434,10 +507,10 @@ input[type=file]{display:none}
   document.getElementById('spd').oninput=function(e){ speed=parseFloat(e.target.value)||1; };
   document.getElementById('vec').onchange=function(e){ showVec=e.target.checked; draw(); };
   document.getElementById('trail').onchange=function(e){ showTrail=e.target.checked; draw(); };
-  document.getElementById('sideToggle').onclick=function(){ document.getElementById('side').classList.toggle('collapsed'); };
+  document.getElementById('sideToggle').onclick=function(){ var sd=document.getElementById('side'); sd.classList.toggle('collapsed'); if(narrow() && !sd.classList.contains('collapsed')) document.getElementById('palette').classList.add('collapsed'); setTimeout(resize,0); };
   document.getElementById('btnExport').onclick=function(){
     if(!scene0) return;
-    var blob=new Blob([JSON.stringify(scene0,null,2)],{type:'application/json'});
+    var blob=new Blob([JSON.stringify(exportDoc(),null,2)],{type:'application/json'});
     var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(scene0.topic||'scene')+'.json'; a.click(); URL.revokeObjectURL(a.href); toast('Exported');
   };
   document.getElementById('btnImport').onclick=function(){ document.getElementById('file').click(); };
@@ -448,12 +521,83 @@ input[type=file]{display:none}
   };
 
   fetch('physics/examples/index.json').then(r=>r.json()).then(function(list){
-    var sel=document.getElementById('ex');
+    var sel=document.getElementById('ex'); var ph=document.createElement('option'); ph.value=''; ph.textContent='Examples 示例…'; sel.appendChild(ph);
     (list.examples||list).forEach(function(it){ var o=document.createElement('option'); o.value=it.id||it.file&&it.file.replace(/\.json$/,''); o.textContent=(it.zh||it.title||o.value); sel.appendChild(o); });
-    sel.onchange=function(){ fetch('physics/examples/'+sel.value+'.json').then(r=>r.json()).then(function(j){ pause(); loadScene(j); play(); }); };
-    if(sel.options.length) sel.onchange();
+    sel.onchange=function(){ if(!sel.value) return; fetch('physics/examples/'+sel.value+'.json').then(r=>r.json()).then(function(j){ pause(); loadScene(j); play(); }); };
+    if(sel.options.length>1){ sel.selectedIndex=1; sel.onchange(); }
   }).catch(function(e){ showErr(String(e)); });
 
+
+  // ---------- element editor integration (v3.4.0) ----------
+  var elMode=false, ed=null, lastErrors=[], drawPending=false;
+  function isEl(){ return !!(elMode && scene && Array.isArray(scene.elements)); }
+  function narrow(){ return window.innerWidth<=700; }
+  function requestDraw(){ if(drawPending) return; drawPending=true; requestAnimationFrame(function(){ drawPending=false; draw(); }); }
+  function ensureEditor(){
+    if(ed) return ed;
+    ed=PhysEditor.create({cv:cv, bar:document.getElementById('ebar'), palette:document.getElementById('palette'), inspector:document.getElementById('inspector'),
+      getDoc:function(){return scene0;}, getScene:function(){return scene;}, active:isEl, commit:commitEl, prepareEdit:prepareEdit, requestDraw:requestDraw, toast:toast,
+      pickFile:pickFile, download:download, revealPalette:function(){ document.getElementById('palette').classList.remove('collapsed'); },
+      selectionFromCanvas:function(ids){ if(narrow() && ids.length){ document.getElementById('palette').classList.add('collapsed'); document.getElementById('side').classList.remove('collapsed'); setTimeout(resize,0); } }});
+    return ed;
+  }
+  function setElMode(on){
+    elMode=!!on; document.body.classList.toggle('el',elMode);
+    if(elMode){ ensureEditor(); var pal=document.getElementById('palette'), side=document.getElementById('side'); if(narrow()){ pal.classList.add('collapsed'); side.classList.add('collapsed'); } else { pal.classList.remove('collapsed'); side.classList.remove('collapsed'); } }
+    setTimeout(resize,0);
+  }
+  function showWarnings(){ var w=(scene&&scene._el&&scene._el.warnings)||[]; showErr(w.length?'⚠ '+w.join('\n'):''); }
+  function commitEl(live){
+    if(!scene0) return false; var snap=PhysSim.clone(scene0); delete snap.t; delete snap.history;
+    var v=PhysSim.validate(snap); if(!v.ok){ lastErrors=v.errors; showErr(v.errors.join('\n')); return false; }
+    lastErrors=[];
+    if(live && scene && scene._el && PhysElements.live(scene, live.id, live.patch)){ showErr(''); requestDraw(); return true; }
+    scene=PhysSim.defaults(PhysSim.clone(snap)); var w=(scene._el&&scene._el.warnings||[]).concat(v.warnings||[]); showErr(w.length?'⚠ '+w.join('\n'):''); requestDraw(); return true;
+  }
+  function prepareEdit(){ if(!scene) return; if(playing) pause(); if(scene.t>0){ scene=PhysSim.defaults(PhysSim.clone(scene0)); draw(); } }
+  function pickFile(cb){ var i=document.createElement('input'); i.type='file'; i.accept='application/json,.json'; i.onchange=async function(){ var f=i.files&&i.files[0]; if(f){ try{ cb(await f.text()); }catch(e){ toast(String(e.message||e)); } } }; i.click(); }
+  function download(name,text){ var blob=new Blob([text],{type:'application/json'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); URL.revokeObjectURL(a.href); }
+  function usedCustom(doc){ var ids={}; (doc.elements||[]).forEach(function(e){ if(e.from) ids[e.from]=1; }); return PhysElements.customList().filter(function(c){ return ids[c.id]; }); }
+  function exportDoc(){ var d=PhysSim.clone(scene0); if(Array.isArray(d.elements)){ var u=usedCustom(d); if(u.length) d.customTypes=PhysSim.clone(u); else delete d.customTypes; } return d; }
+  function absorbCustom(raw){ var added=false; (raw.customTypes||[]).forEach(function(def){ if(!PhysElements.custom[def.id]){ var r=PhysElements.defineCustom(def); if(r.ok) added=true; } }); if(added){ ed.saveLib(); ed.buildPalette(); } }
+  function blankDoc(a){ a=a||{}; return {topic:a.topic||'sandbox', zh:a.zh||'物理沙盒', g:a.g!=null?a.g:9.8, world:a.world||{xmin:-6,xmax:6,ymin:-1.5,ymax:7}, bodies:[], elements:[]}; }
+  function loadDoc(doc){
+    pause(); var v=PhysSim.validate(doc); if(!v.ok){ showErr(v.errors.join('\n')); throw new Error(v.errors.join('; ')); }
+    var exs=document.getElementById('ex'); if(exs) exs.value=''; scene0=PhysSim.clone(doc); if(!Array.isArray(scene0.elements)) scene0.elements=[]; scene=PhysSim.defaults(PhysSim.clone(scene0)); setElMode(true); ensureEditor().onSceneLoaded(); showWarnings(); renderParams(); draw(); return {ok:true,topic:scene.topic,mode:'elements'};
+  }
+  function convertible(s){ return !((s.modules&&s.modules.length)||s.circuit||s.thermal||s.photoelectric||s.optics); }
+  function enterEl(){
+    if(isEl()){ document.getElementById('palette').classList.toggle('collapsed'); setTimeout(resize,0); return; }
+    if(!scene0) return loadDoc(blankDoc());
+    if(Array.isArray(scene0.elements)) { setElMode(true); ensureEditor().onSceneLoaded(); draw(); return; }
+    if(!convertible(scene0)){ toast('This scene type has its own panel and cannot be converted — use New 新建'); return; }
+    var doc=PhysElements.fromLegacy(scene0); loadDoc(doc); toast('Converted to elements 已转为元件场景');
+  }
+  function docForTools(){
+    if(!scene0) loadDoc(blankDoc());
+    else if(!Array.isArray(scene0.elements)){ if(!convertible(scene0)) throw new Error('当前场景是模块类场景，无法添加元件；请先 phys_new_scene 新建空白场景，或 phys_load 一个 elements 场景。'); loadDoc(PhysElements.fromLegacy(scene0)); }
+    else if(!elMode){ setElMode(true); ensureEditor().onSceneLoaded(); }
+    return scene0;
+  }
+  function withRollback(fn){
+    var before=JSON.stringify({e:scene0.elements,w:scene0.world,g:scene0.g}); var r=fn(); if(!r.ok) return r;
+    if(!commitEl()){ var b=JSON.parse(before); scene0.elements=b.e; scene0.world=b.w; scene0.g=b.g; var errs=lastErrors.slice(); commitEl(); return {ok:false,errors:errs}; }
+    if(ed) ed.refreshInspector(); return r;
+  }
+  function drawEl(){
+    var W=cv.clientWidth, H=cv.clientHeight; ctx.clearRect(0,0,W,H);
+    ed.drawGrid(ctx, scene.world);
+    PhysElements.draw(ctx, scene, ed.V, {vectors:showVec, trail:showTrail});
+    ed.drawOverlay(ctx);
+    document.getElementById('title').textContent=(scene.meta.zh||scene.meta.title||scene.topic)+' · t='+scene.t.toFixed(2)+'s';
+    var hasPlots=!!(scene.plots&&scene.plots.length); pc.style.display=hasPlots?'block':'none'; if(hasPlots) drawPlots();
+    updateReadout(); ed.onFrame();
+  }
+  document.getElementById('btnEl').onclick=function(){ try{ enterEl(); }catch(e){ toast(String(e.message||e)); } };
+  document.getElementById('btnNew').onclick=function(){ try{ loadDoc(blankDoc()); toast('New scene 新场景'); }catch(e){ toast(String(e.message||e)); } };
+  document.getElementById('palToggle').onclick=function(){ var pal=document.getElementById('palette'); pal.classList.toggle('collapsed'); if(narrow() && !pal.classList.contains('collapsed')) document.getElementById('side').classList.add('collapsed'); setTimeout(resize,0); };
+
+  window.aibPhysDebug={ screenOf:function(id){ var e=scene0&&(scene0.elements||[]).find(function(q){return q.id===id;}); if(!e||!ed) return null; var r=cv.getBoundingClientRect(); return {x:r.left+ed.V.x(e.x), y:r.top+ed.V.y(e.y)}; } };
   var methods={
     load: async function(a){ pause(); var r=loadScene(a.scene||a); play(); return r; },
     play: async function(){ play(); return {playing:true,t:scene&&scene.t}; },
@@ -463,11 +607,21 @@ input[type=file]{display:none}
     setSpeed: async function(a){ speed=Number(a.speed)||1; document.getElementById('spd').value=speed; return {speed}; },
     state: async function(){ if(!scene) return {empty:true}; return {topic:scene.topic,t:scene.t,playing:playing,
       bodies:scene.bodies.map(function(b){return {id:b.id,x:b.x,y:b.y,vx:b.vx,vy:b.vy,q:b.q,mass:b.mass}}),
-      circuit:scene.circuit||null, world:scene.world, g:scene.g, modules:scene.modules, derived:PhysSim.derived(scene), warnings:PhysSim.validate(scene0||scene).warnings}; },
+      circuit:scene.circuit||null, world:scene.world, g:scene.g, modules:scene.modules, elements:isEl()?PhysElements.summary(scene):undefined, derived:PhysSim.derived(scene), warnings:PhysSim.validate(scene0||scene).warnings}; },
     listExamples: async function(){ var r=await fetch('physics/examples/index.json'); return await r.json(); },
     loadExample: async function(a){ var r=await fetch('physics/examples/'+(a.id||a.example)+'.json'); var j=await r.json(); pause(); loadScene(j); var se=document.getElementById('ex'); if(se) se.value=a.id||a.example; play(); return {ok:true,topic:j.topic}; },
     validate: async function(a){ return PhysSim.validate(a.scene||a); },
-    exportScene: async function(){ return {scene: scene0}; },
+    newScene: async function(a){ pause(); return loadDoc(blankDoc(a)); },
+    addElement: async function(a){ docForTools(); pause(); var props=Object.assign({}, a.props||a.params||{}); Object.keys(a).forEach(function(k){ if(k!=='type'&&k!=='props'&&k!=='params'&&props[k]===undefined) props[k]=a[k]; });
+      return withRollback(function(){ var r=PhysElements.add(scene0, a.type, props); return r; }); },
+    updateElement: async function(a){ docForTools(); var patch=Object.assign({}, a.props||a.changes||a.params||{}); Object.keys(a).forEach(function(k){ if(k!=='id'&&k!=='props'&&k!=='changes'&&k!=='params'&&patch[k]===undefined) patch[k]=a[k]; }); var applied=null;
+      var r=withRollback(function(){ var q=PhysElements.update(scene0, a.id, patch); applied=q.applied; return q; });
+      if(r.ok && applied && scene && scene._el && PhysElements.live(scene,a.id,applied)) { requestDraw(); } return r; },
+    removeElement: async function(a){ docForTools(); pause(); return withRollback(function(){ return PhysElements.remove(scene0, a.id); }); },
+    listElementTypes: async function(a){ return {ok:true, categories:PhysElements.CATS, types:PhysElements.listTypes({category:a&&a.category}) }; },
+    getElements: async function(){ if(!scene0||!Array.isArray(scene0.elements)) return {ok:true,elements:[]}; return {ok:true, elements:scene0.elements, runtime:isEl()?PhysElements.summary(scene):[], warnings:(scene&&scene._el&&scene._el.warnings)||[]}; },
+    defineCustomElement: async function(a){ var r=PhysElements.defineCustom(a.def||a); if(r.ok){ ensureEditor().saveLib(); ed.buildPalette(); } return r; },
+    exportScene: async function(){ return {scene: scene0&&Array.isArray(scene0.elements)?exportDoc():scene0}; },
     setParam: async function(a){ if(a.module!=null&&a.key) return applyModule(parseInt(a.module,10),a.key,a.value); return applyParam(a.path||a.key, a.value); },
     update: async function(a){ if(a.changes&&typeof a.changes==='object'){ var out=[]; Object.keys(a.changes).forEach(function(k){ out.push(applyParam(k,a.changes[k])); }); return {ok:true,applied:out}; } if(a.module!=null&&a.key) return applyModule(parseInt(a.module,10),a.key,a.value); return applyParam(a.path||a.key, a.value); },
     listParams: async function(a){ if(!scene) return {empty:true}; return {modules:scene.modules.map(function(m,i){ return {index:i,kind:m.kind,params:PhysModules.paramList(m.kind).map(function(p){ return {key:p.key,zh:p.zh,unit:p.unit,min:p.min,max:p.max,enum:p.enum,alias:!!p.alias,value:PhysModules.getParam(scene._mod[i],p.key)}; })}; }), kinds:PhysModules.kinds()}; }

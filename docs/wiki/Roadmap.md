@@ -6,4 +6,5 @@
 * **v3.1.0 (shipped)**: collapsible virtual keyboard on the home page (math + chemistry); also in Chat; agent tool; port to web.
 * **v3.2.0 (shipped)**: AI self-modifying code — diff preview, explicit approval, sandbox/overlay, rollback, version history, safe mode; never touch passwords/secrets.
 * **v3.3.0 (shipped)** + **web-v1.1.2**: confirmation before clearing history, resumable model downloads (Range / backoff / mirror fallback / pause-resume / sha256), per-model cache vs. files cleaning, agent tools.
+* **v3.4.0 (shipped)** + **web-v1.2.0**: physics element library — 54 built-in elements (incl. conveyor, pulleys, rails + rod, fields, optics), full inspector, 我的元件 with JSON import/export, own rigid-body engine, 8 examples, `phys_*_element` agent tools.
 * **Windows** builds return in a later release.

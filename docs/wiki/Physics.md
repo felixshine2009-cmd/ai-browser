@@ -21,6 +21,8 @@ Always call `phys_validate` before `phys_load`. On failure, fix the JSON and ret
 
 ## Agent tools
 
+**New in v3.4.0:** the element library — see [Physics element library](Physics-Elements) (`phys_add_element`, `phys_update_element`, `phys_remove_element`, `phys_list_element_types`, `phys_define_custom_element`, `phys_new_scene`, `phys_get_elements`).
+
 `phys_validate`, `phys_load`, `phys_play`, `phys_pause`, `phys_step`, `phys_reset`, `phys_set_speed`, `phys_state`, `phys_list_examples`, `phys_load_example`, `phys_set_param`, `phys_update`, `phys_list_params`.
 
 **Every parameter is customisable** (v2.2.0): 19 parametric modules (projectile, incline with static μ₀ / kinetic μ, circular, pendulum, spring, collision, gravitation, SHM, waves, charged particle in plates + B, circuits DC/RC/RL/AC, transformer, induction, refraction, lens, mirror, ideal gas, photoelectric, decay) plus rigid-body scenes with friction, restitution, fields and planets. See [[Physics-Parameters]] for the full table of keys, units and ranges. Derived values (range, critical angle, τ, Ek, …) are shown live.
