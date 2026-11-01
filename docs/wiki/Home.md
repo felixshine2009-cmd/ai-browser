@@ -13,6 +13,5 @@ Welcome. This wiki covers **AI Browser** (AI 浏览器) — a Chromium-based des
 * [Local Models](Local-Models) — llama.cpp, MLX, frameworks, Hugging Face
 * [Incognito](Incognito) — private tabs and how search/read stay private
 * [Troubleshooting](Troubleshooting)
-* [Roadmap](Roadmap) — web version, v3 onboarding, Windows return
 
 Created by Grok.
