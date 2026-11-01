@@ -1,12 +1,23 @@
 [**English**](README.md) | [中文](README_zh.md)
 
-# AI Browser v3.3.0
+# AI Browser v3.4.0
 
 A desktop browser (Electron / Chromium) with an AI **Chat mode** built in: dictionary lookup (MDX/MDD), sentence analysis, translation, **agentic web search** with cited answers, a local knowledge base, and GeoGebra plotting. An AI agent can drive the browser itself through a single tool registry.
 
-**Web version (PWA):** https://felixshine2009-cmd.github.io/ai-browser/ — chat via your own API key **or WebGPU local models** (WebLLM quantized Qwen2.5 / Gemma 2, ~0.5–3B; EmbeddingGemma for the knowledge base); GeoGebra, physics; desktop-only features are grayed out. Add to Home Screen on iPhone Safari. Current web release: `web-v1.1.0`.
+**Web version (PWA):** https://felixshine2009-cmd.github.io/ai-browser/ — chat via your own API key **or WebGPU local models** (WebLLM quantized Qwen2.5 / Gemma 2, ~0.5–3B; EmbeddingGemma for the knowledge base); GeoGebra, physics; desktop-only features are grayed out. Add to Home Screen on iPhone Safari. Current web release: `web-v1.2.0`.
 
 Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on Linux (xvfb + Playwright); things that need a real Mac are listed under *Known limitations*.
+
+## What's new in 3.4.0
+
+* **Physics element library** — the physics panel is now a sandbox you can build in. A **palette of 54 built-in elements** (drag onto the canvas or tap to add): *shapes* (block, ball, cylinder/disc, ring, rod, wedge, polygon, compound, plank, particle), *surfaces* (ground, wall, wall segment, rough/smooth patch, incline, arc, semicircular track, quarter-circle ramp, loop), *mechanisms* (**conveyor belt**, incl. inclined, fixed/movable & massive/ideal pulleys, rope, light rod, spring, elastic cord, hinge, cart, turntable, launcher, stopper), *fields* (E, B, gravity region, boundary, mass-spectrometer and cyclotron templates), *electrical / optical* (capacitor, rails + rod, coil, glass, prism, semicircular glass, lens, mirror, light source, screen) and *measurement* (ruler, protractor, stopwatch, photogate, spring scale, readout, trace point, friction pair).
+* **Every property is editable** in an inspector with units and ranges, live-updating (out-of-range input is rejected with the allowed range). Selection, multi-select, move / rotate / resize handles, duplicate, delete, snapping, undo / redo; on touch screens the handles are bigger and the palette / inspector collapse.
+* **My elements (我的元件)** — save any element or selection as a reusable custom type (a preset of one built-in type, or a group), export / import the library as JSON, reuse it across scenes.
+* **Real interactions** from a new own rigid-body engine (`rigid.js`: convex polygons + circles, contact manifolds, sequential-impulse solver with friction, rolling, joints): belt friction, Atwood machine (ideal and massive pulleys), block on a plank with friction on both surfaces, rolling of ball / disc / ring, loop-the-loop, rails + rod induction, charged particles in E / B regions, mass spectrometer, optics (Snell, mirror, lens, prism dispersion).
+* **8 new examples** (`el_*`): horizontal and inclined conveyor, Atwood, block on plank, loop-the-loop, rails with rod, mass spectrometer, prism dispersion.
+* Agent tools: `phys_add_element`, `phys_update_element`, `phys_remove_element`, `phys_list_element_types`, `phys_define_custom_element`, `phys_new_scene`, `phys_get_elements`; `phys_load` also accepts `elements[]`.
+* Web (web-v1.2.0): the same editor and engine, offline in the PWA (service-worker cache `aib-web-v1.2.0`).
+* Credits: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) — the engine is our own code; the sequential-impulse / clipping technique follows Erin Catto's Box2D-lite (MIT). No third-party code, icons or SVGs are bundled.
 
 ## What's new in 3.3.0
 
@@ -142,6 +153,10 @@ xvfb-run -a node test/run-all.js 16       # one suite, e.g. passwords + print
 3. Chrome-extension API coverage is limited by Electron.
 4. Search engines may show captchas to scripted requests; the fallback chain and relevance filter mitigate this.
 5. `mlx-lm` is not bundled (`pip3 install mlx-lm`), or use oMLX through *Local frameworks*.
+
+## Credits
+
+* Physics element library (v3.4.0): own engine and own canvas drawings. Algorithmic lineage: **Box2D-lite** by Erin Catto (MIT). No third-party code, icons or SVGs are bundled; no GPL code is used. Full list and licence text: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Roadmap
 

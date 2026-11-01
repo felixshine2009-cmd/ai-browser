@@ -202,5 +202,53 @@
     "topic": "modern.decay",
     "zh": "半衰期与放射性衰变",
     "title": "Radioactive decay"
+  },
+  {
+    "id": "el_conveyor_horizontal",
+    "topic": "elements.conveyor_horizontal",
+    "zh": "水平传送带（物块加速到带速）",
+    "title": "Horizontal conveyor belt"
+  },
+  {
+    "id": "el_conveyor_incline",
+    "topic": "elements.conveyor_incline",
+    "zh": "倾斜传送带（物块随带上行）",
+    "title": "Inclined conveyor belt"
+  },
+  {
+    "id": "el_atwood",
+    "topic": "elements.atwood",
+    "zh": "阿特伍德机（有质量滑轮）",
+    "title": "Atwood machine (massive pulley)"
+  },
+  {
+    "id": "el_block_on_plank",
+    "topic": "elements.block_on_plank",
+    "zh": "木板—木块（滑块滑上木板）",
+    "title": "Block sliding on a plank"
+  },
+  {
+    "id": "el_loop_the_loop",
+    "topic": "elements.loop_the_loop",
+    "zh": "竖直圆环轨道（过最高点）",
+    "title": "Loop-the-loop"
+  },
+  {
+    "id": "el_rails_rod",
+    "topic": "elements.rails_rod",
+    "zh": "导轨与导体棒（电磁感应）",
+    "title": "Rails and rod (induction)"
+  },
+  {
+    "id": "el_mass_spectrometer",
+    "topic": "elements.mass_spectrometer",
+    "zh": "质谱仪（电场加速 + 磁场偏转）",
+    "title": "Mass spectrometer"
+  },
+  {
+    "id": "el_prism_dispersion",
+    "topic": "elements.prism_dispersion",
+    "zh": "三棱镜色散",
+    "title": "Prism dispersion"
   }
 ]

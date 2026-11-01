@@ -2,7 +2,7 @@
   "standard": "aib-feature/1",
   "id": "aib.physics",
   "name": "高中物理可视化",
-  "version": "2.2.0",
+  "version": "3.4.0",
   "description": "2D physics engine for Chinese high-school physics with AI scene JSON + canvas visualization.",
   "update_url": "https://example.invalid/aib/aib.physics/update.json",
   "permissions": [
@@ -39,7 +39,7 @@
       },
       {
         "name": "phys_load",
-        "description": "Load a physics scene JSON into the visualizer (opens the panel). Scene fields: topic, zh, world{xmin,xmax,ymin,ymax,air}, g, bodies[{id,x,y,vx,vy,mass,radius,q,color,label,fixed,bounce,e,mu,mu0}], springs[{a,b,k,rest,damping}], fields[{type:'E',Ex,Ey | mag,angle | U,d,angle}, {type:'B',Bz | mag,dir:'out'|'in'}], walls[{x1,y1,x2,y2,bounce,mu,mu0}], planet{G,M,R}, modules[{kind,<params>}] (kinds: projectile,incline,circular,pendulum,spring,collision,gravitation,shm,wave,plates,circuit,transformer,induction,refraction,lens,mirror,gas,photoelectric,decay — call phys_list_params for every parameter, unit and range), optics{rays,mirrors,lenses,interfaces}, circuit{type:'RC'|'AC',...}, plots[{id,of:'body.prop'}], dt. Coordinates: +x right, +y up; gravity pulls -y.",
+        "description": "Load a physics scene JSON into the visualizer (opens the panel). Scene fields: topic, zh, world{xmin,xmax,ymin,ymax,air}, g, bodies[{id,x,y,vx,vy,mass,radius,q,color,label,fixed,bounce,e,mu,mu0}], springs[{a,b,k,rest,damping}], fields[{type:'E',Ex,Ey | mag,angle | U,d,angle}, {type:'B',Bz | mag,dir:'out'|'in'}], walls[{x1,y1,x2,y2,bounce,mu,mu0}], planet{G,M,R}, modules[{kind,<params>}] (kinds: projectile,incline,circular,pendulum,spring,collision,gravitation,shm,wave,plates,circuit,transformer,induction,refraction,lens,mirror,gas,photoelectric,decay — call phys_list_params for every parameter, unit and range), optics{rays,mirrors,lenses,interfaces}, circuit{type:'RC'|'AC',...}, plots[{id,of:'body.prop'}], dt. Coordinates: +x right, +y up; gravity pulls -y. NEW (v3.4.0) element-library scenes: elements[{id,type,x,y,angle,<type params>}] — 54 element types (block, ball, cylinder, rod, wedge, polygon, ring, ground, wall, incline, arc, loop, conveyor, pulley, rope, lightRod, spring, cord, hinge, plank, cart, turntable, launcher, fieldE, fieldB, rails, coil, lens, mirror, prism, glass, photogate, readout…); use phys_list_element_types for every type, parameter, unit and range, and phys_add_element / phys_update_element to build scenes incrementally. Element scenes use real rigid-body simulation (friction, rolling, belts, pulleys, ropes) and are editable in the panel (palette, inspector, handles).",
         "parameters": {
           "type": "object",
           "properties": {
@@ -181,6 +181,119 @@
       {
         "name": "phys_list_params",
         "description": "List every customisable parameter of the loaded module scene (key, Chinese name, unit, min, max, enum, current value) and all module kinds. Call this before phys_set_param when unsure of a key.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "phys_add_element",
+        "description": "Add one element from the physics element library to the current scene (creates a blank sandbox scene if none is loaded; converts a simple legacy scene). `type` is an element type id from phys_list_element_types (e.g. block, ball, conveyor, pulley, rope, rails, lens, loop, fieldB, massSpectrometer…) or a custom type defined with phys_define_custom_element. `props` holds the parameters (x, y, angle in degrees, mass, mu0, mu, …; units/ranges from phys_list_element_types; ropes/springs/hinges reference elements by id with a/b and local anchors ax,ay,bx,by). Returns {ok,id,ids} or {ok:false,errors[]} — errors name the bad parameter and its allowed range; fix and retry. Template types (massSpectrometer, cyclotron) expand to several elements (ids returned). Coordinates: +x right, +y up, metres, degrees counter-clockwise.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "element type id"
+            },
+            "props": {
+              "type": "object",
+              "description": "parameters of the element (may also be given at top level)"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      },
+      {
+        "name": "phys_update_element",
+        "description": "Change parameters of an existing element by id (position, size, mass, friction, field strength, refractive index, …). Values are validated against the type's ranges; live-safe parameters (labels, colours, belt speed, field strength…) apply to a running simulation without resetting it, geometric changes rebuild the scene at t=0. Returns {ok,applied} or {ok:false,errors[]}.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "props": {
+              "type": "object",
+              "description": "parameters to change"
+            }
+          },
+          "required": [
+            "id",
+            "props"
+          ]
+        }
+      },
+      {
+        "name": "phys_remove_element",
+        "description": "Remove an element by id. Elements that depend on it (ropes, springs, hinges, readouts attached to it) are removed too; the result lists everything removed.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      },
+      {
+        "name": "phys_list_element_types",
+        "description": "List the element library: every element type with id, Chinese/English name, category (shape, surface, mech, field, optic, meas, mine), description and every parameter with key, unit, min, max, default and options, plus the user's custom types. Optionally filter by category. Call this before phys_add_element when unsure of a parameter name or range.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "category": {
+              "type": "string",
+              "description": "shape | surface | mech | field | optic | meas | mine"
+            }
+          }
+        }
+      },
+      {
+        "name": "phys_define_custom_element",
+        "description": "Define a reusable custom element type (saved in the user's 我的元件 library). Either {id, zh, base:'<built-in type>', defaults:{param:value…}} for a preset of one type (e.g. a heavy block), or {id, zh, template:[{type,id?,x,y,…params}…]} for a group of elements placed relative to the drop point (ref params may use template ids). Then phys_add_element with type=<id>. Returns {ok,id} or {ok:false,errors[]}.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "def": {
+              "type": "object",
+              "description": "{id, zh, en?, base?, defaults?, template?}"
+            }
+          },
+          "required": [
+            "def"
+          ]
+        }
+      },
+      {
+        "name": "phys_new_scene",
+        "description": "Start a blank element-library sandbox scene (replaces the current scene). Optional topic, zh title, g, world{xmin,xmax,ymin,ymax}.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "topic": {
+              "type": "string"
+            },
+            "zh": {
+              "type": "string"
+            },
+            "g": {
+              "type": "number"
+            },
+            "world": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      {
+        "name": "phys_get_elements",
+        "description": "Return all elements of the current element scene (their parameters), plus live runtime values (positions, velocities, readouts) and build warnings.",
         "parameters": {
           "type": "object",
           "properties": {}

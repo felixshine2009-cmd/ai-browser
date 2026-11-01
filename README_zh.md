@@ -1,12 +1,23 @@
 [English](README.md) | [**中文**](README_zh.md)
 
-# AI 浏览器 v3.3.0
+# AI 浏览器 v3.4.0
 
 一个内置 AI **聊天模式**的桌面浏览器（Electron / Chromium）：词典查询（MDX/MDD）、长难句分析、翻译、带引用的**智能搜索**、本地知识库和 GeoGebra 画图。AI 通过统一的工具注册表，可以直接操作浏览器。
 
-**网页版（PWA）：** https://felixshine2009-cmd.github.io/ai-browser/ — 用你自己的 API Key **或 WebGPU 本地模型**（WebLLM 量化 Qwen2.5 / Gemma 2，约 0.5–3B；知识库可用 EmbeddingGemma）；GeoGebra、物理仿真；仅桌面功能显示为灰色。iPhone Safari 可「添加到主屏幕」。当前网页版：`web-v1.1.0`。
+**网页版（PWA）：** https://felixshine2009-cmd.github.io/ai-browser/ — 用你自己的 API Key **或 WebGPU 本地模型**（WebLLM 量化 Qwen2.5 / Gemma 2，约 0.5–3B；知识库可用 EmbeddingGemma）；GeoGebra、物理仿真；仅桌面功能显示为灰色。iPhone Safari 可「添加到主屏幕」。当前网页版：`web-v1.2.0`。
 
 面向 **Apple 芯片（M1/M2/M3）macOS 12+**。应用在 Linux 上用 xvfb + Playwright 做了端到端测试；需要真机验证的部分见“已知限制”。
+
+## 3.4.0 新内容
+
+* **物理元件库** —— 物理面板变成可搭建的沙盒。**54 种内置元件**（拖到画布或点一下添加）：*形体*（滑块、小球、圆柱/圆盘、圆环、细杆、楔块、多边形、组合体、木板、质点），*表面*（地面、墙、墙段、粗糙/光滑段、斜面、圆弧、半圆轨道、四分之一圆弧斜坡、竖直圆环轨道），*机构*（**传送带**（含倾斜）、定/动滑轮与有质量/理想滑轮、轻绳、轻杆、弹簧、弹性绳、铰链、小车、转盘、弹射器、挡板），*场*（电场、磁场、重力区域、边界、质谱仪和回旋加速器模板），*电学/光学*（电容器、导轨+导体棒、线圈、玻璃、三棱镜、半圆玻璃、透镜、平面镜、光源、光屏），*测量*（刻度尺、量角器、秒表、光电门、弹簧秤、读数框、轨迹点、摩擦对）。
+* **每个属性都可编辑**：检查器里带单位和范围，实时更新（越界输入会被拒绝并提示允许范围）。支持选择、多选、移动/旋转/缩放手柄、复制、删除、吸附、撤销/重做；触屏上手柄更大，元件库与检查器可折叠。
+* **我的元件** —— 把任意元件或选中的一组保存为可复用的自定义类型（某个内置类型的预设，或一组元件），库可导出/导入 JSON，跨场景复用。
+* **真实交互**（全新自研刚体引擎 `rigid.js`：凸多边形 + 圆、接触流形、带摩擦的序贯冲量求解、滚动、关节）：传送带摩擦、阿特伍德机（理想与有质量滑轮）、木板上的滑块（两个接触面都有摩擦）、球/盘/环的滚动、竖直圆环、导轨+导体棒电磁感应、带电粒子在电场/磁场区域运动、质谱仪、光学（折射、反射镜、透镜、棱镜色散）。
+* **8 个新示例**（`el_*`）：水平和倾斜传送带、阿特伍德机、木板上的滑块、竖直圆环、导轨+导体棒、质谱仪、棱镜色散。
+* Agent 工具：`phys_add_element`、`phys_update_element`、`phys_remove_element`、`phys_list_element_types`、`phys_define_custom_element`、`phys_new_scene`、`phys_get_elements`；`phys_load` 也接受 `elements[]`。
+* 网页版（web-v1.2.0）：同一套编辑器与引擎，PWA 可离线使用（Service Worker 缓存 `aib-web-v1.2.0`）。
+* 致谢：见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) —— 引擎是自己写的，序贯冲量 / 裁剪思路参考 Erin Catto 的 Box2D-lite（MIT）。没有打包任何第三方代码、图标或 SVG。
 
 ## 3.3.0 新内容
 
@@ -142,6 +153,10 @@ xvfb-run -a node test/run-all.js 16       # 单个测试，例如 密码 + 打�
 3. Chrome 拓展 API 覆盖受 Electron 限制。
 4. 搜索引擎可能对脚本请求出验证码；已有回退链和相关性过滤。
 5. 未内置 `mlx-lm`（`pip3 install mlx-lm`），也可通过“本地框架”使用 oMLX。
+
+## 致谢
+
+* 物理元件库（v3.4.0）：自研引擎与自绘图形。算法思路参考 Erin Catto 的 **Box2D-lite**（MIT）。没有打包第三方代码、图标或 SVG，也没有使用 GPL 代码。完整清单与许可文本见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 路线图
 
