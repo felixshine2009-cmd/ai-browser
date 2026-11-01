@@ -1,0 +1,96 @@
+{
+ "topic": "elements.conveyor_horizontal",
+ "zh": "水平传送带（物块加速到带速）",
+ "meta": {
+  "title": "Horizontal conveyor belt",
+  "zh": "水平传送带（物块加速到带速）"
+ },
+ "g": 9.8,
+ "world": {
+  "xmin": -6,
+  "xmax": 6,
+  "ymin": -1.5,
+  "ymax": 3.5
+ },
+ "bodies": [],
+ "elements": [
+  {
+   "x": 0,
+   "y": 0,
+   "angle": 0,
+   "label": "传送带 v=2 m/s",
+   "color": "#556b6a",
+   "len": 10,
+   "thick": 0.15,
+   "speed": 2,
+   "dir": "fwd",
+   "mu0": 0.6,
+   "mu": 0.4,
+   "e": 0,
+   "type": "conveyor",
+   "id": "belt"
+  },
+  {
+   "x": -4,
+   "y": 0.275,
+   "angle": 0,
+   "label": "物块",
+   "color": "#4d8fd1",
+   "w": 0.4,
+   "h": 0.4,
+   "mass": 1,
+   "mu0": 0.6,
+   "mu": 0.4,
+   "e": 0,
+   "q": 0,
+   "fixed": false,
+   "gravity": true,
+   "vx": 0,
+   "vy": 0,
+   "omega": 0,
+   "type": "block",
+   "id": "blk"
+  },
+  {
+   "x": -5.5,
+   "y": 3,
+   "angle": 0,
+   "label": "物块",
+   "color": "#9be3c3",
+   "target": "blk",
+   "qty": "vx",
+   "digits": 2,
+   "plot": true,
+   "type": "readout",
+   "id": "rv"
+  },
+  {
+   "x": -5.5,
+   "y": 2.5,
+   "angle": 0,
+   "label": "摩擦力",
+   "color": "#9be3c3",
+   "target": "blk",
+   "qty": "f",
+   "digits": 2,
+   "plot": false,
+   "type": "readout",
+   "id": "rf"
+  },
+  {
+   "x": 0,
+   "y": 0,
+   "angle": 0,
+   "label": "",
+   "color": "#f78fb3",
+   "target": "blk",
+   "interval": 0.25,
+   "ox": 0,
+   "oy": 0,
+   "labels": false,
+   "type": "trace",
+   "id": "tr"
+  }
+ ],
+ "customTypes": []
+}

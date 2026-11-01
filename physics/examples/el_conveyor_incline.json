@@ -1,0 +1,82 @@
+{
+ "topic": "elements.conveyor_incline",
+ "zh": "倾斜传送带（物块随带上行）",
+ "meta": {
+  "title": "Inclined conveyor belt",
+  "zh": "倾斜传送带（物块随带上行）"
+ },
+ "g": 9.8,
+ "world": {
+  "xmin": -2,
+  "xmax": 10,
+  "ymin": -1,
+  "ymax": 6
+ },
+ "bodies": [],
+ "elements": [
+  {
+   "x": 1,
+   "y": 0,
+   "angle": 30,
+   "label": "传送带 30°",
+   "color": "#556b6a",
+   "len": 9,
+   "thick": 0.15,
+   "speed": 2,
+   "dir": "fwd",
+   "mu0": 0.9,
+   "mu": 0.7,
+   "e": 0,
+   "type": "conveyor",
+   "id": "belt"
+  },
+  {
+   "x": 1.2955,
+   "y": 0.4882,
+   "angle": 30,
+   "label": "物块",
+   "color": "#4d8fd1",
+   "w": 0.4,
+   "h": 0.4,
+   "mass": 1,
+   "mu0": 0.9,
+   "mu": 0.7,
+   "e": 0,
+   "q": 0,
+   "fixed": false,
+   "gravity": true,
+   "vx": 0,
+   "vy": 0,
+   "omega": 0,
+   "type": "block",
+   "id": "blk"
+  },
+  {
+   "x": -1.8,
+   "y": 5.2,
+   "angle": 0,
+   "label": "物块",
+   "color": "#9be3c3",
+   "target": "blk",
+   "qty": "speed",
+   "digits": 2,
+   "plot": true,
+   "type": "readout",
+   "id": "rv"
+  },
+  {
+   "x": -1.8,
+   "y": 4.6,
+   "angle": 0,
+   "label": "摩擦力",
+   "color": "#9be3c3",
+   "target": "blk",
+   "qty": "f",
+   "digits": 2,
+   "plot": false,
+   "type": "readout",
+   "id": "rf"
+  }
+ ],
+ "customTypes": []
+}

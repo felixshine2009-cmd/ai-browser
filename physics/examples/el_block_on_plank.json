@@ -1,0 +1,122 @@
+{
+ "topic": "elements.block_on_plank",
+ "zh": "木板—木块（滑块滑上木板）",
+ "meta": {
+  "title": "Block sliding on a plank",
+  "zh": "木板—木块（滑块滑上木板）"
+ },
+ "g": 9.8,
+ "world": {
+  "xmin": -4,
+  "xmax": 6,
+  "ymin": -1,
+  "ymax": 3
+ },
+ "bodies": [],
+ "elements": [
+  {
+   "x": 0,
+   "y": -0.5,
+   "angle": 0,
+   "label": "",
+   "color": "#5b6b66",
+   "w": 30,
+   "thick": 1,
+   "segments": "",
+   "mu0": 0.1,
+   "mu": 0.1,
+   "e": 0,
+   "type": "ground",
+   "id": "g"
+  },
+  {
+   "x": 0,
+   "y": 0.1,
+   "angle": 0,
+   "label": "木板 M=2 kg",
+   "color": "#b58a4a",
+   "w": 4,
+   "h": 0.2,
+   "mass": 2,
+   "mu0": 0.4,
+   "mu": 0.4,
+   "e": 0,
+   "q": 0,
+   "fixed": false,
+   "gravity": true,
+   "vx": 0,
+   "vy": 0,
+   "omega": 0,
+   "type": "plank",
+   "id": "pl"
+  },
+  {
+   "x": -1.7,
+   "y": 0.35,
+   "angle": 0,
+   "label": "物块 m=1 kg v₀=3",
+   "color": "#4d8fd1",
+   "w": 0.3,
+   "h": 0.3,
+   "mass": 1,
+   "mu0": 0.4,
+   "mu": 0.4,
+   "e": 0,
+   "q": 0,
+   "fixed": false,
+   "gravity": true,
+   "vx": 3,
+   "vy": 0,
+   "omega": 0,
+   "type": "block",
+   "id": "blk"
+  },
+  {
+   "label": "",
+   "a": "blk",
+   "b": "pl",
+   "mu0": 0.4,
+   "mu": 0.4,
+   "e": 0,
+   "type": "frictionPair",
+   "id": "f1"
+  },
+  {
+   "label": "",
+   "a": "pl",
+   "b": "g",
+   "mu0": 0.1,
+   "mu": 0.1,
+   "e": 0,
+   "type": "frictionPair",
+   "id": "f2"
+  },
+  {
+   "x": -3.8,
+   "y": 2.6,
+   "angle": 0,
+   "label": "物块",
+   "color": "#9be3c3",
+   "target": "blk",
+   "qty": "vx",
+   "digits": 2,
+   "plot": true,
+   "type": "readout",
+   "id": "rb"
+  },
+  {
+   "x": -3.8,
+   "y": 2.1,
+   "angle": 0,
+   "label": "木板",
+   "color": "#9be3c3",
+   "target": "pl",
+   "qty": "vx",
+   "digits": 2,
+   "plot": true,
+   "type": "readout",
+   "id": "rp"
+  }
+ ],
+ "customTypes": []
+}
