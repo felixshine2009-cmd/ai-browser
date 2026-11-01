@@ -2,6 +2,31 @@
 
 # AI 浏览器 v3.4.0
 
+[![在线使用网页版](https://img.shields.io/badge/%E2%96%B6%20%E5%9C%A8%E7%BA%BF%E4%BD%BF%E7%94%A8%E7%BD%91%E9%A1%B5%E7%89%88-GitHub%20Pages-2ea44f?style=for-the-badge)](https://felixshine2009-cmd.github.io/ai-browser/)
+[![下载 Mac 版](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD%20Mac%20%E7%89%88-Apple%20%E8%8A%AF%E7%89%87-black?style=for-the-badge)](https://github.com/felixshine2009-cmd/ai-browser/releases/latest/download/AI-Browser-mac-arm64.zip)
+
+### 👉 [**在线使用网页版 / Try the web app**](https://felixshine2009-cmd.github.io/ai-browser/) · [**下载 Mac 版（Apple 芯片）**](https://github.com/felixshine2009-cmd/ai-browser/releases/latest/download/AI-Browser-mac-arm64.zip)
+
+[![最新版本](https://img.shields.io/github/v/release/felixshine2009-cmd/ai-browser?label=desktop)](https://github.com/felixshine2009-cmd/ai-browser/releases/latest)
+[![平台](https://img.shields.io/badge/platform-macOS%20arm64-lightgrey)](https://github.com/felixshine2009-cmd/ai-browser/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-blue)](package.json)
+[![网页版](https://img.shields.io/badge/web%20demo-live-brightgreen)](https://felixshine2009-cmd.github.io/ai-browser/)
+
+**面向 Apple 芯片 Mac 的中文优先 AI 浏览器 —— 聊天、Agent 工具、本地模型、GeoGebra 和物理实验室，一个 Chromium 应用全包。** 桌面版暂时只有 Mac（暂无 Windows 版）；网页版 / PWA 可在任何设备使用。
+
+**已发布的功能**
+
+* AI Agent 通过统一工具注册表操作浏览器（浏览器、设置、知识库、模型、GeoGebra、物理、代码补丁等）
+* 本地模型（桌面 MLX / llama.cpp，网页版 WebGPU），也可用你自己的云端 API Key
+* 混元 HY-MT 翻译、长难句分析、词典查询（MDX/MDD）
+* 本地知识库（语义检索）
+* 隐身标签页；首次启动设置向导
+* 完整 GeoGebra（2D / 3D / CAS / 几何）及数学键盘，另有数学 / 化学虚拟键盘
+* 物理引擎：34 个示例，所有高中物理参数可改；**元件库（v3.4.0）**：54 个元件、实时检查器、撤销/重做、「我的元件」自定义元件（JSON 导入/导出）
+* AI 自修改代码（沙箱）：diff → 批准 → 回滚
+* 可恢复的模型下载、按模型清理缓存 / 文件；所有清除操作先确认
+
+
 一个内置 AI **聊天模式**的桌面浏览器（Electron / Chromium）：词典查询（MDX/MDD）、长难句分析、翻译、带引用的**智能搜索**、本地知识库和 GeoGebra 画图。AI 通过统一的工具注册表，可以直接操作浏览器。
 
 **网页版（PWA）：** https://felixshine2009-cmd.github.io/ai-browser/ — 用你自己的 API Key **或 WebGPU 本地模型**（WebLLM 量化 Qwen2.5 / Gemma 2，约 0.5–3B；知识库可用 EmbeddingGemma）；GeoGebra、物理仿真；仅桌面功能显示为灰色。iPhone Safari 可「添加到主屏幕」。当前网页版：`web-v1.2.0`。
