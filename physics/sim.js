@@ -42,6 +42,10 @@
     (scene.fields || []).forEach((f, i) => {
       if (f.d != null && !(f.d > 0)) err.push('fields[' + i + '].d (plate spacing) must be > 0');
     });
+    if (scene.elements != null) {
+      if (!Array.isArray(scene.elements)) err.push('elements must be an array');
+      else if (root.PhysElements) { const r = root.PhysElements.validate(scene); err.push(...r.errors); warnings.push(...r.warnings); }
+    }
     const PM = root.PhysModules;
     (scene.modules || []).forEach((m, i) => { if (PM) { const r = PM.validateModule(m, i); err.push(...r.errors); warnings.push(...r.warnings); } });
     return { ok: !err.length, errors: err, warnings };
@@ -68,6 +72,7 @@
     s.history = s.history || {};
     s.modules = s.modules || [];
     // runtime module state lives in a non-enumerable property so clone()/export never serialise it
+    if (s.elements && s.elements.length && root.PhysElements) root.PhysElements.init(s);
     Object.defineProperty(s, '_mod', { value: root.PhysModules ? s.modules.map(m => root.PhysModules.make(m.kind, m)) : [], writable: true, enumerable: false, configurable: true });
     return s;
   }
@@ -239,6 +244,7 @@
 
   function step(scene, n) {
     const s = scene; const steps = n == null ? 1 : n;
+    if (s.elements && s.elements.length && root.PhysElements) return root.PhysElements.step(s, steps);
     for (let k = 0; k < steps; k++) {
       for (const b of s.bodies) {
         if (b.fixed) { b.vx = b.vy = 0; continue; }
@@ -271,6 +277,7 @@
   }
 
   function vectors(s) {
+    if (s.elements && s.elements.length) return [];
     // for renderer: per-body force / velocity arrows
     return s.bodies.map(b => {
       const f = forceOn(s, b);
@@ -280,6 +287,7 @@
 
   // Live derived quantities for the readout panel
   function derived(s) {
+    if (s.elements && s.elements.length && root.PhysElements) return root.PhysElements.derived(s);
     const out = {}; let ke = 0, pe = 0, px = 0, py = 0;
     for (const b of s.bodies) { ke += 0.5 * b.mass * (b.vx * b.vx + b.vy * b.vy); pe += b.mass * s.g * (b.y - s.world.ymin); px += b.mass * b.vx; py += b.mass * b.vy; }
     if (s.bodies.length) Object.assign(out, { 'kinetic energy Ek (J)': ke, 'potential energy Ep (J)': pe, 'total energy E (J)': ke + pe, 'momentum px (kg·m/s)': px, 'momentum py (kg·m/s)': py, 'g (m/s²)': s.g });

@@ -1,0 +1,85 @@
+{
+ "topic": "elements.loop_the_loop",
+ "zh": "竖直圆环轨道（过最高点）",
+ "meta": {
+  "title": "Loop-the-loop",
+  "zh": "竖直圆环轨道（过最高点）"
+ },
+ "g": 9.8,
+ "world": {
+  "xmin": -3.5,
+  "xmax": 5,
+  "ymin": -0.5,
+  "ymax": 3
+ },
+ "bodies": [],
+ "elements": [
+  {
+   "x": 0,
+   "y": 0,
+   "angle": 0,
+   "label": "",
+   "color": "#7a8a84",
+   "R": 0.5,
+   "Rq": 2,
+   "floor": 0.6,
+   "exitLen": 3,
+   "gap": 14,
+   "thick": 0.08,
+   "mu0": 0.02,
+   "mu": 0.01,
+   "e": 0,
+   "type": "loop",
+   "id": "loop"
+  },
+  {
+   "x": -2.5106,
+   "y": 1.61,
+   "angle": 0,
+   "label": "h=1.6 m",
+   "color": "#e0a23a",
+   "r": 0.05,
+   "k": 0.4,
+   "mass": 0.1,
+   "mu0": 0,
+   "mu": 0,
+   "e": 0,
+   "q": 0,
+   "fixed": false,
+   "gravity": true,
+   "vx": 0,
+   "vy": 0,
+   "omega": 0,
+   "type": "ball",
+   "id": "ball"
+  },
+  {
+   "x": -3.3,
+   "y": 2.7,
+   "angle": 0,
+   "label": "小球",
+   "color": "#9be3c3",
+   "target": "ball",
+   "qty": "speed",
+   "digits": 2,
+   "plot": true,
+   "type": "readout",
+   "id": "rv"
+  },
+  {
+   "x": 0,
+   "y": 0,
+   "angle": 0,
+   "label": "",
+   "color": "#f78fb3",
+   "target": "ball",
+   "interval": 0.08,
+   "ox": 0,
+   "oy": 0,
+   "labels": false,
+   "type": "trace",
+   "id": "tr"
+  }
+ ],
+ "customTypes": []
+}

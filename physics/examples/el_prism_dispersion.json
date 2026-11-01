@@ -1,0 +1,59 @@
+{
+ "topic": "elements.prism_dispersion",
+ "zh": "三棱镜色散",
+ "meta": {
+  "title": "Prism dispersion",
+  "zh": "三棱镜色散"
+ },
+ "g": 9.8,
+ "world": {
+  "xmin": -5,
+  "xmax": 7,
+  "ymin": -4,
+  "ymax": 3
+ },
+ "bodies": [],
+ "elements": [
+  {
+   "x": -4,
+   "y": -1,
+   "angle": 19.5,
+   "label": "白光",
+   "color": "#ffe066",
+   "mode": "beam",
+   "count": 1,
+   "spread": 0,
+   "white": true,
+   "type": "lightSource",
+   "id": "src"
+  },
+  {
+   "x": 0,
+   "y": 0,
+   "angle": 0,
+   "label": "",
+   "color": "#7fd4e6",
+   "n": 1.52,
+   "disp": 0.08,
+   "apex": 60,
+   "side": 2,
+   "type": "prism",
+   "id": "prism"
+  },
+  {
+   "x": 5.5,
+   "y": -1.6,
+   "angle": 90,
+   "label": "",
+   "color": "#9fb3a8",
+   "len": 4.2,
+   "thick": 0.04,
+   "slit": 0,
+   "slitX": 0,
+   "e": 0,
+   "type": "screen",
+   "id": "scr"
+  }
+ ],
+ "customTypes": []
+}
