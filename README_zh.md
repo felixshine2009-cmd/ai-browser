@@ -1,6 +1,6 @@
 [English](README.md) | [**中文**](README_zh.md)
 
-# AI 浏览器 v3.4.0
+# AI 浏览器
 
 [![在线使用网页版](https://img.shields.io/badge/%E2%96%B6%20%E5%9C%A8%E7%BA%BF%E4%BD%BF%E7%94%A8%E7%BD%91%E9%A1%B5%E7%89%88-GitHub%20Pages-2ea44f?style=for-the-badge)](https://felixshine2009-cmd.github.io/ai-browser/)
 [![下载 Mac 版](https://img.shields.io/badge/%E4%B8%8B%E8%BD%BD%20Mac%20%E7%89%88-Apple%20%E8%8A%AF%E7%89%87-black?style=for-the-badge)](https://github.com/felixshine2009-cmd/ai-browser/releases/latest/download/AI-Browser-mac-arm64.zip)
@@ -14,18 +14,6 @@
 
 **面向 Apple 芯片 Mac 的中文优先 AI 浏览器 —— 聊天、Agent 工具、本地模型、GeoGebra 和物理实验室，一个 Chromium 应用全包。** 桌面版暂时只有 Mac（暂无 Windows 版）；网页版 / PWA 可在任何设备使用。
 
-**已发布的功能**
-
-* AI Agent 通过统一工具注册表操作浏览器（浏览器、设置、知识库、模型、GeoGebra、物理、代码补丁等）
-* 本地模型（桌面 MLX / llama.cpp，网页版 WebGPU），也可用你自己的云端 API Key
-* 混元 HY-MT 翻译、长难句分析、词典查询（MDX/MDD）
-* 本地知识库（语义检索）
-* 隐身标签页；首次启动设置向导
-* 完整 GeoGebra（2D / 3D / CAS / 几何）及数学键盘，另有数学 / 化学虚拟键盘
-* 物理引擎：34 个示例，所有高中物理参数可改；**元件库（v3.4.0）**：54 个元件、实时检查器、撤销/重做、「我的元件」自定义元件（JSON 导入/导出）
-* AI 自修改代码（沙箱）：diff → 批准 → 回滚
-* 可恢复的模型下载、按模型清理缓存 / 文件；所有清除操作先确认
-
 ![演示：桌面版物理元件库](docs/images/demo.gif)
 
 | 网页版（桌面） | 网页版（手机） | 桌面应用 |
@@ -34,87 +22,37 @@
 
 <sub>截图均来自真实的网页版与桌面应用。更多：[网页版主页 + 化学键盘](docs/images/web-home.png)、[GeoGebra](docs/images/web-geogebra.png)、[AI 自修改代码 diff](docs/images/desktop-selfmod.png)。</sub>
 
+## 功能
 
+**AI 与 Agent**
+* AI Agent 通过统一工具注册表操作浏览器：标签页、搜索、读网页、设置、知识库、模型、GeoGebra、物理、代码补丁等
+* 带 `[n]` 引用的智能搜索；可用你自己的云端 API Key（OpenAI / Anthropic 格式，带预设）或本地模型聊天
+* 清除历史、删除模型等敏感操作一律先确认；密码永远不会暴露给 AI
 
-一个内置 AI **聊天模式**的桌面浏览器（Electron / Chromium）：词典查询（MDX/MDD）、长难句分析、翻译、带引用的**智能搜索**、本地知识库和 GeoGebra 画图。AI 通过统一的工具注册表，可以直接操作浏览器。
+**本地模型**
+* 桌面版 MLX / llama.cpp，网页版 WebGPU；自动探测 LM Studio、Ollama、oMLX 及其他 OpenAI 兼容服务
+* 可恢复下载（暂停 / 继续、镜像回退、sha256 校验）、Hugging Face 搜索、按模型显示磁盘占用并分别清理缓存 / 文件
 
-**网页版（PWA）：** https://felixshine2009-cmd.github.io/ai-browser/ — 用你自己的 API Key **或 WebGPU 本地模型**（WebLLM 量化 Qwen2.5 / Gemma 2，约 0.5–3B；知识库可用 EmbeddingGemma）；GeoGebra、物理仿真；仅桌面功能显示为灰色。iPhone Safari 可「添加到主屏幕」。当前网页版：`web-v1.2.0`。
+**语言**
+* 混元 HY-MT 翻译、长难句分析、词典查询（MDX/MDD）
+* 本地知识库（EmbeddingGemma 语义检索）
 
-面向 **Apple 芯片（M1/M2/M3）macOS 12+**。应用在 Linux 上用 xvfb + Playwright 做了端到端测试；需要真机验证的部分见“已知限制”。
+**浏览器**
+* 标签页、独立内存会话的隐身标签页、内置密码管理器、Chrome 应用商店拓展、打印 / 另存为 PDF
+* 首次启动设置向导
 
-## 3.4.0 新内容
+**数学**
+* 完整 GeoGebra（绘图、几何、3D、CAS、科学计算器）及数学键盘
+* **数学 / 化学虚拟键盘**：主页与聊天中可用（数学、化学、希腊字母、运算符号分页）
 
-* **物理元件库** —— 物理面板变成可搭建的沙盒。**54 种内置元件**（拖到画布或点一下添加）：*形体*（滑块、小球、圆柱/圆盘、圆环、细杆、楔块、多边形、组合体、木板、质点），*表面*（地面、墙、墙段、粗糙/光滑段、斜面、圆弧、半圆轨道、四分之一圆弧斜坡、竖直圆环轨道），*机构*（**传送带**（含倾斜）、定/动滑轮与有质量/理想滑轮、轻绳、轻杆、弹簧、弹性绳、铰链、小车、转盘、弹射器、挡板），*场*（电场、磁场、重力区域、边界、质谱仪和回旋加速器模板），*电学/光学*（电容器、导轨+导体棒、线圈、玻璃、三棱镜、半圆玻璃、透镜、平面镜、光源、光屏），*测量*（刻度尺、量角器、秒表、光电门、弹簧秤、读数框、轨迹点、摩擦对）。
-* **每个属性都可编辑**：检查器里带单位和范围，实时更新（越界输入会被拒绝并提示允许范围）。支持选择、多选、移动/旋转/缩放手柄、复制、删除、吸附、撤销/重做；触屏上手柄更大，元件库与检查器可折叠。
-* **我的元件** —— 把任意元件或选中的一组保存为可复用的自定义类型（某个内置类型的预设，或一组元件），库可导出/导入 JSON，跨场景复用。
-* **真实交互**（全新自研刚体引擎 `rigid.js`：凸多边形 + 圆、接触流形、带摩擦的序贯冲量求解、滚动、关节）：传送带摩擦、阿特伍德机（理想与有质量滑轮）、木板上的滑块（两个接触面都有摩擦）、球/盘/环的滚动、竖直圆环、导轨+导体棒电磁感应、带电粒子在电场/磁场区域运动、质谱仪、光学（折射、反射镜、透镜、棱镜色散）。
-* **8 个新示例**（`el_*`）：水平和倾斜传送带、阿特伍德机、木板上的滑块、竖直圆环、导轨+导体棒、质谱仪、棱镜色散。
-* Agent 工具：`phys_add_element`、`phys_update_element`、`phys_remove_element`、`phys_list_element_types`、`phys_define_custom_element`、`phys_new_scene`、`phys_get_elements`；`phys_load` 也接受 `elements[]`。
-* 网页版（web-v1.2.0）：同一套编辑器与引擎，PWA 可离线使用（Service Worker 缓存 `aib-web-v1.2.0`）。
-* 致谢：见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) —— 引擎是自己写的，序贯冲量 / 裁剪思路参考 Erin Catto 的 Box2D-lite（MIT）。没有打包任何第三方代码、图标或 SVG。
+**物理**
+* 物理引擎：34 个示例，所有高中物理参数可改
+* **元件库**：54 个元件（传送带、滑轮、轨道 + 导体棒、电磁场、光学、测量工具）、带撤销/重做的实时检查器，以及「我的元件」自定义元件（JSON 导入/导出）
 
-## 3.3.0 新内容
+**AI 自修改代码**
+* AI 可在沙箱中为应用提出补丁：diff 预览 → 你批准 → 一键回滚；永不覆盖安装包
 
-* **清除历史记录前先确认** —— 所有入口（历史页、按范围清除“最近一小时 / 24 小时 / 全部”、设置 → 隐私、下载列表，以及新增的 AI 工具 `history_clear`）都会弹出同一个深色对话框：说明将删除什么、共多少条，红色 **确认清除** 与 **取消**（默认焦点在取消），Esc / 点击遮罩取消；完成后显示醒目的“已清除 N 条”。AI 无法静默清除：它的请求会在同一对话框里出现（标注“AI 请求”），拒绝则不删除任何内容。
-* **可恢复的模型下载（新下载引擎 `dl.js`）** —— 用 HTTP `Range` 从 `.part` 文件续传（重启、崩溃、断网都不丢）、**暂停 / 继续** 按钮、指数退避自动重试、镜像回退（hf-mirror ⇄ huggingface.co）继续同一个文件、服务器忽略 `Range`（返回 200）时干净重来、完成后校验大小与 sha256（不一致则删除并重新下载，并显示原因）。进度显示已下载/总量、速度、剩余时间，以及状态文字（已暂停 / 网络中断，将自动重试 / 校验中）。覆盖 GGUF、MLX 多文件快照、EmbeddingGemma、HY-MT 与 Hugging Face 自定义模型（HY-MT / EmbeddingGemma 首次使用时的下载现在与设置页共用同一个任务）。
-* **模型缓存与模型文件分开清理** —— 设置 → 本地模型 按模型显示磁盘占用，分为“模型文件”和“缓存”（未完成的 `.part`、临时文件、运行时缓存，以及属于 EmbeddingGemma 的知识库向量索引），每行有 **清理缓存**（模型仍可用）和 **删除模型文件**，分区级 **清理所有模型缓存** 与总占用。删除前先卸载运行中的模型；被删模型担任的角色（聊天 / 词典 / 翻译 / 嵌入）会清空并提示；内置 EmbeddingGemma 删除后提示知识库搜索需要它并提供重新下载。LM Studio / Ollama 目录只读显示、绝不触碰。所有删除都走确认对话框，并以“已释放 X”收尾。
-* Agent 工具：`local_models_download`、`local_models_pause`、`local_models_resume`、`local_models_status`、`local_models_disk_usage`、`local_models_clear_cache`、`local_models_delete`（后两个一定会询问用户）、`history_clear`。
-* 网页版（web-v1.1.2）：WebLLM 按分片可恢复下载（已完成分片保留在 Cache Storage，暂停 / 继续从下一分片开始，自动重试 + 镜像回退）、按模型“清理缓存”与“删除模型”并显示 `navigator.storage.estimate()`、同款确认对话框（“清空知识库”也使用），以及同样的 Agent 工具；并修复了 Service Worker 每次更新都会删除 WebLLM 模型缓存的问题。
-
-## 3.2.0 新内容
-
-* **AI 自修改代码（沙箱）**：Agent 可提出补丁；你查看 unified diff 并明确批准后才生效。补丁只写入 userData overlay，永不覆盖安装包。支持一键回滚、版本历史、启动失败后的安全模式。密码、密钥、preload、`store.js` 被禁止修改。
-* Agent 工具：`code_propose_patch`、`code_pending_patch`、`code_list_patches`、`code_rollback`、`code_safe_mode`。打开 `aibrowser://selfmod` 或「设置 → 通用」。
-
-## 3.1.0 新内容
-
-
-* **可折叠数学 / 化学虚拟键盘**：主页（默认折叠）与 Chat 追问区；数学 / 化学 / 希腊字母 / 运算符号分页，在光标处插入。
-* Agent 工具 `vkeyboard_toggle`、`vkeyboard_insert`、`vkeyboard_catalog`。
-* 网页版同步同一键盘。
-
-## 3.0.0 新内容
-
-
-* **首次安装设置向导**：语言 → 显示名称 → AI 模型（API / 本地）→ 搜索引擎 → 词典（可选）→ 完成。任意步骤可跳过；可在 **设置 → 通用** 重新打开。
-* Agent 工具 `browser_open_page` 支持 `onboarding`。
-
-## 2.2.0 新内容
-
-
-* **物理量全部可自定义**：新增「参数」面板（滑块 + 数字框 + 单位，小屏可折叠），覆盖 19 个高中物理参数化模块——抛体、斜面（静摩擦 μ₀ ≠ 动摩擦 μ、倾角、质量）、圆周运动、单摆、弹簧振子、碰撞（恢复系数 e）、万有引力（G、M、R）、简谐运动、机械波（λ、T、v、f、φ）、带电粒子（q、m、U、d、B 及方向）、电路（直流 / RC / RL / 交流：ε、r、R、C、L、ρ、导线长度与截面、频率、峰值）、变压器、电磁感应、折射与全反射（n₁、n₂、入射角、实时临界角、波长）、薄透镜、球面镜、理想气体（等温 / 等压 / 等容 / 绝热）、光电效应（ν、W₀、h、遏止电压、截止频率）与放射性衰变（半衰期、N₀）。
-* 刚体场景新增墙面 / 地面静、动摩擦，恢复系数，电场 `{mag, angle}` 或 `{U, d}`，磁场 `{mag, dir}`，以及 `planet{G,M,R}` → g。
-* 导出量（射程、临界角、时间常数、Ek 等）实时显示；越界输入给出清晰错误；场景可导出 / 导入 JSON。
-* 新增 Agent 工具 `phys_set_param`、`phys_update`、`phys_list_params`；测试断言每个参数都会改变仿真输出。
-* 网页版同步更新相同面板（参数表见 wiki 的 Physics-Parameters 页）。
-
-## 2.1.0 新内容
-
-* **高中物理可视化**：确定性 2D 引擎，覆盖力学、振动与波、电磁学、光学、热学、近代物理；场景 JSON 加载前校验（出错时 AI 重试）；播放 / 暂停 / 单步 / 调速、矢量、轨迹、实时曲线；15 个示例场景；Agent 工具 `phys_validate`、`phys_load`、`phys_play`、`phys_pause`、`phys_step`、`phys_reset`、`phys_set_speed`、`phys_state`、`phys_list_examples`、`phys_load_example`。
-* **更多 Agent 工具**：书签、下载、页内查找、缩放、安全设置修改、Chrome 拓展管理、知识库删除 / 清空、本地模型管理（不含密码）。
-* 隐身标签页读取页面使用私有会话。
-* 翻译模型下载失败时在聊天界面显示明确原因。
-
-## 2.0.0 新内容
-
-* **完整 GeoGebra 数学应用**（离线）：绘图 / 几何 / 3D / CAS / 科学计算器 / 套件，屏幕数学键盘（123 / f(x) / ABC / 符号），保存/打开 `.ggb`，导出 PNG，AI 通过 `ggb_*` 工具控制。
-* **新应用图标**（圆环 + 极光）。
-* 移除问候语前的装饰符号。
-
-## 1.1.0 新内容
-
-* **隐身标签页** — 右上角四方格菜单第一项“新建隐身标签页”（⇧⌘N）。使用独立的内存会话：不共享 Cookie、存储、历史和已保存密码；深紫色标签带“隐身”徽标；关闭最后一个隐身标签后全部清除。
-* **Agent 工具注册表** — 统一的函数调用工具（兼容 OpenAI / Anthropic；本地模型走语法约束的 JSON 回退）：浏览器操作（标签页、隐身、导航、历史、拓展）、搜索 / 读网页、词典、翻译与语法分析、知识库、设置（只读，不含密钥）、打印 / 另存 PDF，以及各 功能拓展 声明的工具（新拓展自动注册）。聊天里会简要显示工具步骤，步数上限可调。
-* **知识库** — 内置 **EmbeddingGemma-300M**（离线，使用 `task: search result | query: …` 提示），分块 + 本地向量库，可添加文件 / 网页 / 文本，检索测试，也可改用自定义嵌入 API。
-* **混元翻译** — **HY-MT1.5-1.8B**（1.1.1 起不再内置，约 1.1 GB，第一次翻译时从 hf-mirror 下载，有进度、可续传），仅在翻译时加载（句子 / 文章 / 网页 / `translate_text` 工具），空闲约 2.5 分钟后卸载；不会用于聊天和词典。可用自定义 API 或“翻译”角色模型替换。
-* **本地模型重做** — 引擎选择（llama.cpp GGUF / Apple 芯片上的 MLX）；下载默认走 **hf-mirror.com**（可切换 huggingface.co 或自定义地址，失败自动回退）；可**搜索 Hugging Face** 或粘贴 repo，支持断点续传和 sha256 校验；自定义模型可担任 聊天 / 词典 / 翻译 / 嵌入 角色；模型按**家族折叠分组**（Qwen3、Qwen2.5、Gemma 4、Gemma 3n、Gemma 3、Hunyuan-MT、EmbeddingGemma …）。
-* **本地框架** — 自动探测 **LM Studio**（:1234）、**Ollama**（:11434，原生 API）、**oMLX**（:8000）、MLX-LM / llama.cpp server（:8080）、vLLM、Jan、LocalAI 或任意 OpenAI 兼容服务；可自定义主机 / 端口，连接测试给出具体原因，支持流式输出，原生工具调用 + JSON 回退。
-* **MLX 引擎**（Apple 芯片）— 启动本地 OpenAI 兼容的 `mlx_lm.server`，按需启动 / 空闲停止，失败时回退到 llama.cpp 并显示原因。需要 `pip3 install mlx-lm`（未内置）。
-* **密码** — 内置密码管理器（四方格菜单 → 设置 → 密码）：登录时询问保存、自动填充、搜索；查看 / 导出需 Touch ID 或 macOS 密码；编辑 / 删除；CSV 导入导出；使用 Electron `safeStorage`（钥匙串）加密保存；隐身模式永不保存；**AI 工具无法读取密码**。
-* **打印…（⌘P）和另存为 PDF** 在菜单里；AI 只能弹出打印对话框。
-* **词典导入时整体复制**到应用数据目录（mdx、所有同名 `.mdd`、css / js / 字体 / 图片），显示进度和占用空间；删除词典会删除副本（带确认）；已有的路径引用词典启动时自动迁移（原文件不存在则提示“源文件缺失”）。
-* **Chrome 拓展直接从 Chrome 应用商店安装** — 打开拓展页面点“添加”即可；“加载已解压的拓展”仅作高级备用。
-* **设置页可读性修复** — 词典面板不再出现白底；所有设置面板都有自动化的 ≥ 4.5:1 对比度测试。
+**网页版（PWA）**：https://felixshine2009-cmd.github.io/ai-browser/ ——用你自己的 API Key 或 WebGPU 本地模型；仅桌面功能显示为灰色。iPhone Safari 可「添加到主屏幕」。桌面版面向 **Apple 芯片（M1/M2/M3）macOS 12+**。
 
 ## 安装（推荐）
 
@@ -131,7 +69,7 @@
 2. 双击 `install.command`（或运行 `bash install.sh`）。
 3. 若 macOS 提示无法验证开发者：系统设置 → 隐私与安全性 → 仍要打开；或运行 `xattr -cr "/Applications/AI Browser.app" && open "/Applications/AI Browser.app"`。
 
-**Windows：** 暂停——v1.1.1 之后没有 Windows 构建（最后一版 Windows 安装包见 [v1.1.1](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/v1.1.1)），后续版本会恢复。
+**Windows：** 暂无 Windows 构建。
 
 ## 首次使用
 
@@ -173,13 +111,6 @@ npm start
 npm run dist:mac   # 构建 darwin-arm64 应用（dist/）；先把两个 .gguf 放进 ./models 才会内置
 ```
 
-## 测试
-
-```bash
-xvfb-run -a node test/run-all.js          # 全部测试（默认关闭真实模型推理：AIB_REAL_INFERENCE=1 开启）
-xvfb-run -a node test/run-all.js 16       # 单个测试，例如 密码 + 打印
-```
-
 ## 已知限制
 
 1. **需要在真机 Mac 上验证：** node-llama-cpp 的 Metal 推理（Gemma 4 GGUF 加载未测）、MLX 引擎（仅用模拟 `mlx_lm.server` 测试）、Touch ID 弹窗、系统打印对话框。
@@ -190,16 +121,8 @@ xvfb-run -a node test/run-all.js 16       # 单个测试，例如 密码 + 打�
 
 ## 致谢
 
-* 物理元件库（v3.4.0）：自研引擎与自绘图形。算法思路参考 Erin Catto 的 **Box2D-lite**（MIT）。没有打包第三方代码、图标或 SVG，也没有使用 GPL 代码。完整清单与许可文本见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+* 物理元件库：自研引擎与自绘图形。算法思路参考 Erin Catto 的 **Box2D-lite**（MIT）。没有打包第三方代码、图标或 SVG，也没有使用 GPL 代码。完整清单与许可文本见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-## 路线图
+## 许可
 
-* **网页版（PWA）**已上线（GitHub Pages）——下一批加入 WebGPU 本地模型（WebLLM / transformers.js）。
-* **v3**：首次安装的引导设置界面。
-* Windows 构建将在后续版本恢复。
-* 英文 GitHub Wiki（源文件在 `docs/wiki`）。
-* v3 设想：AI 修改浏览器自身代码来增加功能。
-
-许可：MIT。作者：Felix。
-
-*Created by Grok.*
+MIT。作者：Felix。
