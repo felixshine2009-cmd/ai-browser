@@ -92,7 +92,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     const row = q.locator(`#mlist .model-row[data-model="${ent.id}"]`); assert(await row.isVisible(), 'custom model listed'); await row.locator('.m-name').click();
     await until(async () => (await inv('settings:get')).ai.local.roles.chat === 'llama:' + ent.id, 3000, 'custom selectable');
   }, { timeout: 60000 });
-  await test('取消 → 继续（HTTP Range 续传，字节一致）', async () => {
+  await test('暂停 → 继续（HTTP Range 续传，字节一致）', async () => {
     hf.state.slowMs = 40; hf.state.ranges.length = 0; const p = await local();
     await p.fill('#hfq', 'Tiny-Qwen3'); await p.click('#hfgo'); await until(async () => (await p.locator('.hf-repo').count()) >= 1, 8000);
     await p.evaluate(() => document.querySelectorAll('#hfres .fam-group:not(.open) .fam-head').forEach(h => h.click())); await sleep(300);
@@ -103,7 +103,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     const dest = () => { const d = path.join(ud, 'models'); return fs.readdirSync(d).filter(x => x === 'tiny-Q4_K_M.gguf' || x === 'tiny-Q4_K_M.gguf.part'); };
     await until(() => dest().some(x => x.endsWith('.part') && fs.statSync(path.join(ud, 'models', x)).size > 20000), 20000, 'partial data');
     await p.evaluate(() => document.querySelectorAll('#mlist .fam-group:not(.open) .fam-head').forEach(h => h.click())); await sleep(200);
-    await p.locator(`#mlist .model-row[data-model="${id}"] [data-act="cancel"]`).click();
+    await p.locator(`#mlist .model-row[data-model="${id}"] [data-act="pause"]`).click();
     await until(async () => /继续|Resume/.test(await p.locator(`#mlist .model-row[data-model="${id}"] [data-act="dl"]`).innerText().catch(() => '')), 8000, 'resume offered');
     const partSize = fs.statSync(path.join(ud, 'models', dest().find(x => x.endsWith('.part')))).size; assert(partSize > 0 && partSize < 700000, 'part ' + partSize);
     hf.state.slowMs = 0; await p.locator(`#mlist .model-row[data-model="${id}"] [data-act="dl"]`).click();

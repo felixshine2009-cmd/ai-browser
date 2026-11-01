@@ -176,7 +176,15 @@ function listHistory(q) {
   const h = historyFile.data;
   return (q ? h.filter(x => (x.title + ' ' + x.url).toLowerCase().includes(q)) : h).slice(0, 500);
 }
-function clearHistory() { historyFile.data = []; historyFile.save(true); }
+// range: 'hour' | 'day' | 'week' | 'all' (default all). Returns the number of removed entries.
+const RANGE_MS = { hour: 3600e3, day: 86400e3, week: 7 * 86400e3 };
+function historyCutoff(range) { return RANGE_MS[range] ? Date.now() - RANGE_MS[range] : 0; }
+function countHistory(range) { const c = historyCutoff(range); return historyFile.data.filter(x => !c || (x.time || 0) >= c).length; }
+function clearHistory(range) {
+  const c = historyCutoff(range), before = historyFile.data.length;
+  historyFile.data = c ? historyFile.data.filter(x => (x.time || 0) < c) : [];
+  historyFile.save(true); return before - historyFile.data.length;
+}
 function deleteHistory(url) { historyFile.data = historyFile.data.filter(x => x.url !== url); historyFile.save(); }
 
 // ---- bookmarks
@@ -203,7 +211,7 @@ function flushAll() { [settingsFile, historyFile, bookmarksFile, downloadsFile].
 
 module.exports = {
   init, getSettings, getApiKey, getKbApiKey, decKey, publicSettings, patchSettings, searchUrl, searchEngineInfo, ENGINES,
-  addHistory, updateHistoryTitle, listHistory, clearHistory, deleteHistory,
+  addHistory, updateHistoryTitle, listHistory, clearHistory, countHistory, deleteHistory,
   listBookmarks, isBookmarked, toggleBookmark, removeBookmark,
   downloads, saveDownloads, flushAll, DEFAULTS
 };

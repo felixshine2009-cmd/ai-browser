@@ -437,3 +437,8 @@ body.incog-active .address { box-shadow: 0 0 0 1px var(--incog); }
 @media (pointer:coarse){.vk-key,.vk-tab,.vk-toggle{min-height:44px;min-width:44px}}
 .chat-follow{padding:12px 20px 20px;border-top:1px solid var(--separator, #1e2c30);background:var(--bg-primary,#0b1416)}
 .chat-follow-box{max-width:720px}
+
+/* v3.3.0: resumable download status + per-model disk usage */
+.dlstat { font-size: 12px; color: var(--text-tertiary); margin-top: 3px; min-height: 0; } .dlstat:empty { display: none; }
+.m-disk { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+.notice-bad { background: rgba(251,191,36,.12); border: 1px solid rgba(251,191,36,.35); border-radius: 8px; padding: 8px 12px; margin: 6px 0; font-size: 13px; color: var(--text-primary); }

@@ -6,7 +6,9 @@
       load: q => window.aib.invoke('hist:list', q),
       row: it => `<div class="main"><div class="ttl"><a href="#" data-url="${esc(it.url)}">${esc(it.title || it.url)}</a></div><div class="sub">${esc(it.url)}</div></div><div class="time">${new Date(it.time).toLocaleString(I18N.lang === 'en' ? 'en-US' : 'zh-CN')}</div><div class="x" data-del>✕</div>`,
       bind: (r, it, rerender) => { r.querySelector('[data-del]').onclick = async () => { await window.aib.invoke('hist:delete', it.url); rerender(); }; },
-      doClear: () => window.aib.invoke('hist:clear') });
+      ranges: ['hour', 'day', 'all'],
+      confirm: async (range) => { const n = await window.aib.invoke('hist:count', range); return { count: n, title: t('confirm.hist.title'), message: t('confirm.hist.msg', { n, range: t('range.' + range) }), detail: t('confirm.irreversible'), confirmText: t('confirm.ok') }; },
+      doClear: (range) => window.aib.invoke('hist:clear', range) });
   };
   if (!document.body.dataset.embed) (async function () { await I18N.init(); window.mountHistory(document.getElementById('root')); })();
 })();

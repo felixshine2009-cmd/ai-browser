@@ -299,7 +299,7 @@
   "id": "set.general",
   "area": "设置页 · 通用",
   "control": "语言 中文 / English",
-  "action": "切换语言：设置落盘、界面立即变化；版本号为 2.0.0",
+  "action": "切换语言：设置落盘、界面立即变化；显示当前版本号",
   "status": "PASS",
   "note": ""
  },

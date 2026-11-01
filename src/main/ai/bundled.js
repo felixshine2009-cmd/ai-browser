@@ -34,40 +34,23 @@ function runtime() {
   return llamaP;
 }
 
-const downloads = new Map();
+// First-use download of a bundled model that is missing (source zip). Uses the shared resumable engine (hub.download / dl.js):
+// Range resume from .part, retry with backoff, mirror fallback, size + sha256 verify, pause/resume from Settings — one job per
+// model id, so Settings and the first translate / KB call share the very same download instead of racing on one .part file.
+const JOB_ID = { translate: 'hy-mt1.5-1.8b-q4_k_m', embed: 'embeddinggemma-300m-q8_0' };
 async function ensureFile(kind, onProgress) {
   const have = locate(kind); if (have) return have;
-  if (downloads.has(kind)) return downloads.get(kind);
   const e = CATALOG[kind];
-  const p = (async () => {
-    const dir = userModelsDir(); fs.mkdirSync(dir, { recursive: true });
-    const dest = path.join(dir, e.file), part = dest + '.part';
-    const hosts = require('./hub').endpoints().map(e => e.base); // hf-mirror first by default, auto-fallback
-    let lastErr = null;
-    for (const host of hosts) {
-      try {
-        let got = 0; try { got = fs.statSync(part).size; } catch {}
-        const res = await fetch(`${host}/${e.repo}/resolve/main/${e.file}`, { headers: got ? { Range: `bytes=${got}-` } : {}, redirect: 'follow' });
-        if (!(res.status === 200 || res.status === 206)) throw new Error('HTTP ' + res.status);
-        if (res.status === 200) got = 0;
-        const total = got + Number(res.headers.get('content-length') || 0);
-        const ws = fs.createWriteStream(part, { flags: got ? 'a' : 'w' });
-        const reader = res.body.getReader(); let last = 0;
-        for (;;) {
-          const { value, done } = await reader.read(); if (done) break;
-          if (!ws.write(value)) await new Promise(r => ws.once('drain', r));
-          got += value.length; const now = Date.now();
-          if (now - last > 400) { last = now; onProgress && onProgress({ kind, got, total }); }
-        }
-        await new Promise(r => ws.end(r));
-        fs.renameSync(part, dest); onProgress && onProgress({ kind, got, total: got, done: true });
-        return dest;
-      } catch (err) { lastErr = err; }
-    }
-    throw new Error('模型下载失败 / model download failed: ' + (lastErr && lastErr.message));
-  })().finally(() => downloads.delete(kind));
-  downloads.set(kind, p);
-  return p;
+  const dir = userModelsDir(); fs.mkdirSync(dir, { recursive: true });
+  const dest = path.join(dir, e.file);
+  try {
+    await require('./hub').download({ id: JOB_ID[kind], engine: 'llama', repo: e.repo, file: e.file, bytes: e.bytes, dest },
+      (p) => onProgress && onProgress({ kind, got: p.got, total: p.total, done: !!p.done, state: p.state, speed: p.speed, eta: p.eta }));
+  } catch (err) {
+    if (err && (err.paused || err.cancelled)) throw new Error((err.paused ? '模型下载已暂停（在 设置 → 本地模型 中继续）/ model download paused (resume in Settings → Local models)' : '模型下载已取消 / model download cancelled'));
+    throw new Error('模型下载失败 / model download failed: ' + (err && err.message));
+  }
+  return dest;
 }
 
 // Lazy holder: acquire() loads on demand, schedules unload `idleMs` after the LAST release.
@@ -97,4 +80,4 @@ function lazy(kind, { idleMs, create, destroy }) {
   };
 }
 
-module.exports = { CATALOG, locate, ensureFile, runtime, lazy, userModelsDir };
+module.exports = { CATALOG, JOB_ID, locate, ensureFile, runtime, lazy, userModelsDir, candidates };

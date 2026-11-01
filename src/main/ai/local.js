@@ -106,11 +106,32 @@ async function download(id, onProgress) {
   return hub.download({ id: entry.id, engine: entry.engine, repo: entry.repo, file: entry.file, bytes: entry.bytes, sha256: entry.sha256, dest: modelPathOf(entry) }, onProgress);
 }
 function cancelDownload(id) { hub.cancel(id); }
+function pauseDownload(id) { return hub.pause(id); }
+// Shared by Settings (IPC) and the agent tools. Progress is broadcast through hub's sink; completion / errors through hooks.
+const hooks = { broadcast: () => {} };
+function startDownload(id) {
+  const ent = findEntry(id); if (!ent) throw new Error('unknown model: ' + id);
+  if (hub.isActive(id)) return { started: false, already: true };
+  download(id).then(dest => {
+    const L = store.getSettings().ai.local; const tg = ent.tags || [];
+    if (dest && ent.engine !== 'mlx' && !tg.includes('translate') && !tg.includes('embedding') && !L.modelPath) store.patchSettings({ ai: { local: { modelPath: dest, modelId: id } } });
+    hooks.broadcast('lm:progress', { id, done: true, state: 'done' }); hooks.broadcast('settings:changed', store.publicSettings());
+  }).catch(err => hooks.broadcast('lm:progress', err && err.paused ? { id, paused: true, state: 'paused' } : err && err.cancelled ? { id, cancelled: true } : { id, error: String(err.message || err), tried: err && err.tried }));
+  return { started: true };
+}
+async function unloadFor(entry) {
+  const p = modelPathOf(entry);
+  if (model && modelKey === p) { try { await model.dispose(); } catch {} model = null; modelKey = null; }
+  try { const B = require('./bundled'); const tg = entry.tags || [];
+    if (entry.file === B.CATALOG.translate.file || tg.includes('translate')) await require('./translate').unload();
+    if (entry.file === B.CATALOG.embed.file || tg.includes('embedding')) await require('./kb').unload(); } catch {}
+  if (entry.engine === 'mlx') { try { await require('./mlx').stopAll(); } catch {} }
+}
 function deleteModel(id) {
   const e = findEntry(id); if (!e) return;
   const p = modelPathOf(e);
   if (e.engine === 'mlx') { try { fs.rmSync(p, { recursive: true, force: true }); } catch {} return; }
-  for (const f of [p, p + '.part']) { try { fs.unlinkSync(f); } catch {} }
+  for (const f of [p, p + '.part', p + '.part.json']) { try { fs.unlinkSync(f); } catch {} }
 }
 
-module.exports = { chat, status, listModels, download, cancelDownload, deleteModel, findEntry, modelPathOf, haveEntry, CATALOG: BUILTIN_CATALOG, modelsDir };
+module.exports = { chat, status, listModels, download, cancelDownload, pauseDownload, startDownload, unloadFor, hooks, allEntries, deleteModel, findEntry, modelPathOf, haveEntry, CATALOG: BUILTIN_CATALOG, modelsDir };

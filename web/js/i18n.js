@@ -14,6 +14,7 @@ export const STR = {
     offline:'离线可用（应用外壳）', addHome:'可在 Safari 中“添加到主屏幕”以全屏使用。',
     copy:'复制', clear:'清空', error:'出错了', thinking:'思考中…',
     panelGgb:'GeoGebra', panelPhys:'物理', sources:'来源', close:'关闭', show:'显示',
+    localPause:'暂停', localResume:'继续', diskTitle:'存储占用', diskFiles:'模型文件', diskCache:'缓存', diskClearCache:'清理缓存', diskDelete:'删除模型', diskEstimate:'浏览器存储', diskEmpty:'暂无已下载的模型', kbClearTitle:'清空知识库？', kbClearMsg:'将删除知识库中的 {n} 条内容。', cleared:'已清除 {n} 条',
   },
   en: {
     appName:'AI Browser (Web)', chat:'Chat', search:'Search', settings:'Settings', send:'Send',
@@ -30,6 +31,7 @@ export const STR = {
     offline:'Offline-capable app shell', addHome:'On iPhone Safari: Share → Add to Home Screen for fullscreen use.',
     copy:'Copy', clear:'Clear', error:'Something went wrong', thinking:'Thinking…',
     panelGgb:'GeoGebra', panelPhys:'Physics', sources:'Sources', close:'Close', show:'Show',
+    localPause:'Pause', localResume:'Resume', diskTitle:'Storage', diskFiles:'Model files', diskCache:'Cache', diskClearCache:'Clear cache', diskDelete:'Delete model', diskEstimate:'Browser storage', diskEmpty:'No downloaded models', kbClearTitle:'Clear knowledge base?', kbClearMsg:'This will delete {n} item(s) from the knowledge base.', cleared:'Cleared {n} item(s)',
   }
 };
 let lang = localStorage.getItem('aib.lang') || (navigator.language||'').startsWith('zh') ? 'zh' : 'en';

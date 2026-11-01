@@ -98,74 +98,74 @@ async function repoFiles(repo) {
 }
 
 // ---------------------------------------------------------------- download
-const active = new Map(); // id -> AbortController
-function sha256File(p) { return new Promise((res, rej) => { const h = crypto.createHash('sha256'); fs.createReadStream(p).on('data', d => h.update(d)).on('end', () => res(h.digest('hex'))).on('error', rej); }); }
+// v3.3.0: powered by dl.js (Range resume from .part, backoff retry, mirror fallback on the same .part, pause/resume, sha256/size verify).
+const dl = require('./dl');
+const sha256File = dl.sha256File;
+const active = new Map(); // id -> { ac, promise, state }
+const urlsFor = (repo, file) => endpoints().map(ep => `${ep.base}/${repo}/resolve/main/${file.split('/').map(encodeURIComponent).join('/')}`);
 
-async function fetchToFile(repo, file, dest, { expectBytes, sha256, signal, onChunk }) {
-  const part = dest + '.part'; fs.mkdirSync(path.dirname(dest), { recursive: true });
-  const tried = [];
-  for (const ep of endpoints()) {
-    try {
-      let have = 0; try { have = fs.statSync(part).size; } catch {}
-      const url = `${ep.base}/${repo}/resolve/main/${file.split('/').map(encodeURIComponent).join('/')}`;
-      const res = await fetch(url, { headers: have ? { Range: `bytes=${have}-` } : {}, signal, redirect: 'follow' });
-      if (res.status === 416) { have = 0; try { fs.unlinkSync(part); } catch {} throw new Error('resume rejected, restarting'); }
-      if (!(res.status === 200 || res.status === 206)) throw new Error('HTTP ' + res.status);
-      if (res.status === 200) have = 0;
-      const total = have + Number(res.headers.get('content-length') || 0);
-      const ws = fs.createWriteStream(part, { flags: have ? 'a' : 'w' });
-      const reader = res.body.getReader(); let got = have;
-      for (;;) {
-        const { value, done } = await reader.read(); if (done) break;
-        if (!ws.write(value)) await new Promise(r => ws.once('drain', r));
-        got += value.length; onChunk && onChunk(value.length, total || expectBytes || 0);
-      }
-      await new Promise(r => ws.end(r));
-      const size = fs.statSync(part).size;
-      if (expectBytes && !process.env.AIB_HF_BASE && size !== expectBytes) throw new Error(`size mismatch ${size}/${expectBytes}`);
-      if (sha256) { const h = await sha256File(part); if (h !== sha256) { try { fs.unlinkSync(part); } catch {} throw new Error('sha256 mismatch'); } }
-      fs.renameSync(part, dest);
-      return { via: ep.base, sha: !!sha256 };
-    } catch (e) {
-      if (signal && signal.aborted) throw e;
-      tried.push({ base: ep.base, error: reason(e) });
-      if (/sha256 mismatch/.test(String(e.message))) break; // corrupt: do not silently try another host with a partial
-    }
+async function fetchToFile(repo, file, dest, { expectBytes, sha256, signal, onStatus, id }) {
+  try {
+    return await dl.fetchResumable({ id, urls: urlsFor(repo, file), dest, expectBytes: process.env.AIB_HF_BASE ? 0 : expectBytes, sha256, signal, onStatus });
+  } catch (e) {
+    if (e.paused || e.cancelled) throw e;
+    const tried = (e.tried || []).map(t => ({ base: String(t.base).replace(/^(https?:\/\/[^/]+).*$/, '$1'), error: reason(new Error(t.error)) }));
+    const uniq = []; for (const t of tried) if (!uniq.some(u => u.base === t.base && u.error === t.error)) uniq.push(t);
+    const err = new Error(e.verify ? L('校验失败（已重新下载仍不一致）：', 'Verification failed (still mismatching after re-download): ') + e.message.replace('verification failed: ', '')
+      : L('下载失败：', 'Download failed: ') + (uniq.map(t => `${t.base.replace(/^https?:\/\//, '')} (${t.error.replace(/^[^：:]*[：:]\s*/, '')})`).join(' · ') || reason(e)));
+    err.tried = uniq; throw err;
   }
-  const err = new Error(L('下载失败：', 'Download failed: ') + tried.map(t => `${t.base.replace(/^https?:\/\//, '')} (${t.error.replace(/^[^：:]*[：:]\s*/, '')})`).join(' · '));
-  err.tried = tried; throw err;
+}
+
+function cleanParts(dest, engine) {
+  const rmp = (p) => { try { fs.unlinkSync(p); } catch {} };
+  if (engine === 'mlx') { const walk = (d) => { let es = []; try { es = fs.readdirSync(d, { withFileTypes: true }); } catch {} for (const e of es) { const f = path.join(d, e.name); if (e.isDirectory()) walk(f); else if (/\.part(\.json)?$/.test(e.name)) rmp(f); } }; walk(dest); }
+  else { rmp(dest + '.part'); rmp(dest + '.part.json'); }
 }
 
 // item: { id, engine, repo, file?, bytes, sha256?, dest, snapshot? [{file,bytes,sha256}] }
-async function download(item, onProgress) {
-  if (active.has(item.id)) return null;
-  const ac = new AbortController(); active.set(item.id, ac);
-  try {
-    let done = 0; let lastT = 0; const total = item.bytes || 0;
-    const progress = (n, tot) => { done += n; const now = Date.now(); if (now - lastT > 400) { lastT = now; onProgress && onProgress({ id: item.id, got: done, total: total || tot }); } };
-    if (item.engine === 'mlx') {
-      const snap = item.snapshot && item.snapshot.length ? item.snapshot : (await repoFiles(item.repo)).files[0].snapshot;
-      const total2 = snap.reduce((a, s) => a + s.bytes, 0);
-      fs.mkdirSync(item.dest, { recursive: true });
-      for (const f of snap) {
-        const d = path.join(item.dest, f.file); let have = 0; try { have = fs.statSync(d).size; } catch {}
-        if (have && have === f.bytes) { done += f.bytes; continue; }
-        await fetchToFile(item.repo, f.file, d, { expectBytes: f.bytes, sha256: f.sha256, signal: ac.signal, onChunk: (n) => progress(n, total2) });
+// A second call for an id that is already downloading returns the SAME promise (bundled.js + Settings never race on one .part).
+let sink = null; const setSink = (fn) => { sink = fn; };
+function download(item, cb) {
+  if (active.has(item.id)) return active.get(item.id).promise;
+  const onProgress = (ev) => { try { cb && cb(ev); } catch {} try { sink && sink(ev); } catch {} };
+  const ac = new AbortController(); const rec = { ac, state: 'downloading', promise: null }; active.set(item.id, rec);
+  rec.promise = (async () => {
+    try {
+      let doneBytes = 0; const total0 = item.bytes || 0;
+      const fwd = (base, total) => (ev) => { rec.state = ev.state; onProgress && onProgress({ ...ev, id: item.id, got: base + (ev.state === 'done' ? ev.got : ev.got), total: total || ev.total }); };
+      if (item.engine === 'mlx') {
+        const snap = item.snapshot && item.snapshot.length ? item.snapshot : (await repoFiles(item.repo)).files[0].snapshot;
+        const total2 = snap.reduce((a, s) => a + s.bytes, 0);
+        fs.mkdirSync(item.dest, { recursive: true });
+        for (const f of snap) {
+          const d = path.join(item.dest, f.file); let have = 0; try { have = fs.statSync(d).size; } catch {}
+          if (have && have === f.bytes) { doneBytes += f.bytes; continue; }
+          const base = doneBytes;
+          await fetchToFile(item.repo, f.file, d, { id: item.id, expectBytes: f.bytes, sha256: f.sha256, signal: ac.signal, onStatus: (ev) => { if (ev.state === 'done') return; fwd(base, total2)(ev); } });
+          doneBytes += f.bytes;
+        }
+        fs.writeFileSync(path.join(item.dest, '.aib-complete'), JSON.stringify({ repo: item.repo, files: snap.length, at: Date.now() }));
+        onProgress && onProgress({ id: item.id, state: 'done', got: total2, total: total2, done: true });
+        return item.dest;
       }
-      fs.writeFileSync(path.join(item.dest, '.aib-complete'), JSON.stringify({ repo: item.repo, files: snap.length, at: Date.now() }));
-    } else {
       let sha = item.sha256 || '';
       if (!sha && !process.env.AIB_HF_BASE) { try { const rf = await repoFiles(item.repo); const f = rf.files.find(x => x.file === item.file); if (f) sha = f.sha256; } catch {} }
-      await fetchToFile(item.repo, item.file, item.dest, { expectBytes: item.bytes, sha256: sha, signal: ac.signal, onChunk: progress });
-    }
-    onProgress && onProgress({ id: item.id, got: total || done, total: total || done, done: true });
-    return item.dest;
-  } catch (e) {
-    if (ac.signal.aborted) { const err = new Error(L('已取消', 'cancelled')); err.cancelled = true; throw err; }
-    throw e;
-  } finally { active.delete(item.id); }
+      const r = await fetchToFile(item.repo, item.file, item.dest, { id: item.id, expectBytes: item.bytes, sha256: sha, signal: ac.signal, onStatus: (ev) => { if (ev.state === 'done') return; fwd(0, total0)(ev); } });
+      onProgress && onProgress({ id: item.id, state: 'done', got: r.bytes, total: r.bytes, done: true });
+      return item.dest;
+    } catch (e) {
+      if (ac.signal.aborted) {
+        if (ac.signal.reason === 'pause') { const err = new Error(L('已暂停', 'paused')); err.paused = true; throw err; }
+        cleanParts(item.dest, item.engine); const err = new Error(L('已取消', 'cancelled')); err.cancelled = true; throw err;
+      }
+      throw e;
+    } finally { active.delete(item.id); }
+  })();
+  return rec.promise;
 }
-function cancel(id) { const a = active.get(id); if (a) a.abort(); }
+function pause(id) { const a = active.get(id); if (a) { a.ac.abort('pause'); return true; } return false; }
+function cancel(id) { const a = active.get(id); if (a) { a.ac.abort('cancel'); return true; } return false; }
 const isActive = (id) => active.has(id);
 
 // connectivity probe for the settings UI: which endpoints answer, and why not
@@ -179,4 +179,4 @@ async function probe() {
   return out;
 }
 
-module.exports = { endpoints, search, repoFiles, repoFromInput, download, cancel, isActive, probe, reason, quantOf, brief, BASES };
+module.exports = { endpoints, search, repoFiles, repoFromInput, download, setSink, pause, cancel, fetchToFile, sha256File, isActive, probe, reason, quantOf, brief, BASES };

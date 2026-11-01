@@ -5,4 +5,5 @@
 * **v3.0.0 (shipped)**: first-install onboarding wizard (language, name, AI model API/local, search engine, dictionary, done; skippable; reopen from Settings).
 * **v3.1.0 (shipped)**: collapsible virtual keyboard on the home page (math + chemistry); also in Chat; agent tool; port to web.
 * **v3.2.0 (shipped)**: AI self-modifying code — diff preview, explicit approval, sandbox/overlay, rollback, version history, safe mode; never touch passwords/secrets.
+* **v3.3.0 (shipped)** + **web-v1.1.2**: confirmation before clearing history, resumable model downloads (Range / backoff / mirror fallback / pause-resume / sha256), per-model cache vs. files cleaning, agent tools.
 * **Windows** builds return in a later release.
