@@ -2,6 +2,31 @@
 
 # AI Browser v3.4.0
 
+[![Try the web app](https://img.shields.io/badge/%E2%96%B6%20Try%20the%20web%20app-GitHub%20Pages-2ea44f?style=for-the-badge)](https://felixshine2009-cmd.github.io/ai-browser/)
+[![Download for Mac](https://img.shields.io/badge/Download%20for%20Mac-Apple%20Silicon-black?style=for-the-badge)](https://github.com/felixshine2009-cmd/ai-browser/releases/latest/download/AI-Browser-mac-arm64.zip)
+
+### 👉 [**Try the web app / 在线使用网页版**](https://felixshine2009-cmd.github.io/ai-browser/) · [**Download for Mac (Apple Silicon)**](https://github.com/felixshine2009-cmd/ai-browser/releases/latest/download/AI-Browser-mac-arm64.zip)
+
+[![Latest release](https://img.shields.io/github/v/release/felixshine2009-cmd/ai-browser?label=desktop)](https://github.com/felixshine2009-cmd/ai-browser/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-macOS%20arm64-lightgrey)](https://github.com/felixshine2009-cmd/ai-browser/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-blue)](package.json)
+[![Web demo](https://img.shields.io/badge/web%20demo-live-brightgreen)](https://felixshine2009-cmd.github.io/ai-browser/)
+
+**A Chinese-first AI browser for Apple Silicon Macs — chat, agent tools, local models, GeoGebra and a physics lab in one Chromium app.** Desktop release is Mac-only for now (no Windows build yet); the web/PWA version runs anywhere.
+
+**Shipped features**
+
+* AI agent that drives the browser through a tool registry (browser, settings, knowledge base, models, GeoGebra, physics, code patches…)
+* Local models (MLX / llama.cpp on desktop, WebGPU on the web version) plus your own cloud API key
+* Hunyuan HY-MT translation, sentence analysis, dictionary lookup (MDX/MDD)
+* Local knowledge base with semantic search
+* Incognito tabs; first-run onboarding wizard
+* Full GeoGebra (2D / 3D / CAS / geometry) with its math keyboard, and a math / chemistry virtual keyboard
+* Physics engine: 34 examples, every high-school parameter editable; **element library (v3.4.0)** with 54 elements, live inspector, undo/redo and 「我的元件」 custom elements (JSON import/export)
+* AI self-modifying code in a sandbox: diff → approve → rollback
+* Resumable model downloads with per-model cache / file cleaning; confirmation before every clear
+
+
 A desktop browser (Electron / Chromium) with an AI **Chat mode** built in: dictionary lookup (MDX/MDD), sentence analysis, translation, **agentic web search** with cited answers, a local knowledge base, and GeoGebra plotting. An AI agent can drive the browser itself through a single tool registry.
 
 **Web version (PWA):** https://felixshine2009-cmd.github.io/ai-browser/ — chat via your own API key **or WebGPU local models** (WebLLM quantized Qwen2.5 / Gemma 2, ~0.5–3B; EmbeddingGemma for the knowledge base); GeoGebra, physics; desktop-only features are grayed out. Add to Home Screen on iPhone Safari. Current web release: `web-v1.2.0`.
