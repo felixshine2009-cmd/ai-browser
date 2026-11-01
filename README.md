@@ -26,6 +26,15 @@
 * AI self-modifying code in a sandbox: diff → approve → rollback
 * Resumable model downloads with per-model cache / file cleaning; confirmation before every clear
 
+![Demo: physics element library in the desktop app](docs/images/demo.gif)
+
+| Web version (desktop) | Web version (mobile) | Desktop app |
+|---|---|---|
+| <img src="docs/images/web-physics-elements.png" width="320"/> | <img src="docs/images/web-mobile-physics.png" width="140"/> | <img src="docs/images/desktop-chat.png" width="320"/> |
+
+<sub>Screenshots are captured from the real web version and the real desktop app. More: [web home + chem keyboard](docs/images/web-home.png), [GeoGebra](docs/images/web-geogebra.png), [self-modifying code diff](docs/images/desktop-selfmod.png).</sub>
+
+
 
 A desktop browser (Electron / Chromium) with an AI **Chat mode** built in: dictionary lookup (MDX/MDD), sentence analysis, translation, **agentic web search** with cited answers, a local knowledge base, and GeoGebra plotting. An AI agent can drive the browser itself through a single tool registry.
 
