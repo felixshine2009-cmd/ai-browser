@@ -11,5 +11,6 @@
       b('[data-open]', () => window.aib.invoke('dl:open', it.id)); b('[data-show]', () => window.aib.invoke('dl:show', it.id));
       b('[data-cancel]', () => window.aib.invoke('dl:cancel', it.id)); b('[data-del]', async () => { await window.aib.invoke('dl:remove', it.id); rerender(); });
     },
-    doClear: () => window.aib.invoke('dl:clear') });
+    confirm: async () => { const n = (await window.aib.invoke('dl:list')).length; return { count: n, title: t('confirm.dl.title'), message: t('confirm.dl.msg', { n }), detail: t('confirm.dlKeep'), confirmText: t('confirm.ok') }; },
+    doClear: async () => { const n = (await window.aib.invoke('dl:list')).length; await window.aib.invoke('dl:clear'); return n; } });
 })();

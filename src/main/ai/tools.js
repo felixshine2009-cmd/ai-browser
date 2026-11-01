@@ -157,6 +157,55 @@ const BUILTIN = [
     run: async (a) => kbMod().remove(String(a.id)) },
   { name: 'kb_clear', group: 'knowledge', description: 'Delete ALL documents from the knowledge base. Irreversible.', parameters: obj({ confirm: { type: 'boolean', description: 'must be true' } }, ['confirm']),
     run: async (a) => { if (!a.confirm) throw new Error('pass confirm=true'); return kbMod().clear(); } },
+  { name: 'history_clear', group: 'browser', description: 'Clear browsing history (range: hour | day | all). The USER is always shown a confirmation dialog with the item count; if they decline nothing is deleted. Never claim history was cleared unless the result says cleared>0.', parameters: obj({ range: { type: 'string', enum: ['hour', 'day', 'all'], description: 'default all' } }),
+    run: async (a) => {
+      const range = ['hour', 'day', 'all'].includes(a.range) ? a.range : 'all';
+      const n = store.countHistory(range);
+      if (!n) return { cleared: 0, note: 'nothing to clear' };
+      const lbl = { hour: ['最近一小时', 'last hour'], day: ['最近 24 小时', 'last 24 hours'], all: ['全部', 'all time'] }[range];
+      const ok = await require('../confirm').ask({ host: 'history', danger: true,
+        title: { zh: '清除历史记录？（AI 请求）', en: 'Clear history? (requested by AI)' },
+        message: { zh: `AI 助手请求删除【${lbl[0]}】的 ${n} 条历史记录。`, en: `The AI assistant asks to delete ${n} history entries (${lbl[1]}).` },
+        detail: { zh: '此操作无法撤销。', en: 'This cannot be undone.' }, confirmText: { zh: '确认清除', en: 'Confirm clear' } });
+      if (!ok) return { cleared: 0, declined: true, note: 'user declined' };
+      const removed = store.clearHistory(range); try { for (const wc of require('electron').webContents.getAllWebContents()) if (!wc.isDestroyed() && (wc.getURL() || '').startsWith('aibrowser://')) wc.send('history:changed'); } catch {}
+      return { cleared: removed, range };
+    } },
+  // ---- local model downloads + disk (v3.3.0). Delete / clear tools ALWAYS show the user's confirmation dialog first.
+  { name: 'local_models_download', group: 'models', description: 'Start (or resume) downloading a local model by catalog id (see models_list). Resumes from the .part file; retries automatically.', parameters: obj({ id: str('model id') }, ['id']),
+    run: async (a) => ({ id: String(a.id), ...require('./local').startDownload(String(a.id)) }) },
+  { name: 'local_models_pause', group: 'models', description: 'Pause a running model download (the partial file is kept; resume later).', parameters: obj({ id: str('model id') }, ['id']),
+    run: async (a) => ({ id: String(a.id), paused: require('./local').pauseDownload(String(a.id)) }) },
+  { name: 'local_models_resume', group: 'models', description: 'Resume a paused / interrupted model download from where it stopped.', parameters: obj({ id: str('model id') }, ['id']),
+    run: async (a) => ({ id: String(a.id), ...require('./local').startDownload(String(a.id)) }) },
+  { name: 'local_models_status', group: 'models', description: 'Download status of local models: downloading, partial bytes (paused / interrupted), downloaded.', parameters: obj({}),
+    run: async () => { const hub = require('./hub'); return { models: require('./local').listModels(store.getSettings().ai.local).filter(m => m.downloaded || m.partial || hub.isActive(m.id)).map(m => ({ id: m.id, name: m.name, downloaded: !!m.downloaded, downloading: hub.isActive(m.id), partialBytes: m.partial || 0, totalBytes: m.bytes || 0 })) }; } },
+  { name: 'local_models_disk_usage', group: 'models', description: 'Disk usage of local models split into model files vs cache (unfinished .part downloads, temp files, runtime caches, embedding index), plus totals and read-only locations of external frameworks.', parameters: obj({}),
+    run: async () => { const u = require('./disk').usage(); return { totals: u.totals, modelsDir: u.modelsDir, external: u.external, models: u.models.map(r => ({ id: r.id, name: r.name, filesBytes: r.files, cacheBytes: r.cache, downloaded: r.downloaded, roles: r.roles })) }; } },
+  { name: 'local_models_clear_cache', group: 'models', description: 'Clear the CACHE of one model (id) or of all models (omit id). Keeps the model usable. Always asks the user to confirm in a dialog.', parameters: obj({ id: str('model id; omit for all models') }),
+    run: async (a) => {
+      const disk = require('./disk'); const fmt = (n) => (n >= 1e9 ? (n / 1e9).toFixed(2) + ' GB' : (n / 1e6).toFixed(1) + ' MB');
+      const u = disk.usage(); const rows = a.id ? u.models.filter(r => r.id === String(a.id)) : u.models; if (a.id && !rows.length) throw new Error('unknown or empty model: ' + a.id);
+      const bytes = a.id ? rows[0].cache : u.totals.cache; if (!bytes) return { freed: 0, note: 'no cache to clear' };
+      const who = a.id ? rows[0].name : null;
+      const ok = await require('../confirm').ask({ host: 'settings', title: { zh: '清理模型缓存？（AI 请求）', en: 'Clear model cache? (requested by AI)' },
+        message: { zh: `将清理${who ? '「' + who + '」' : '所有模型'}的缓存，释放约 ${fmt(bytes)}。模型文件会保留。`, en: `Clear the cache of ${who ? '"' + who + '"' : 'all models'}, freeing about ${fmt(bytes)}. Model files are kept.` },
+        detail: { zh: '包括未完成的下载（.part）、临时文件和运行时缓存。', en: 'Includes unfinished downloads (.part), temp files and runtime caches.' }, confirmText: { zh: '确认清理', en: 'Confirm clear' } });
+      if (!ok) return { freed: 0, declined: true, note: 'user declined' };
+      const r = a.id ? await disk.clearCache(String(a.id)) : await disk.clearAllCache(); return { freed: r.freed, freedText: fmt(r.freed) };
+    } },
+  { name: 'local_models_delete', group: 'models', description: 'Delete the downloaded FILES of a local model (frees the most space; needs re-download). Unloads the model, clears its role assignment. ALWAYS asks the user to confirm in a dialog; never deletes external frameworks\' files.', parameters: obj({ id: str('model id') }, ['id']),
+    run: async (a) => {
+      const disk = require('./disk'); const fmt = (n) => (n >= 1e9 ? (n / 1e9).toFixed(2) + ' GB' : (n / 1e6).toFixed(1) + ' MB');
+      const m = require('./local').findEntry(String(a.id)); if (!m) throw new Error('unknown model: ' + a.id);
+      const r0 = disk.entryUsage(m); if (!r0.files && !r0.cache) return { freed: 0, note: 'nothing downloaded' };
+      const roles = r0.roles.length ? { zh: `\n该模型当前担任：${r0.roles.join('、')}，删除后这些角色将被清空。`, en: `\nIt is currently assigned to: ${r0.roles.join(', ')}; those roles will be cleared.` } : { zh: '', en: '' };
+      const ok = await require('../confirm').ask({ host: 'settings', title: { zh: '删除模型文件？（AI 请求）', en: 'Delete model files? (requested by AI)' },
+        message: { zh: `将删除「${m.name}」的模型文件，释放约 ${fmt(r0.files + r0.cache)}，需要重新下载才能再次使用。` + roles.zh, en: `Delete the files of "${m.name}", freeing about ${fmt(r0.files + r0.cache)}. You must download it again to use it.` + roles.en },
+        detail: { zh: '此操作无法撤销。', en: 'This cannot be undone.' }, confirmText: { zh: '确认删除', en: 'Confirm delete' } });
+      if (!ok) return { freed: 0, declined: true, note: 'user declined' };
+      const r = await disk.deleteFiles(String(a.id)); return { deleted: m.id, freed: r.freed, freedText: fmt(r.freed), rolesCleared: r.rolesCleared, needsKnowledgeBase: r.needsKb };
+    } },
   // ---- model management (local catalog; never touches passwords)
   { name: 'models_list', group: 'models', description: 'List local-model catalog entries (id, family, name, engine, downloaded, size).', parameters: obj({}),
     run: async () => ({ models: require('./local').listModels(store.getSettings().ai.local).map(m => ({ id: m.id, family: m.family, name: m.name || m.display, engine: m.engine, downloaded: !!m.downloaded, size: m.size, path: m.path || '' })) }) },

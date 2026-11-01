@@ -5,7 +5,8 @@ import { toast, wireDesktopOnly } from './desktop-disabled.js';
 import { mount as mountPanels, show as showPanel, closeOverlay } from './panels.js';
 import { handleAsk } from './chat.js';
 import { addText as kbAdd, list as kbList, search as kbSearch, clear as kbClear, enableVector, disableVector } from './kb.js';
-import { CATALOG, detectWebGPU, loadModel, unload as unloadModel, getProgress, isReady, memoryWarning, listCachedModels, reasonText, isPhone } from './local-model.js';
+import { CATALOG, detectWebGPU, loadModel, unload as unloadModel, getProgress, isReady, memoryWarning, listCachedModels, reasonText, isPhone, pauseLoad, getDownloadStatus, statusText, diskReport, clearModelCache, deleteModelFiles, fmtMB } from './local-model.js';
+import { confirmDialog, doneBanner } from './confirm.js';
 import { callTool, listTools } from './agent-tools.js';
 
 let settings = loadSettings();
@@ -43,6 +44,30 @@ async function refreshCacheHint(){
   const el = document.getElementById('localCache'); if (!el) return;
   const cached = await listCachedModels();
   el.textContent = cached.length ? (t('localCached') + ': ' + cached.map(c => c.label).join(', ')) : '';
+  refreshDisk();
+}
+
+// storage: per-model "model files" vs "cache" (unfinished shards), storage estimate, clear cache / delete with confirmation
+async function refreshDisk(){
+  const box = document.getElementById('localDisk'); if (!box) return;
+  let r; try { r = await diskReport(); } catch { return; }
+  const est = r.estimate ? `${t('diskEstimate')}: ${fmtMB(r.estimate.usage)} / ${fmtMB(r.estimate.quota)}` : '';
+  const esc = (x) => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  box.innerHTML = `<div class="hint"><b>${t('diskTitle')}</b> · <span id="diskEst">${esc(est)}</span></div>` + (r.models.length ? r.models.map(m => `<div class="mrow" data-disk="${esc(m.id)}"><span class="nm">${esc(m.label)}<br><span class="hint">${t('diskFiles')} ${fmtMB(m.filesBytes)} · ${t('diskCache')} ${fmtMB(m.cacheBytes)}</span></span>
+      <button type="button" data-dact="cc" ${m.cacheBytes ? '' : 'disabled'}>${t('diskClearCache')}</button><button type="button" data-dact="del">${t('diskDelete')}</button></div>`).join('') : `<div class="hint">${t('diskEmpty')}</div>`);
+  box.querySelectorAll('.mrow').forEach(row => {
+    const id = row.dataset.disk; const m = r.models.find(x => x.id === id);
+    row.querySelector('[data-dact="cc"]').onclick = async () => {
+      const ok = await confirmDialog({ title: getLang()==='zh'?'清理缓存？':'Clear cache?', message: getLang()==='zh' ? `将清理「${m.label}」未完成下载的分片，释放约 ${fmtMB(m.cacheBytes)}。` : `Clear the unfinished shards of "${m.label}", freeing about ${fmtMB(m.cacheBytes)}.`, confirmText: getLang()==='zh'?'确认清理':'Confirm clear' });
+      if (!ok) return; const d = await clearModelCache(id); doneBanner((getLang()==='zh'?'已释放 ':'Freed ') + fmtMB(d.freed)); refreshDisk();
+    };
+    row.querySelector('[data-dact="del"]').onclick = async () => {
+      const ok = await confirmDialog({ title: getLang()==='zh'?'删除模型？':'Delete model?', message: getLang()==='zh' ? `将从浏览器存储中删除「${m.label}」，释放约 ${fmtMB(m.filesBytes + m.cacheBytes)}，之后需要重新下载。` : `Delete "${m.label}" from browser storage, freeing about ${fmtMB(m.filesBytes + m.cacheBytes)}. You must download it again.`, detail: getLang()==='zh'?'此操作无法撤销。':'This cannot be undone.', confirmText: getLang()==='zh'?'确认删除':'Confirm delete' });
+      if (!ok) return; const d = await deleteModelFiles(id); doneBanner((getLang()==='zh'?'已释放 ':'Freed ') + fmtMB(d.freed));
+      if (d.needsKb) toast(getLang()==='zh' ? '知识库向量搜索需要 EmbeddingGemma，可在设置里重新启用。' : 'Vector KB search needs EmbeddingGemma; re-enable it in Settings.');
+      refreshDisk(); refreshCacheHint();
+    };
+  });
 }
 
 async function refreshWebGPUBadge(){
@@ -167,21 +192,33 @@ function wire(){
   document.getElementById('btnShowKey').onclick = ()=>{ const k=document.getElementById('apiKey'); k.type = k.type==='password'?'text':'password'; };
   document.getElementById('engKind').onchange = syncEngineUI;
   document.getElementById('localModel').onchange = updateLocalWarn;
-  document.getElementById('btnLoadLocal').onclick = async ()=>{
+  const setLoadUI = (st) => { // st: idle | loading | paused
+    document.getElementById('btnPauseLocal').style.display = st === 'loading' ? '' : 'none';
+    document.getElementById('btnResumeLocal').style.display = st === 'paused' ? '' : 'none';
+    document.getElementById('btnLoadLocal').disabled = st === 'loading';
+  };
+  const doLoad = async ()=>{
     const id = document.getElementById('localModel').value;
     const prog = document.getElementById('localProg');
     const w = memoryWarning(id);
     if (w && w.level === 'high' && !confirm((getLang()==='zh'?w.zh:w.en) + '\n\nContinue? 继续？')) return;
-    prog.textContent = t('localProgress');
+    prog.textContent = t('localProgress'); setLoadUI('loading');
     try {
-      await loadModel(id, (p)=>{ const pct=Math.round((p.progress||0)*100); prog.textContent = `${pct}% ${p.text||''}`; prog.setAttribute('aria-valuenow', pct); });
+      await loadModel(id, (p)=>{ const pct=Math.round((p.progress||0)*100); prog.textContent = p.dl ? `${pct}% · ${p.text}` : `${pct}% ${p.text||''}`; prog.setAttribute('aria-valuenow', pct); });
       settings.engine = 'local'; settings.local.modelId = id; saveSettings(settings);
       document.getElementById('engKind').value = 'local'; syncEngineUI();
-      toast('OK');
+      toast('OK'); setLoadUI('idle');
       prog.textContent = id;
       refreshCacheHint();
-    } catch(e){ prog.textContent = ''; toast(String(e.message||e).slice(0,200)); }
+    } catch(e){
+      if (e && e.paused) { setLoadUI('paused'); const st = getDownloadStatus(); prog.textContent = st ? statusText(st) : ''; refreshCacheHint(); return; }
+      setLoadUI('idle'); const st = getDownloadStatus();
+      prog.textContent = st && st.state === 'error' ? statusText(st) : ''; toast(String(e.message||e).slice(0,200)); refreshCacheHint();
+    }
   };
+  document.getElementById('btnLoadLocal').onclick = doLoad;
+  document.getElementById('btnResumeLocal').onclick = doLoad;
+  document.getElementById('btnPauseLocal').onclick = () => { pauseLoad(); };
   document.getElementById('btnUnloadLocal').onclick = async ()=>{
     await unloadModel(); document.getElementById('localProg').textContent = ''; toast(t('localUnload'));
   };
@@ -211,7 +248,13 @@ function wire(){
     const t0 = document.getElementById('kbText').value.trim(); if(!t0) return;
     await kbAdd(t0, 'note'); document.getElementById('kbText').value=''; toast(t('saved')); refreshKb();
   };
-  document.getElementById('kbClear').onclick = async ()=>{ await kbClear(); refreshKb(); };
+  document.getElementById('kbClear').onclick = async ()=>{
+    const n = (await kbList()).length;
+    if (!n) { doneBanner(t('cleared').replace('{n}', 0)); return; }
+    const ok = await confirmDialog({ title: t('kbClearTitle'), message: t('kbClearMsg').replace('{n}', n), detail: getLang()==='zh'?'此操作无法撤销。':'This cannot be undone.', confirmText: getLang()==='zh'?'确认清除':'Confirm clear' });
+    if (!ok) return;
+    await kbClear(); refreshKb(); doneBanner(t('cleared').replace('{n}', n));
+  };
   document.getElementById('kbQuery').oninput = async (ev)=>{
     const hits = await kbSearch(ev.target.value); renderKb(hits);
   };

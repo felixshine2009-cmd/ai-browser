@@ -96,10 +96,13 @@
       <p id="localWarn" class="hint warn" style="display:none"></p>
       <div class="row-actions">
         <button type="button" id="btnLoadLocal" data-i18n="localLoad">Load</button>
+        <button type="button" id="btnPauseLocal" data-i18n="localPause" style="display:none">Pause</button>
+        <button type="button" id="btnResumeLocal" data-i18n="localResume" style="display:none">Resume</button>
         <button type="button" id="btnUnloadLocal" data-i18n="localUnload">Unload</button>
       </div>
       <div id="localProg" class="status" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
       <div id="localCache" class="hint"></div>
+      <div id="localDisk"></div>
     </div>
     <div class="form-row"><label data-i18n="searchEngine">Search</label>
       <select id="engine"><option value="baidu">Baidu</option><option value="bing">Bing</option><option value="google">Google</option><option value="custom">Custom</option></select>

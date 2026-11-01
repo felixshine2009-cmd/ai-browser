@@ -1,12 +1,20 @@
 [English](README.md) | [**中文**](README_zh.md)
 
-# AI 浏览器 v3.2.0
+# AI 浏览器 v3.3.0
 
 一个内置 AI **聊天模式**的桌面浏览器（Electron / Chromium）：词典查询（MDX/MDD）、长难句分析、翻译、带引用的**智能搜索**、本地知识库和 GeoGebra 画图。AI 通过统一的工具注册表，可以直接操作浏览器。
 
 **网页版（PWA）：** https://felixshine2009-cmd.github.io/ai-browser/ — 用你自己的 API Key **或 WebGPU 本地模型**（WebLLM 量化 Qwen2.5 / Gemma 2，约 0.5–3B；知识库可用 EmbeddingGemma）；GeoGebra、物理仿真；仅桌面功能显示为灰色。iPhone Safari 可「添加到主屏幕」。当前网页版：`web-v1.1.0`。
 
 面向 **Apple 芯片（M1/M2/M3）macOS 12+**。应用在 Linux 上用 xvfb + Playwright 做了端到端测试；需要真机验证的部分见“已知限制”。
+
+## 3.3.0 新内容
+
+* **清除历史记录前先确认** —— 所有入口（历史页、按范围清除“最近一小时 / 24 小时 / 全部”、设置 → 隐私、下载列表，以及新增的 AI 工具 `history_clear`）都会弹出同一个深色对话框：说明将删除什么、共多少条，红色 **确认清除** 与 **取消**（默认焦点在取消），Esc / 点击遮罩取消；完成后显示醒目的“已清除 N 条”。AI 无法静默清除：它的请求会在同一对话框里出现（标注“AI 请求”），拒绝则不删除任何内容。
+* **可恢复的模型下载（新下载引擎 `dl.js`）** —— 用 HTTP `Range` 从 `.part` 文件续传（重启、崩溃、断网都不丢）、**暂停 / 继续** 按钮、指数退避自动重试、镜像回退（hf-mirror ⇄ huggingface.co）继续同一个文件、服务器忽略 `Range`（返回 200）时干净重来、完成后校验大小与 sha256（不一致则删除并重新下载，并显示原因）。进度显示已下载/总量、速度、剩余时间，以及状态文字（已暂停 / 网络中断，将自动重试 / 校验中）。覆盖 GGUF、MLX 多文件快照、EmbeddingGemma、HY-MT 与 Hugging Face 自定义模型（HY-MT / EmbeddingGemma 首次使用时的下载现在与设置页共用同一个任务）。
+* **模型缓存与模型文件分开清理** —— 设置 → 本地模型 按模型显示磁盘占用，分为“模型文件”和“缓存”（未完成的 `.part`、临时文件、运行时缓存，以及属于 EmbeddingGemma 的知识库向量索引），每行有 **清理缓存**（模型仍可用）和 **删除模型文件**，分区级 **清理所有模型缓存** 与总占用。删除前先卸载运行中的模型；被删模型担任的角色（聊天 / 词典 / 翻译 / 嵌入）会清空并提示；内置 EmbeddingGemma 删除后提示知识库搜索需要它并提供重新下载。LM Studio / Ollama 目录只读显示、绝不触碰。所有删除都走确认对话框，并以“已释放 X”收尾。
+* Agent 工具：`local_models_download`、`local_models_pause`、`local_models_resume`、`local_models_status`、`local_models_disk_usage`、`local_models_clear_cache`、`local_models_delete`（后两个一定会询问用户）、`history_clear`。
+* 网页版（web-v1.1.2）：WebLLM 按分片可恢复下载（已完成分片保留在 Cache Storage，暂停 / 继续从下一分片开始，自动重试 + 镜像回退）、按模型“清理缓存”与“删除模型”并显示 `navigator.storage.estimate()`、同款确认对话框（“清空知识库”也使用），以及同样的 Agent 工具；并修复了 Service Worker 每次更新都会删除 WebLLM 模型缓存的问题。
 
 ## 3.2.0 新内容
 

@@ -1,12 +1,20 @@
 [**English**](README.md) | [中文](README_zh.md)
 
-# AI Browser v3.2.0
+# AI Browser v3.3.0
 
 A desktop browser (Electron / Chromium) with an AI **Chat mode** built in: dictionary lookup (MDX/MDD), sentence analysis, translation, **agentic web search** with cited answers, a local knowledge base, and GeoGebra plotting. An AI agent can drive the browser itself through a single tool registry.
 
 **Web version (PWA):** https://felixshine2009-cmd.github.io/ai-browser/ — chat via your own API key **or WebGPU local models** (WebLLM quantized Qwen2.5 / Gemma 2, ~0.5–3B; EmbeddingGemma for the knowledge base); GeoGebra, physics; desktop-only features are grayed out. Add to Home Screen on iPhone Safari. Current web release: `web-v1.1.0`.
 
 Targets **Apple Silicon (M1/M2/M3) macOS 12+**. The app is tested end-to-end on Linux (xvfb + Playwright); things that need a real Mac are listed under *Known limitations*.
+
+## What's new in 3.3.0
+
+* **Confirmation before clearing history** — every path (History page, per-range *last hour / 24 h / all*, Settings → Privacy, Downloads list, and the new AI tool `history_clear`) shows the same dark modal: what is deleted and how many items, a red **Confirm clear** and **Cancel** (default focus), Esc / outside-click cancel. Afterwards a prominent "Cleared N" banner. The AI can never clear silently: its request appears in the same dialog (labelled "requested by AI") and declining deletes nothing.
+* **Resumable model downloads (new engine `dl.js`)** — HTTP `Range` resume from `.part` files that survive restart / crash / network drop, **Pause / Resume** buttons, automatic retry with exponential backoff, mirror fallback (hf-mirror ⇄ huggingface.co) that keeps resuming the *same* file, clean restart if a server ignores `Range` (200 instead of 206), size + sha256 verification (on mismatch the file is deleted and re-downloaded, with the reason shown). Progress shows bytes done/total, speed and ETA plus status text (*Paused*, *Network lost, will retry automatically*, *Verifying*). Applies to GGUF, MLX multi-file snapshots, EmbeddingGemma, HY-MT and Hugging Face custom models (HY-MT / EmbeddingGemma first-use downloads now share the same job).
+* **Model cache vs. model files** — Settings → Local models shows per-model disk usage split into *Model files* and *Cache* (unfinished `.part` downloads, temp files, runtime caches, and the knowledge-base embedding vectors that belong to EmbeddingGemma), with **Clear cache** (model stays usable) and **Delete model files** per row, a section-level **Clear all model caches** and a total. Running models are unloaded first; a deleted model's role (chat / dictionary / translate / embedding) is cleared with a notice; bundled EmbeddingGemma shows that KB search needs it, with a re-download button. LM Studio / Ollama folders are shown read-only and never touched. Every delete uses the confirmation dialog and ends with "Freed X".
+* Agent tools: `local_models_download`, `local_models_pause`, `local_models_resume`, `local_models_status`, `local_models_disk_usage`, `local_models_clear_cache`, `local_models_delete` (the last two always ask the user), `history_clear`.
+* Web (web-v1.1.2): per-shard resumable WebLLM downloads (completed shards stay in Cache Storage; pause / resume continues from the next shard; automatic retry + mirror fallback), per-model *Clear cache* vs *Delete model* with `navigator.storage.estimate()`, the same confirmation modal (also for "clear knowledge base"), and the same agent tools. Also fixes the service worker deleting WebLLM's model cache on every update.
 
 ## What's new in 3.2.0
 

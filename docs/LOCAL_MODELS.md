@@ -23,3 +23,7 @@
 箱内 CPU 实测：Qwen2.5-0.5B（已有 `/workspace/models/q05.gguf`）跑通词条/句子/译文格式；更大模型以公开评测与体积为准，未在 CI 全量下载。
 
 设置页支持「长文翻译专用模型」：与通用模型分离，仅文章翻译走专用 GGUF。
+
+## v3.3.0: resumable downloads and disk cleaning
+
+See the wiki page *Local-Models* (Downloads / Disk usage and cleaning). Engine: `src/main/ai/dl.js` (Range resume, backoff, mirror fallback, verify), `src/main/ai/disk.js` (usage / clear cache / delete).

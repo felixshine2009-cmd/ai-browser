@@ -1,5 +1,7 @@
 // WebGPU local models via @mlc-ai/web-llm (CDN). Feature-detects WebGPU; mocks for tests.
 // Set window.__AIB_MOCK_WEBGPU__ = { ok:true|false, reason?, chat? } before load to skip real inference.
+import { ShardDownloader, mirrorsOf, storageReport, removeEntries } from './shard-cache.js';
+import { confirmDialog, doneBanner, L } from './confirm.js';
 const CDN = 'https://esm.run/@mlc-ai/web-llm@0.2.79';
 let engine = null, loading = null, lastProgress = { text: '', progress: 0 }, webgpuOk = null, loadedId = null;
 
@@ -73,6 +75,40 @@ export async function unload(){
   engine = null; loading = null; loadedId = null;
 }
 
+// ---- resumable per-shard download (see shard-cache.js) ------------------------------------------------
+let dl = null; // current ShardDownloader
+export function getDownloadStatus(){ return dl ? dl.status() : null; }
+export function pauseLoad(){ if (dl) { dl.pause(); return true; } return false; }
+export function cancelLoad(){ if (dl) { dl.cancel(); return true; } return false; }
+async function modelUrlFor(id){
+  const m = mock();
+  if (m) return m.shardBase ? (typeof m.shardBase === 'function' ? m.shardBase(id) : m.shardBase) : null; // mock: only when a test provides shards
+  const webllm = await import(/* @vite-ignore */ CDN);
+  const rec = (webllm.prebuiltAppConfig && webllm.prebuiltAppConfig.model_list || []).find(x => x.model_id === id);
+  return rec ? rec.model : null;
+}
+async function prefetch(id, onProgress){
+  const url = await modelUrlFor(id); if (!url) return false;
+  const m = mock() || {};
+  dl = new ShardDownloader({ id, modelUrl: url, mirrors: m.mirrors || undefined, backoffMs: m.backoffMs || 800, maxRetries: m.maxRetries || 6, onStatus: (st) => {
+    const pct = st.bytesTotal ? Math.min(1, ((st.liveBytes || st.bytesDone) / st.bytesTotal)) : 0;
+    lastProgress = { text: statusText(st), progress: pct, dl: st };
+    if (onProgress) onProgress(lastProgress);
+  } });
+  try { await dl.run(); return true; } finally { /* keep dl for status display */ }
+}
+export function statusText(st){
+  const mb = (b) => (b >= 1e9 ? (b / 1e9).toFixed(2) + ' GB' : Math.max(0.1, b / 1e6).toFixed(1) + ' MB');
+  const bytes = `${mb(st.liveBytes || st.bytesDone || 0)} / ${mb(st.bytesTotal || 0)} · ${L('分片', 'shards')} ${st.shardsDone}/${st.shardsTotal}`;
+  if (st.state === 'paused') return L('已暂停（已缓存的分片会保留，点“继续”从下一分片开始）· ', 'Paused (finished shards are kept; Resume continues from the next shard) · ') + bytes;
+  if (st.state === 'retrying') return L('网络中断，将自动重试', 'Network lost, will retry automatically') + ` (${st.retry}/${st.max}, ${Math.ceil((st.waitMs || 0) / 1000)}s) · ` + bytes;
+  if (st.state === 'error') return L('下载失败：', 'Download failed: ') + (st.message || '') + ' · ' + bytes;
+  if (st.state === 'done') return L('下载完成，正在初始化…', 'Downloaded, initialising…');
+  const sp = st.speed ? ' · ' + (st.speed >= 1e6 ? (st.speed / 1e6).toFixed(1) + ' MB/s' : Math.round(st.speed / 1e3) + ' KB/s') : '';
+  const eta = st.eta ? ' · ' + L('剩余 ', 'ETA ') + (st.eta >= 60 ? Math.floor(st.eta / 60) + 'm' + (st.eta % 60) + 's' : st.eta + 's') : '';
+  return bytes + sp + eta;
+}
+
 export async function loadModel(modelId, onProgress){
   const det = await detectWebGPU();
   if (!det.ok) throw new Error(reasonText(det.reason));
@@ -80,8 +116,9 @@ export async function loadModel(modelId, onProgress){
   const id = modelId || CATALOG[0].id;
   loading = (async () => {
     const m = mock();
+    const prefetched = await prefetch(id, onProgress);  // pause/cancel/failure rejects here; completed shards stay cached
     if (m) {
-      for (const p of [0.15, 0.45, 0.8, 1]) {
+      if (!prefetched) for (const p of [0.15, 0.45, 0.8, 1]) {
         lastProgress = { text: 'mock download ' + Math.round(p*100) + '%', progress: p };
         if (onProgress) onProgress(lastProgress);
         await new Promise(r => setTimeout(r, 30));
@@ -106,6 +143,30 @@ export async function loadModel(modelId, onProgress){
   try { return await loading; } catch (e) { loading = null; engine = null; loadedId = null; throw e; }
 }
 
+// ---- disk usage / cleaning -------------------------------------------------------------------------
+export const EMBED_MATCH = { id: 'embeddinggemma', label: 'EmbeddingGemma (KB vectors)', needles: ['embeddinggemma'] };
+const matchers = () => CATALOG.map(c => ({ id: c.id, label: c.label, needles: [c.id, c.id.replace(/-MLC$/, '')] })).concat([EMBED_MATCH]);
+export async function diskReport(){
+  const r = await storageReport(matchers());
+  return { ...r, current: loadedId, downloading: dl && ['downloading', 'retrying'].includes(dl.s.state) ? dl.id : null };
+}
+export async function clearModelCache(id){
+  const r = await diskReport(); const row = r.models.find(x => x.id === id);
+  if (dl && dl.id === id) { dl.cancel(); }
+  if (!row || row.complete) return { id, freed: 0, note: 'nothing to clear (model is complete; use delete to remove it)' };
+  return { id, freed: await removeEntries(row.entries) };
+}
+export async function deleteModelFiles(id){
+  const r = await diskReport(); const row = r.models.find(x => x.id === id); if (!row) return { id, freed: 0 };
+  if (dl && dl.id === id) dl.cancel();
+  if (loadedId === id) await unload();
+  let freed = await removeEntries(row.entries);
+  if (!mock()) { try { const webllm = await import(/* @vite-ignore */ CDN); await webllm.deleteModelAllInfoInCache(id); } catch {} }
+  return { id, freed, needsKb: id === EMBED_MATCH.id };
+}
+const fmtMB = (b) => (b >= 1e9 ? (b / 1e9).toFixed(2) + ' GB' : (b / 1e6).toFixed(1) + ' MB');
+export { fmtMB };
+
 export async function chat({ messages, temperature = 0.3, signal }){
   if (!engine) throw new Error('Local model not loaded. 本地模型尚未加载。');
   if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -119,4 +180,23 @@ export const tools = {
   async local_model_status(){ return { ready: isReady(), current: loadedId, progress: lastProgress, webgpu: await detectWebGPU(), phone: isPhone() }; },
   async local_model_load({ modelId }){ await loadModel(modelId); return { ok: true, modelId: loadedId }; },
   async local_model_unload(){ await unload(); return { ok: true }; },
+  async local_models_download({ modelId }){ const id = modelId || CATALOG[0].id; if (loading) return { started: false, already: true }; loadModel(id).catch(() => {}); return { started: true, modelId: id }; },
+  async local_models_resume({ modelId }){ return tools.local_models_download({ modelId }); },
+  async local_models_pause(){ return { paused: pauseLoad(), status: getDownloadStatus() }; },
+  async local_models_status(){ return { status: getDownloadStatus(), current: loadedId }; },
+  async local_models_disk_usage(){ const r = await diskReport(); return { estimate: r.estimate, persisted: r.persisted, models: r.models.map(m => ({ id: m.id, label: m.label, filesBytes: m.filesBytes, cacheBytes: m.cacheBytes, complete: m.complete })), otherBytes: r.other.filesBytes }; },
+  async local_models_clear_cache({ modelId }){
+    // always through the user's confirmation dialog
+    const r = await diskReport(); const rows = modelId ? r.models.filter(m => m.id === modelId) : r.models; const bytes = rows.reduce((a, m) => a + m.cacheBytes, 0);
+    if (!bytes) return { freed: 0, note: 'no cache to clear' };
+    const ok = await confirmDialog({ title: L('清理模型缓存？（AI 请求）', 'Clear model cache? (requested by AI)'), message: L(`将清理${modelId ? '该模型' : '所有模型'}的未完成下载分片，释放约 ${fmtMB(bytes)}。已完整下载的模型不受影响。`, `Clear unfinished download shards of ${modelId ? 'this model' : 'all models'}, freeing about ${fmtMB(bytes)}. Complete models are not affected.`), confirmText: L('确认清理', 'Confirm clear') });
+    if (!ok) return { freed: 0, declined: true };
+    let freed = 0; for (const m of rows) freed += (await clearModelCache(m.id)).freed; doneBanner(L('已释放 ', 'Freed ') + fmtMB(freed)); return { freed };
+  },
+  async local_models_delete({ modelId }){
+    const r = await diskReport(); const row = r.models.find(m => m.id === modelId); if (!row) return { freed: 0, note: 'not downloaded' };
+    const ok = await confirmDialog({ title: L('删除模型？（AI 请求）', 'Delete model? (requested by AI)'), message: L(`将从浏览器存储中删除「${row.label}」，释放约 ${fmtMB(row.filesBytes + row.cacheBytes)}，之后需要重新下载。`, `Delete "${row.label}" from browser storage, freeing about ${fmtMB(row.filesBytes + row.cacheBytes)}. You must download it again to use it.`), detail: L('此操作无法撤销。', 'This cannot be undone.'), confirmText: L('确认删除', 'Confirm delete') });
+    if (!ok) return { freed: 0, declined: true };
+    const d = await deleteModelFiles(modelId); doneBanner(L('已释放 ', 'Freed ') + fmtMB(d.freed)); return d;
+  },
 };

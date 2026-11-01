@@ -160,6 +160,21 @@
     if (r === 'chat') { patch.modelPath = m.engine === 'mlx' ? (S.ai.local.modelPath || '') : m.path; patch.modelId = m.id; }
     await patchLocal(patch); await refresh(); renderLocal(); toast();
   }
+  const fmtSpeed = (b) => (b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB/s' : b >= 1e3 ? Math.round(b / 1e3) + ' KB/s' : Math.round(b) + ' B/s');
+  const fmtEta = (sec) => (sec >= 3600 ? Math.floor(sec / 3600) + 'h' + Math.floor(sec % 3600 / 60) + 'm' : sec >= 60 ? Math.floor(sec / 60) + 'm' + (sec % 60) + 's' : sec + 's');
+  let diskMap = {}, diskInfo = null;
+  // one line of download status: bytes done/total · speed · ETA, or paused / network-lost-will-retry / verifying / verify-failed
+  function dlStatus(m, pr) {
+    if (!pr) return m.partial && !m.downloaded ? T('已暂停', 'Paused') + ' · ' + fmtB(m.partial) + ' / ' + fmtB(m.bytes) : '';
+    const bytes = fmtB(pr.got || 0) + ' / ' + fmtB(pr.total || m.bytes);
+    if (pr.paused || pr.state === 'paused') return T('已暂停', 'Paused') + ' · ' + bytes;
+    if (pr.state === 'retrying') return T('网络中断，将自动重试', 'Network lost, will retry automatically') + ` (${pr.retry}/${pr.max}${pr.waitMs ? ', ' + Math.ceil(pr.waitMs / 1000) + 's' : ''}) · ` + bytes;
+    if (pr.state === 'verifying') return T('校验中…', 'Verifying…') + ' · ' + bytes;
+    if (pr.state === 'verify-failed') return T('校验失败（', 'Verification failed (') + (pr.reason || '') + T('），已删除并重新下载', '), deleted and re-downloading');
+    if (pr.state === 'restart') return T('服务器不支持断点续传 / 范围无效，重新开始', 'Server cannot resume — restarting this file');
+    if (pr.error || pr.cancelled || pr.done) return '';
+    return bytes + (pr.speed ? ' · ' + fmtSpeed(pr.speed) : '') + (pr.eta ? ' · ' + T('剩余 ', 'ETA ') + fmtEta(pr.eta) : '');
+  }
   function startDownload(m) {
     progress[m.id] = { got: m.partial || 0, total: m.bytes };
     window.aib.invoke('lm:download', m.id); renderLocal();
@@ -168,26 +183,70 @@
     const selected = isSelected(m);
     const r = document.createElement('div'); r.className = 'model-row' + (selected ? ' selected' : ''); r.dataset.model = m.id;
     r.setAttribute('role', 'radio'); r.setAttribute('aria-checked', selected ? 'true' : 'false');
-    const pr = progress[m.id]; const dl = pr && !pr.done && !pr.error && !pr.cancelled ? Math.round(pr.got / (pr.total || 1) * 100) : null;
+    const pr = progress[m.id]; const dl = pr && !pr.done && !pr.error && !pr.cancelled && !pr.paused && pr.state !== 'paused' ? Math.round(pr.got / (pr.total || 1) * 100) : null;
+    const isPaused = !!(pr && (pr.paused || pr.state === 'paused')) || (!pr && m.partial > 0 && !m.downloaded);
+    const dk = diskMap[m.id];
     const rr = roleOfModel(m);
     const state = selected ? (rr === 'translate' ? T('翻译模型', 'Translation') : rr === 'embedding' ? T('嵌入模型', 'Embedding') : (m.downloaded ? t('ai.local.inuse') : t('ai.local.picked'))) : '';
     const tags = (m.tags || []).map(tg => `<span class="mtag ${esc(tg)}">${esc(tg === 'translate' ? t('ai.local.tag.translate') : tg === 'light' ? t('ai.local.tag.light') : tg === 'embedding' ? T('嵌入', 'embedding') : t('ai.local.tag.general'))}</span>`).join('');
     const eng = m.engine === 'mlx' ? 'MLX' : 'llama.cpp';
     const noMlx = m.engine === 'mlx' && mlxSt && !mlxSt.available ? `<span class="m-warn">${esc(T('需要 Apple 芯片 + mlx-lm', 'needs Apple Silicon + mlx-lm'))}</span>` : '';
     const custom = String(m.id).startsWith('hf:');
-    r.innerHTML = `<div class="radio"></div><div class="m-info"><div class="m-name">${esc(m.name)} ${tags}</div><div class="m-sub">${esc(m.note || '')}${m.note ? ' · ' : ''}RAM ${esc(m.ram || '?')} · ${eng} ${noMlx}${dl != null ? `<div class="progress"><i style="width:${dl}%"></i></div>` : ''}${pr && pr.error ? `<div class="m-err">${esc(pr.error)}</div>` : ''}</div></div>
+    r.innerHTML = `<div class="radio"></div><div class="m-info"><div class="m-name">${esc(m.name)} ${tags}</div><div class="m-sub">${esc(m.note || '')}${m.note ? ' · ' : ''}RAM ${esc(m.ram || '?')} · ${eng} ${noMlx}${dl != null || isPaused ? `<div class="progress"><i style="width:${dl != null ? dl : Math.round(((pr && pr.got) || m.partial || 0) / (m.bytes || 1) * 100)}%"></i></div>` : ''}<div class="dlstat" data-dlstat="${esc(m.id)}">${esc(dlStatus(m, pr))}</div>${dk && (dk.files || dk.cache) ? `<div class="m-disk">${esc(T('模型文件 ', 'Model files ') + fmtB(dk.files) + ' · ' + T('缓存 ', 'Cache ') + fmtB(dk.cache))}</div>` : ''}${pr && pr.error ? `<div class="m-err">${esc(pr.error)}</div>` : ''}</div></div>
       <div class="m-size">${esc(m.size || '')}</div><div class="m-state">${esc(state)}</div>
-      ${m.downloaded ? `<button class="btn-dl" data-act="del">${esc(t('common.delete'))}</button>` : (dl != null ? `<button class="btn-dl" data-act="cancel">${dl}% ✕</button>` : `<button class="btn-dl" data-act="dl">${esc(m.partial ? t('ai.local.resume') : t('ai.local.download'))}</button>`)}
+      ${m.downloaded ? `${dk && dk.cache ? `<button class="btn-dl" data-act="cc">${esc(T('清理缓存', 'Clear cache'))}</button>` : ''}<button class="btn-dl" data-act="delf">${esc(T('删除模型文件', 'Delete model files'))}</button>` : (dl != null ? `<button class="btn-dl" data-act="pause">${esc(T('暂停', 'Pause'))}</button><button class="btn-dl" data-act="cancel">✕</button>` : `<button class="btn-dl" data-act="dl">${esc(isPaused || m.partial ? t('ai.local.resume') : t('ai.local.download'))}</button>${isPaused || m.partial ? `<button class="btn-dl" data-act="cc">${esc(T('清理缓存', 'Clear cache'))}</button>` : ''}`)}
       ${custom && !m.downloaded && dl == null ? `<button class="btn-dl" data-act="rmc">${esc(t('common.delete'))}</button>` : ''}`;
     r.onclick = async (e) => {
       const act = e.target.closest('[data-act]') && e.target.closest('[data-act]').dataset.act;
       if (act === 'dl') return startDownload(m);
+      if (act === 'pause') return void window.aib.invoke('lm:pause', m.id);
       if (act === 'cancel') return void window.aib.invoke('lm:cancel', m.id);
-      if (act === 'del') { await window.aib.invoke(custom ? 'hub:removeCustom' : 'lm:delete', m.id); await refresh(); return renderLocal(); }
+      if (act === 'cc') return void clearModelCache(m);
+      if (act === 'delf') return void deleteModelFiles(m);
       if (act === 'rmc') { await window.aib.invoke('hub:removeCustom', m.id); await refresh(); return renderLocal(); }
       await selectModel(m);
     };
     return r;
+  }
+  function releaseNote(text) { window.AIBConfirm.done(text); }
+  async function clearModelCache(m) {
+    const dk = diskMap[m.id] || { cache: m.partial || 0 };
+    const ok = await window.AIBConfirm.ask({ title: T('清理缓存？', 'Clear cache?'), message: T(`将清理「${m.name}」的缓存（未完成下载、临时文件、运行时缓存），释放约 ${fmtB(dk.cache)}。模型本身仍可使用。`, `Clear the cache of "${m.name}" (unfinished downloads, temp files, runtime caches), freeing about ${fmtB(dk.cache)}. The model stays usable.`), detail: T('此操作无法撤销。', 'This cannot be undone.'), confirmText: T('确认清理', 'Confirm clear') });
+    if (!ok) return;
+    const r = await window.aib.invoke('lm:clearCache', m.id); delete progress[m.id];
+    releaseNote(T('已释放 ', 'Freed ') + fmtB(r.freed || 0)); await refresh(); renderLocal();
+  }
+  async function deleteModelFiles(m) {
+    const dk = diskMap[m.id] || { files: 0, cache: 0, roles: [] }; const roles = dk.roles || [];
+    const rl = { chat: T('聊天', 'chat'), dictionary: T('词典', 'dictionary'), translate: T('翻译', 'translate'), embedding: T('嵌入', 'embedding') };
+    const ok = await window.AIBConfirm.ask({ title: T('删除模型文件？', 'Delete model files?'), message: T(`将删除「${m.name}」的模型文件，释放约 ${fmtB(dk.files + dk.cache)}。之后需要重新下载才能使用。`, `Delete the files of "${m.name}", freeing about ${fmtB(dk.files + dk.cache)}. You will have to download it again to use it.`) + (roles.length ? '\n' + T('它当前担任：', 'Currently assigned to: ') + roles.map(r => rl[r] || r).join(T('、', ', ')) + T('，删除后这些角色将被清空。', '; those roles will be cleared.') : '') + (dk.bundledCopy ? '\n' + T('应用包内另有只读的内置副本，不会被删除。', 'A read-only copy inside the app bundle is not touched.') : ''), detail: T('此操作无法撤销。', 'This cannot be undone.'), confirmText: T('确认删除', 'Confirm delete') });
+    if (!ok) return;
+    const r = await window.aib.invoke('lm:deleteFiles', m.id); delete progress[m.id];
+    releaseNote(T('已释放 ', 'Freed ') + fmtB(r.freed || 0));
+    await refresh(); renderLocal();
+    setTimeout(() => {
+      const box = document.getElementById('diskmsg'); if (!box) return;
+      let msg = '';
+      if (r.rolesCleared && r.rolesCleared.length) msg += T('已清除角色分配：', 'Role assignment cleared: ') + r.rolesCleared.map(x => rl[x] || x).join(T('、', ', ')) + '。 ';
+      if (r.needsKb) msg += T('知识库语义搜索需要 EmbeddingGemma。', 'Knowledge-base semantic search needs EmbeddingGemma.') + ' ';
+      if (r.needsTranslate) msg += T('翻译默认使用 HY-MT，使用时会自动重新下载。', 'Translation uses HY-MT by default and re-downloads it on first use.') + ' ';
+      if (!msg) return;
+      box.innerHTML = `<div class="notice-bad">${esc(msg)} ${r.needsKb || r.needsTranslate ? `<button class="btn-secondary" id="restoreModel">${esc(T('重新下载 / 恢复', 'Re-download / restore'))}</button>` : ''}</div>`;
+      const b = document.getElementById('restoreModel'); if (b) b.onclick = () => { progress[m.id] = { got: 0, total: m.bytes }; window.aib.invoke('lm:download', m.id); renderLocal(); };
+    }, 80);
+  }
+  function renderDisk() {
+    const box = document.getElementById('diskbox'); if (!box || !diskInfo) return;
+    const d = diskInfo; const ext = (d.external || []).filter(x => x.exists);
+    box.innerHTML = `<div class="engine-note"><b>${esc(T('磁盘占用', 'Disk usage'))}</b>: ${esc(fmtB(d.totals.all) || '0 MB')} · ${esc(T('模型文件 ', 'model files '))}${esc(fmtB(d.totals.files) || '0 MB')} · ${esc(T('缓存 ', 'cache '))}${esc(fmtB(d.totals.cache) || '0 MB')}</div>
+      <div class="inline" style="margin:6px 0"><button class="btn-secondary" id="clrAllCache" ${d.totals.cache ? '' : 'disabled'}>${esc(T('清理所有模型缓存', 'Clear all model caches'))}</button></div><div id="diskmsg"></div>
+      <div class="hint">${esc(T('只统计并清理本应用 models 目录；外部框架的文件不会被触碰（只读）：', 'Only the app models folder is counted/cleaned; external frameworks are never touched (read-only): '))}${ext.length ? ext.map(x => esc(x.name + ' → ' + x.path)).join(' · ') : esc(T('未发现 LM Studio / Ollama 目录', 'no LM Studio / Ollama folders found'))}</div>`;
+    const b = document.getElementById('clrAllCache');
+    if (b) b.onclick = async () => {
+      const ok = await window.AIBConfirm.ask({ title: T('清理所有模型缓存？', 'Clear all model caches?'), message: T(`将清理所有模型的缓存（未完成下载、临时文件、运行时缓存、知识库嵌入索引向量），释放约 ${fmtB(d.totals.cache)}。模型文件会保留。`, `Clear the caches of all models (unfinished downloads, temp files, runtime caches, knowledge-base embedding vectors), freeing about ${fmtB(d.totals.cache)}. Model files are kept.`), detail: T('知识库文档会保留，之后需要“重建索引”。', 'Knowledge-base documents stay; rebuild the index afterwards.'), confirmText: T('确认清理', 'Confirm clear') });
+      if (!ok) return;
+      const r = await window.aib.invoke('lm:clearAllCache'); progress = {}; releaseNote(T('已释放 ', 'Freed ') + (fmtB(r.freed || 0) || '0 MB')); await refresh(); renderLocal();
+    };
   }
   function modelGroups(list) {
     const box = document.createElement('div'); box.className = 'fam-list';
@@ -201,6 +260,7 @@
 
   async function renderLocal() {
     models = await window.aib.invoke('lm:list');
+    try { diskInfo = await window.aib.invoke('lm:disk'); diskMap = {}; diskInfo.models.forEach(r => { diskMap[r.id] = r; }); } catch { diskInfo = null; }
     const L = S.ai.local; const body = document.getElementById('aibody'); if (!body) return;
     const hub = L.hub || { endpoint: 'mirror', custom: '' };
     body.innerHTML = `<div class="engine-note">${esc(t('ai.local.note'))}</div>
@@ -210,7 +270,7 @@
         <div class="inline"><select id="hubep"><option value="mirror" ${hub.endpoint === 'mirror' ? 'selected' : ''}>hf-mirror.com (${esc(T('默认', 'default'))})</option><option value="official" ${hub.endpoint === 'official' ? 'selected' : ''}>huggingface.co</option><option value="custom" ${hub.endpoint === 'custom' ? 'selected' : ''}>${esc(T('自定义地址', 'Custom URL'))}</option></select>
         <input type="text" id="hubcustom" placeholder="https://" value="${esc(hub.custom || '')}" ${hub.endpoint === 'custom' ? '' : 'hidden'} spellcheck="false"/><button class="btn-secondary" id="hubprobe">${esc(T('测试连接', 'Test'))}</button></div>
         <div class="hint">${esc(T('某个源失败时会自动切换到其他源。', 'If one endpoint fails the others are tried automatically.'))}</div><div id="huberes"></div></div>
-      <h3 class="sec-h">${esc(T('模型', 'Models'))}</h3><div class="model-list" id="mlist"></div>
+      <h3 class="sec-h">${esc(T('模型', 'Models'))}</h3><div class="model-list" id="mlist"></div><div id="diskbox"></div>
       <div class="inline" style="margin:8px 0 12px"><button class="btn-secondary" id="pickgguf">${esc(t('ai.local.pick'))}</button></div>
       <div class="engine-note" id="lmpath"></div>
       <h3 class="sec-h">${esc(T('从 Hugging Face 搜索', 'Search Hugging Face'))}</h3>
@@ -220,7 +280,7 @@
       <h3 class="sec-h">${esc(T('模型角色', 'Model roles'))}</h3><div class="hint">${esc(T('为不同任务指定不同模型；留空 = 聊天模型（翻译 / 嵌入留空 = 内置 HY-MT / EmbeddingGemma）。', 'Assign models per task; empty = the chat model (translate / embedding empty = bundled HY-MT / EmbeddingGemma).'))}</div><div id="roles" class="roles-grid"></div>
       <div class="engine-note" id="lmstat"></div>
       <div class="inline"><button class="btn-primary" id="uselocal">${esc(t('ai.local.use'))}</button><span id="lmmsg"></span></div><div class="hint" style="margin-top:10px">${esc(t('ai.local.hint'))}</div>`;
-    document.getElementById('mlist').appendChild(modelGroups(models));
+    document.getElementById('mlist').appendChild(modelGroups(models)); renderDisk();
     const cur = models.find(x => selId() === x.id);
     document.getElementById('lmpath').textContent = cur ? `${t('ai.local.selectedName')}: ${cur.name} · ${cur.downloaded ? t('ai.local.downloaded') : t('ai.local.notDownloaded')}` : (L.modelPath ? `${t('ai.local.current')}: ${L.modelPath}` : t('ai.local.none'));
     const hasSel = !!(cur || L.modelPath || rolesOf().chat); const useBtn = document.getElementById('uselocal'); useBtn.disabled = !hasSel;
@@ -313,14 +373,15 @@
   }
 
   window.aib.on('lm:progress', (p) => {
-    progress[p.id] = { ...(progress[p.id] || {}), ...p };
+    if (p.id === '*') { progress = {}; if (cur === 'ai' && aiTab === 'local') refresh().then(renderLocal); return; }
+    progress[p.id] = { ...(progress[p.id] || {}), paused: false, error: undefined, cancelled: false, ...p };
     if (!(cur === 'ai' && aiTab === 'local')) return;
-    const full = p.done || p.error || p.deleted || p.cancelled || !document.querySelector(`.model-row[data-model="${p.id}"] .progress`);
+    const full = p.done || p.error || p.deleted || p.cancelled || p.paused || p.state === 'paused' || !document.querySelector(`.model-row[data-model="${p.id}"] .progress`);
     if (full) { refresh().then(renderLocal); return; }
     const row = document.querySelector(`.model-row[data-model="${p.id}"]`); if (!row) return; // in-place update: clicks are never lost mid-download
-    const pct = Math.round(progress[p.id].got / (progress[p.id].total || 1) * 100);
+    const pr = progress[p.id]; const pct = Math.round(pr.got / (pr.total || 1) * 100);
     const bar = row.querySelector('.progress > i'); if (bar) bar.style.width = pct + '%';
-    const b = row.querySelector('[data-act="cancel"]'); if (b) b.textContent = pct + '% ✕';
+    const st = row.querySelector('.dlstat'); const mm = models.find(x => x.id === p.id); if (st && mm) st.textContent = dlStatus(mm, pr);
   });
 
   // ---------------- local frameworks (LM Studio, Ollama, oMLX, llama.cpp server, vLLM, Jan, LocalAI, custom)
@@ -575,11 +636,24 @@
     const p = pane();
     p.innerHTML = `<h2>${esc(t('privacy.title'))}</h2><div class="sub">${esc(t('privacy.sub'))}</div>
       ${['history', 'downloads', 'cache', 'cookies'].map(k => `<div class="form-row"><label class="inline" style="font-size:13px;color:var(--text-primary)"><input type="checkbox" data-clr="${k}" ${k !== 'cookies' ? 'checked' : ''}/>${esc(t('privacy.' + k))}</label></div>`).join('')}
+      <div class="form-row"><label style="font-size:13px;color:var(--text-primary)">${esc(t('privacy.range'))}</label> <select id="clrRange">${['hour', 'day', 'all'].map(r => `<option value="${r}" ${r === 'all' ? 'selected' : ''}>${esc(t('range.' + r))}</option>`).join('')}</select></div>
       <div class="inline"><button class="btn-danger" id="clr">${esc(t('privacy.clear'))}</button><span id="clrres"></span></div>`;
     document.getElementById('clr').onclick = async () => {
       const o = {}; p.querySelectorAll('[data-clr]').forEach(c => o[c.dataset.clr] = c.checked);
-      await window.aib.invoke('privacy:clear', o);
-      notice(document.getElementById('clrres'), 'ok', t('privacy.done'));
+      o.range = document.getElementById('clrRange').value;
+      if (!o.history && !o.downloads && !o.cache && !o.cookies) return;
+      const cnt = await window.aib.invoke('privacy:count', o.range);
+      const parts = [];
+      if (o.history) parts.push(t('confirm.part.history', { n: cnt.history, range: t('range.' + o.range) }));
+      if (o.downloads) parts.push(t('confirm.part.downloads', { n: cnt.downloads }));
+      if (o.cache) parts.push(t('confirm.part.cache'));
+      if (o.cookies) parts.push(t('confirm.part.cookies'));
+      const ok = await window.AIBConfirm.ask({ title: t('confirm.priv.title'), message: t('confirm.priv.msg') + '\n• ' + parts.join('\n• '), detail: t('confirm.irreversible'), confirmText: t('confirm.ok') });
+      if (!ok) return;
+      const r = await window.aib.invoke('privacy:clear', o);
+      const total = (r.history || 0) + (r.downloads || 0);
+      window.AIBConfirm.done(t('confirm.cleared', { n: total }));
+      notice(document.getElementById('clrres'), 'ok', t('confirm.cleared', { n: total }));
     };
   }
 

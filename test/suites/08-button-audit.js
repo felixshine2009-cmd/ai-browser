@@ -300,7 +300,7 @@ await A('tb.bookmark', '工具栏', '书签星标', '加入 / 取消书签，列
     await p2.locator('.lrow .x').click(); await until(async () => (await p2.locator('.empty').count()) === 1, 4000, 'deleted');
     const b = await p2.locator('.x').count(); assert(b === 0);
     await p2.fill('#lq', ''); await until(async () => (await p2.locator('.lrow').count()) >= 1, 4000, 'rows back');
-    await p2.click('#lclear'); await until(async () => (await p2.locator('.empty').count()) === 1, 4000, 'cleared'); eq((await inv('hist:list', '')).length, 0);
+    await p2.click('#lclear'); await p2.waitForSelector('#aibc'); await p2.click('#aibc-ok'); /* v3.3.0: confirmation dialog */ await until(async () => (await p2.locator('.empty').count()) === 1, 4000, 'cleared'); eq((await inv('hist:list', '')).length, 0);
   });
   await A('lists.x', '书签页 / 列表', '✕ 删除按钮', '书签页：链接打开、✕ 删除；✕ 点击区域 ≥ 24px', async () => {
     await go(`${wb}/bm1`); await ch.click('#bookmark'); await until(async () => (await act()).bookmarked, 3000, 'bm');
@@ -320,7 +320,7 @@ await A('tb.bookmark', '工具栏', '书签星标', '加入 / 取消书签，列
     await p2.fill('#lq', 'test-file'); await until(async () => (await p2.locator('.lrow').count()) === 1, 4000, 'filter');
     await p2.fill('#lq', ''); await until(async () => (await p2.locator('.lrow').count()) >= 2, 4000, 'all rows');
     await p2.locator('.lrow [data-del]').first().click(); await until(async () => (await inv('dl:list')).length === 1, 4000, 'one removed');
-    await p2.click('#lclear'); await until(async () => (await inv('dl:list')).length === 0, 4000, 'cleared');
+    await p2.click('#lclear'); await p2.waitForSelector('#aibc'); await p2.click('#aibc-ok'); await until(async () => (await inv('dl:list')).length === 0, 4000, 'cleared');
   });
   await NT('lists.dlopen', '下载页', '打开 / 在文件夹中显示', '点击两个按钮，IPC 正常返回、页面无报错', 'shell.openPath / showItemInFolder 交给系统文件管理器，Linux 无头环境无法断言其界面', async () => {
     await app.submit(`${wb}/download.bin`); await until(async () => (await inv('dl:list')).some(d => d.state === 'completed'), 10000, 'completed');
@@ -371,8 +371,8 @@ await A('tb.bookmark', '工具栏', '书签星标', '加入 / 取消书签，列
       assert(await p.locator('.settings-nav').isVisible());
     }
   });
-  await A('set.general', '设置页 · 通用', '语言 中文 / English', '切换语言：设置落盘、界面立即变化；版本号为 2.0.0', async () => {
-    const p = await settings('general'); assert((await p.locator('.hint').last().innerText()).includes('2.0.0'), await p.locator('.hint').last().innerText());
+  await A('set.general', '设置页 · 通用', '语言 中文 / English', '切换语言：设置落盘、界面立即变化；显示当前版本号', async () => {
+    const p = await settings('general'); const ver = require('../../package.json').version; assert((await p.locator('.hint').allInnerTexts()).some(x => x.includes(ver)), 'version ' + ver + ' shown');
     await p.click('[data-lang="en"]'); await until(async () => (await inv('settings:get')).lang === 'en', 3000, 'en saved');
     await until(async () => (await p.locator('.nav-item').first().innerText()) !== 'AI 模型', 3000, 'ui english');
     await until(async () => (await ch.locator('#modeseg .seg').first().innerText()) === 'Chat', 3000, 'chrome english');
@@ -403,7 +403,7 @@ await A('tb.bookmark', '工具栏', '书签星标', '加入 / 取消书签，列
     await go(`${wb}/priv`); assert((await inv('hist:list', '')).length > 0);
     const p = await settings('privacy'); const boxes = p.locator('[data-clr]'); eq(await boxes.count(), 4);
     await boxes.nth(3).check(); assert(await boxes.nth(3).isChecked()); await boxes.nth(3).uncheck(); assert(!(await boxes.nth(3).isChecked()));
-    await p.click('#clr'); await until(async () => (await p.locator('#clrres').innerText()).length > 0, 5000, 'done msg'); eq((await inv('hist:list', '')).length, 0);
+    await p.click('#clr'); await p.waitForSelector('#aibc'); await p.click('#aibc-ok'); await until(async () => (await p.locator('#clrres').innerText()).length > 0, 5000, 'done msg'); eq((await inv('hist:list', '')).length, 0);
   });
   await A('set.search', '设置页 · 搜索引擎', '5 个单选行 + 自定义模板 + 保存', '逐个选择并保存（落盘）；自定义缺 %s 报错；自定义有效则保存并用于搜索', async () => {
     const p = await settings('search');
@@ -535,15 +535,15 @@ await A('tb.bookmark', '工具栏', '书签星标', '加入 / 取消书签，列
     const p = await aiTab('local'); const id = 'qwen2.5-1.5b-instruct-q4_k_m'; const row = p.locator(`.model-row[data-model="${id}"]`);
     await p.selectOption('#hubep', 'official'); await until(async () => (await inv('settings:get')).ai.local.hub.endpoint === 'official', 3000, 'endpoint saved'); await p.selectOption('#hubep', 'mirror'); await until(async () => (await inv('settings:get')).ai.local.hub.endpoint === 'mirror', 3000, 'endpoint back to mirror');
     await row.locator('[data-act="dl"]').click(); await until(async () => (await row.locator('.progress').count()) === 1, 6000, 'progress');
-    await row.locator('[data-act="cancel"]').click(); await until(async () => /继续/.test(await row.locator('[data-act="dl"]').innerText().catch(() => '')), 8000, 'resume');
+    await row.locator('[data-act="pause"]').click(); await until(async () => /继续/.test(await row.locator('[data-act="dl"]').innerText().catch(() => '')), 8000, 'resume');
     await row.locator('[data-act="dl"]').click();
     // clicking the card while the download is trickling must still select (no lost clicks)
     await p.locator('.model-row[data-model="qwen2.5-3b-instruct-q4_k_m"] .m-name').click();
     await until(async () => (await inv('settings:get')).ai.local.modelId === 'qwen2.5-3b-instruct-q4_k_m', 3000, 'select during download');
     await row.locator('.m-name').click(); await until(async () => (await inv('settings:get')).ai.local.modelId === id, 3000, 'reselect');
     await until(() => fs.existsSync(path.join(ud, 'models', id + '.gguf')) || fs.existsSync(path.join(app.userData, 'models', id + '.gguf')), 30000, 'downloaded');
-    await until(async () => (await row.locator('.m-state').innerText()).includes('当前使用') && (await row.locator('[data-act="del"]').count()) === 1, 8000, '当前使用');
-    await row.locator('[data-act="del"]').click(); await until(async () => (await row.locator('[data-act="dl"]').count()) === 1, 5000, 'deleted');
+    await until(async () => (await row.locator('.m-state').innerText()).includes('当前使用') && (await row.locator('[data-act="delf"]').count()) === 1, 8000, '当前使用');
+    await row.locator('[data-act="delf"]').click(); await p.waitForSelector('#aibc'); await p.click('#aibc-ok'); /* v3.3.0: delete asks first */ await until(async () => (await row.locator('[data-act="dl"]').count()) === 1, 5000, 'deleted');
   }, { timeout: 120000 });
   await A('local.use', '设置页 · 本地模型', '使用本地模型 按钮 / 选择本地 .gguf', '已选未下载 → 切换来源为本地并自动开始下载；选择 .gguf 文件落盘；“当前使用”标签更新', async () => {
     const p = await aiTab('local'); const id = 'qwen2.5-1.5b-instruct-q4_k_m'; const row = p.locator(`.model-row[data-model="${id}"]`);

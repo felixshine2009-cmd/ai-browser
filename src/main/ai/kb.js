@@ -128,4 +128,9 @@ async function reindex(onProgress) {
   d.embedKey = key; cache.clear(); save(); return list();
 }
 
-module.exports = { addText, search, list, remove, clear, reindex, chunkText, embed, status: () => ({ ...holder.status(), model: B.CATALOG.embed, available: !!B.locate('embed') }), unload: () => holder.unload(), _reset() { db = null; cache.clear(); } };
+// embedding-index accounting for the model cleaner: vectors can be dropped (documents stay) and rebuilt with reindex()
+function vectorBytes() { const d = load(); let n = 0; for (const doc of d.docs) for (const ch of doc.chunks) if (ch.v) n += String(ch.v).length; return n; }
+function embedKeyNow() { return embedKey(); }
+function dropVectors() { const d = load(); let n = 0; for (const doc of d.docs) for (const ch of doc.chunks) if (ch.v) { n += String(ch.v).length; delete ch.v; } if (d.docs.length) d.embedKey = '__cleared__'; cache.clear(); save(); return n; }
+
+module.exports = { vectorBytes, dropVectors, embedKeyNow, addText, search, list, remove, clear, reindex, chunkText, embed, status: () => ({ ...holder.status(), model: B.CATALOG.embed, available: !!B.locate('embed') }), unload: () => holder.unload(), _reset() { db = null; cache.clear(); } };

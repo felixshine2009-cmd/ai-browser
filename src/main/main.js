@@ -183,7 +183,12 @@ function registerIpc() {
   handle('bm:list', (e, q) => store.listBookmarks(q));
   handle('bm:remove', (e, url) => { store.removeBookmark(url); tabsMod.notify(); broadcast('bookmarks:changed'); });
   handle('hist:list', (e, q) => store.listHistory(q));
-  handle('hist:clear', () => { store.clearHistory(); broadcast('history:changed'); });
+  handle('hist:count', (e, range) => store.countHistory(range));
+  handle('hist:clear', (e, range) => { const n = store.clearHistory(range); broadcast('history:changed'); return n; });
+  handle('confirm:answer', (e, id, ok) => require('./confirm').answer(id, ok));
+  if (process.env.AIB_TEST_HOOKS) handle('test:seedHistory', (e, n) => { for (let i = 0; i < n; i++) store.addHistory('https://seed.test/' + i, 'seed ' + i); return store.countHistory('all'); });
+  if (process.env.AIB_TEST_HOOKS) handle('test:tool', (e, name, args) => require('./ai/tools').call(name, args || {}, {}));
+  handle('confirm:pending', () => require('./confirm').list());
   handle('hist:delete', (e, url) => { store.deleteHistory(url); broadcast('history:changed'); });
   handle('dl:list', () => store.downloads().slice(0, 200));
   handle('dl:cancel', (e, id) => { const it = dlItems.get(id); if (it) it.cancel(); });
@@ -269,14 +274,15 @@ function registerIpc() {
   const local = () => require('./ai/local');
   handle('lm:list', () => local().listModels(store.getSettings().ai.local));
   handle('lm:status', () => local().status(store.getSettings().ai.local));
-  handle('lm:download', (e, id) => {
-    local().download(id, (p) => broadcast('lm:progress', p)).then(dest => {
-      const ent = local().findEntry(id);
-      if (dest && ent && ent.engine !== 'mlx' && !ent.tags.includes('translate') && !ent.tags.includes('embedding') && !store.getSettings().ai.local.modelPath) store.patchSettings({ ai: { local: { modelPath: dest, modelId: id } } });
-      broadcast('lm:progress', { id, done: true }); broadcast('settings:changed', store.publicSettings());
-    }).catch(err => broadcast('lm:progress', err && err.cancelled ? { id, cancelled: true } : { id, error: String(err.message || err), tried: err && err.tried }));
-    return true;
-  });
+  local().hooks.broadcast = broadcast; require('./ai/hub').setSink((p) => broadcast('lm:progress', p));
+  handle('lm:download', (e, id) => local().startDownload(id));
+  handle('lm:resume', (e, id) => local().startDownload(id));
+  handle('lm:pause', (e, id) => local().pauseDownload(id));
+  const disk = () => require('./ai/disk');
+  handle('lm:disk', () => disk().usage());
+  handle('lm:clearCache', async (e, id) => { const r = await disk().clearCache(id); broadcast('lm:progress', { id, deleted: true }); return r; });
+  handle('lm:clearAllCache', async () => { const r = await disk().clearAllCache(); broadcast('lm:progress', { id: '*', deleted: true }); return r; });
+  handle('lm:deleteFiles', async (e, id) => { const r = await disk().deleteFiles(id); broadcast('lm:progress', { id, deleted: true }); broadcast('settings:changed', store.publicSettings()); return r; });
 
   // ---- knowledge base (EmbeddingGemma by default) + translate status
   const kbM = () => require('./ai/kb');
@@ -331,13 +337,15 @@ function registerIpc() {
   handle('lm:pick', () => { const p = pick({ properties: ['openFile'], filters: [{ name: 'GGUF', extensions: ['gguf'] }] }); if (!p[0]) return null; store.patchSettings({ ai: { local: { modelPath: p[0], modelId: '' } } }); broadcast('settings:changed', store.publicSettings()); return p[0]; });
 
   // privacy
+  handle('privacy:count', (e, range) => ({ history: store.countHistory(range), downloads: store.downloads().length }));
   handle('privacy:clear', async (e, opts) => {
-    if (opts.history) store.clearHistory();
-    if (opts.downloads) { const a = store.downloads(); a.splice(0, a.length); store.saveDownloads(); }
+    const res = { history: 0, downloads: 0 };
+    if (opts.history) res.history = store.clearHistory(opts.range);
+    if (opts.downloads) { const a = store.downloads(); res.downloads = a.length; a.splice(0, a.length); store.saveDownloads(); }
     if (opts.cache) await session.defaultSession.clearCache();
     if (opts.cookies) await session.defaultSession.clearStorageData({ storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage'] });
     broadcast('history:changed'); broadcast('downloads:changed');
-    return true;
+    return { ok: true, ...res };
   });
   handle('app:info', () => ({ version: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome, platform: process.platform, arch: process.arch, userData: app.getPath('userData') }));
 
