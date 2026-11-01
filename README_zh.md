@@ -26,6 +26,15 @@
 * AI 自修改代码（沙箱）：diff → 批准 → 回滚
 * 可恢复的模型下载、按模型清理缓存 / 文件；所有清除操作先确认
 
+![演示：桌面版物理元件库](docs/images/demo.gif)
+
+| 网页版（桌面） | 网页版（手机） | 桌面应用 |
+|---|---|---|
+| <img src="docs/images/web-physics-elements.png" width="320"/> | <img src="docs/images/web-mobile-physics.png" width="140"/> | <img src="docs/images/desktop-chat.png" width="320"/> |
+
+<sub>截图均来自真实的网页版与桌面应用。更多：[网页版主页 + 化学键盘](docs/images/web-home.png)、[GeoGebra](docs/images/web-geogebra.png)、[AI 自修改代码 diff](docs/images/desktop-selfmod.png)。</sub>
+
+
 
 一个内置 AI **聊天模式**的桌面浏览器（Electron / Chromium）：词典查询（MDX/MDD）、长难句分析、翻译、带引用的**智能搜索**、本地知识库和 GeoGebra 画图。AI 通过统一的工具注册表，可以直接操作浏览器。
 
