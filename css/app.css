@@ -92,7 +92,7 @@ select option{background:var(--panel2);color:var(--text)}
 /* virtual keyboard */
 
 .vk{margin:10px 0 0;max-width:720px}
-.vk-toggle{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:6px 12px;border:1px solid var(--border,#1e2c30);background:var(--panel,#121c1f);color:var(--text,#e8f0ea);border-radius:999px;cursor:pointer;font:600 12px inherit}
+.vk-toggle{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:6px 12px;border:1px solid var(--border,#1e2c30);background:var(--panel,#121c1f);color:var(--text,#e8f0ea);border-radius:999px;cursor:pointer;font:600 12px inherit}
 .vk-toggle:hover{border-color:var(--accent,#3d9b6e)}
 .vk-ico{color:var(--accent,#3d9b6e);font-weight:800}
 .vk-panel{margin-top:8px;padding:10px;border:1px solid var(--border,#1e2c30);border-radius:12px;background:var(--panel,#121c1f)}
@@ -105,3 +105,15 @@ select option{background:var(--panel2);color:var(--text)}
 .vk-key:hover{border-color:var(--accent,#3d9b6e);background:#163528}
 .vk.collapsed .vk-panel{display:none}
 @media (pointer:coarse){.vk-key,.vk-tab,.vk-toggle{min-height:44px;min-width:44px}}
+
+/* v1.1.2: confirmation modal + download status + storage list */
+.cf-ov{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:12px}
+.cf-box{width:min(440px,100%);background:#161b1d;border:1px solid rgba(255,255,255,.16);border-radius:14px;box-shadow:0 18px 60px rgba(0,0,0,.6);padding:18px 20px;color:#f7f7f9;font-size:14px;line-height:1.55}
+.cf-box h3{margin:0 0 8px;font-size:16px;color:#ff8a8a}.cf-m{white-space:pre-wrap}.cf-d{margin-top:8px;color:#a9adb6;font-size:12.5px;white-space:pre-wrap}
+.cf-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+.cf-btns button{border-radius:8px;padding:9px 16px;font-size:14px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#f7f7f9;min-height:40px}
+.cf-btns button:focus{outline:2px solid #6cb6ff;outline-offset:2px}.cf-btns .danger{background:#d93b3b;border-color:#d93b3b;color:#fff;font-weight:600}.cf-btns .ok{background:#3b82f6;border-color:#3b82f6}
+.cf-done{position:fixed;top:max(16px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:10000;background:#1f7a57;color:#fff;font-size:16px;font-weight:600;padding:11px 22px;border-radius:12px;box-shadow:0 10px 36px rgba(0,0,0,.5);transition:opacity .4s;max-width:92vw;text-align:center}
+.dlstat{font-size:12px;color:var(--text-tertiary,#a9adb6);margin-top:4px;word-break:break-word}.dlstat:empty{display:none}
+#localDisk{margin-top:10px;font-size:13px}#localDisk .mrow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 0;border-top:1px solid rgba(255,255,255,.1)}
+#localDisk .mrow .nm{flex:1 1 160px;min-width:0;word-break:break-word}#localDisk .mrow button{min-height:36px}
