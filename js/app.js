@@ -360,16 +360,84 @@ function wire(){
   };
   const wikiForm = document.getElementById('wikiForm');
   const wikiQ = document.getElementById('wikiQ');
-  const runWiki = () => {
-    if (!wikiQ || !A) return;
-    const hits = A.wikiSearch(A.WIKI_SEED, wikiQ.value);
-    const box = document.getElementById('wikiHits');
-    if (!box) return;
-    box.innerHTML = hits.length
-      ? hits.map(h => `<article><b>${esc(h.title)}</b><p>${esc(h.text)}</p></article>`).join('')
+  const zimst = document.getElementById('zimst');
+  const wikiHits = document.getElementById('wikiHits');
+  const wikiReader = document.getElementById('wikiReader');
+  const wikiFrame = document.getElementById('wikiFrame');
+  const wikiArtTitle = document.getElementById('wikiArtTitle');
+  function paintZimStatus(st) {
+    if (!zimst) return;
+    if (!st || !st.open) zimst.textContent = (st && st.error) ? ('无法打开 ZIM 文件：' + st.error) : '尚未打开 ZIM 文件。请选择与 Kiwix 应用相同的离线百科文件（.zim）。';
+    else zimst.textContent = st.copied
+      ? ('当前文件：' + st.name + '（已保存到应用程序存储，共 ' + Number(st.articleCount || 0).toLocaleString() + ' 条）')
+      : ('当前文件：' + st.name + '（共 ' + Number(st.articleCount || 0).toLocaleString() + ' 条）');
+  }
+  paintZimStatus(window.AibZim && window.AibZim.status());
+  async function openWebArticle(articlePath, title) {
+    if (!window.AibZim) return;
+    const item = await window.AibZim.render(articlePath || '');
+    if (!item || !wikiFrame) return;
+    if (wikiReader) wikiReader.hidden = false;
+    if (wikiArtTitle) wikiArtTitle.textContent = title || item.title || item.path || '';
+    if (item.html != null) {
+      wikiFrame.removeAttribute('src');
+      wikiFrame.srcdoc = item.html;
+      wikiFrame.onload = () => {
+        const doc = wikiFrame.contentDocument;
+        if (!doc) return;
+        doc.addEventListener('click', (ev) => {
+          const a = ev.target && ev.target.closest && ev.target.closest('a[href], a[data-zim-path]');
+          if (!a) return;
+          const href = a.getAttribute('href') || '';
+          if (/^(https?:|mailto:|javascript:|blob:)/i.test(href) || href.charAt(0) === '#') return;
+          ev.preventDefault();
+          const next = a.getAttribute('data-zim-path') || window.AibZim.resolvePath(item.path, href);
+          openWebArticle(next, a.textContent || '');
+        });
+      };
+    } else if (item.url) {
+      wikiFrame.removeAttribute('srcdoc');
+      wikiFrame.src = item.url;
+    }
+  }
+  const runWiki = async () => {
+    if (!wikiQ || !wikiHits) return;
+    let hits = [];
+    if (window.AibZim && window.AibZim.status().open) hits = await window.AibZim.search(wikiQ.value, 20);
+    if ((!hits || !hits.length) && A) hits = A.wikiSearch(A.WIKI_SEED, wikiQ.value);
+    wikiHits.innerHTML = hits.length
+      ? hits.map(h => `<article data-title="${esc(h.title)}"${h.path ? ` data-path="${esc(h.path)}"` : ''}><b>${esc(h.title)}</b><p>${esc(h.text || h.path || '')}</p></article>`).join('')
       : (wikiQ.value.trim() ? '<p class="hint">未找到匹配词条。</p>' : '');
   };
   if (wikiForm) wikiForm.addEventListener('submit', (e) => { e.preventDefault(); runWiki(); });
+  if (wikiHits) wikiHits.addEventListener('click', (e) => {
+    const art = e.target.closest('article[data-path]');
+    if (art && art.dataset.path) {
+      wikiHits.innerHTML = '';
+      openWebArticle(art.dataset.path, art.dataset.title);
+    }
+  });
+  const zimFile = document.getElementById('zimFile');
+  if (zimFile) zimFile.addEventListener('change', async () => {
+    const file = zimFile.files && zimFile.files[0];
+    if (!file || !window.AibZim) return;
+    if (zimst) zimst.textContent = '正在将 ZIM 文件复制到应用程序存储…';
+    try {
+      const st = await window.AibZim.open(file);
+      paintZimStatus(st);
+      if (st.open) await openWebArticle('', st.name);
+    } catch (err) {
+      paintZimStatus({ open: false, error: err.message || String(err) });
+    }
+  });
+  if (window.AibZim && window.AibZim.restore) {
+    window.AibZim.restore().then(st => {
+      paintZimStatus(st);
+      if (st && st.open) openWebArticle('', st.name);
+    }).catch(() => {});
+  }
+  const wikiHome = document.getElementById('wikiHome');
+  if (wikiHome) wikiHome.onclick = () => openWebArticle('', '');
 
   const dictForm = document.getElementById('dictForm');
   const dictPop = document.getElementById('dictPop');
