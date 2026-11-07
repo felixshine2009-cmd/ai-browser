@@ -16,7 +16,7 @@ button:disabled,.disabled{opacity:.45;color:var(--disabled)!important;cursor:not
 @media (hover:hover) and (pointer:fine){button:not(:disabled):hover,.btn:not(.disabled):hover{filter:brightness(1.12)}}
 input,select,textarea{font:inherit;font-weight:600;color:var(--text);background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-height:44px;width:100%}
 textarea{min-height:88px;resize:vertical}
-#top{flex:0 0 auto;background:var(--panel);border-bottom:1px solid var(--border);padding:6px 8px;display:flex;flex-direction:column;gap:6px}
+#top{flex:0 0 auto;background:color-mix(in srgb, var(--panel) 78%, transparent);border-bottom:1px solid var(--border);padding:6px 8px;display:flex;flex-direction:column;gap:6px;backdrop-filter:blur(18px) saturate(1.25)}
 #tabs{display:flex;gap:4px;overflow-x:auto;min-height:var(--tab-h);align-items:center;-webkit-overflow-scrolling:touch}
 .tab{flex:0 0 auto;padding:6px 12px;border-radius:8px;background:var(--panel2);border:1px solid var(--border);font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tab.active{background:var(--accent-dim);border-color:var(--accent)}
@@ -74,7 +74,20 @@ textarea{min-height:88px;resize:vertical}
   body.panel-open #btnClosePanel{display:block;top:calc(8px + var(--safe-t));right:calc(8px + var(--safe-r))}
   body.panel-open #plotcanvas{height:100%}
 }
-@media (min-width:768px){ #btnClosePanel{display:none!important} }
+@media (min-width:768px){
+  #btnClosePanel{display:none!important}
+  body.panel-open #main{display:grid;grid-template-columns:2fr 1fr}
+  body.panel-open #panelcol{display:block;order:-1}
+  body.panel-open #chatcol{display:block}
+}
+.home-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.ticon{width:44px;height:44px;padding:0}
+.theme-grid{display:flex;flex-wrap:wrap;gap:8px}
+.theme-combo{text-align:left}
+.swatches{display:flex;gap:3px;margin-top:4px}
+.swatches i{width:14px;height:14px;border-radius:3px;display:inline-block}
+#solveQr svg{width:160px;height:160px;background:#fff}
+#settings .sheet{backdrop-filter:blur(18px)}
 
 #panelTabs{display:flex;gap:6px;margin:0 0 8px;padding-right:60px}
 #panelcol{position:relative}
