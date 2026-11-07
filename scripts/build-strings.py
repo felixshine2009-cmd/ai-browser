@@ -5,7 +5,7 @@ add = {
 "chat.answer":("AI 回答","AI answer"),"chat.pagesRead":("已阅读的网页","Pages read"),"chat.sources":("引用来源","Sources"),
 "chat.queries":("已改写的搜索查询（可编辑）","Rewritten search queries (editable)"),"chat.rerun":("↻ 重新搜索","↻ Search again"),
 "chat.thinking":("正在处理…","Working…"),"chat.searching":("正在检索网页…","Searching the web…"),"chat.reading":("正在阅读网页…","Reading pages…"),
-"chat.generating":("正在生成回答…","Generating answer…"),"chat.error":("出错了：","Error:"),"chat.gotoSettings":("前往设置","Open Settings"),
+"chat.generating":("正在生成回答…","Generating answer…"),"chat.error":("出现错误：","Error:"),"chat.gotoSettings":("前往设置","Open Settings"),
 "chat.copy":("复制","Copy"),"chat.toolsUsed":("已调用工具：","Tools used:"),"chat.expired":("此会话已失效，请重新提问。","This session expired. Please ask again."),
 "plot.area":("图形区","Graph area"),"plot.byAi":("由 AI 驱动","Driven by AI"),
 "dict.aiTab":("AI 释义","AI entry"),"dict.manage":("管理词典…","Manage dictionaries…"),"dict.related":("相近词：","Related:"),

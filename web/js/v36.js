@@ -100,11 +100,11 @@
 
   function statusLabel(phase, extra) {
     extra = extra || {};
-    if (phase === 'thinking') return extra.solve ? ('思考中 · 解题' + (extra.step ? ' · 第 ' + extra.step + ' 步' : '')) : '思考中';
+    if (phase === 'thinking') return extra.solve ? ('正在处理 · 解题' + (extra.step ? ' · 第 ' + extra.step + ' 步' : '')) : '正在处理';
     if (phase === 'tool') return '工具调用中';
     if (phase === 'search') return '搜索中';
     if (phase === 'write') return '正在整理回答';
-    return extra.text || '思考中';
+    return extra.text || '正在处理';
   }
 
   function cmpVer(a, b) {

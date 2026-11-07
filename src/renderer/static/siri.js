@@ -1,16 +1,121 @@
 (async function () {
   await I18N.init();
   const root = document.getElementById('root');
-  root.innerHTML = `<h2>Siri</h2><div class="row"><button type="button" id="sum">页面摘要</button><button type="button" id="tr">对照翻译</button></div><textarea id="q" rows="2" placeholder="询问当前页面"></textarea><button type="button" id="ask">提问</button><div id="out" class="siri-out"></div>`;
+  root.innerHTML = `
+    <header class="siri-head">
+      <div class="siri-brand">
+        <svg class="siri-orb" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <defs>
+            <radialGradient id="siriPaneOrb" cx="35%" cy="30%" r="70%">
+              <stop offset="0%" stop-color="#6ee7b7"/>
+              <stop offset="45%" stop-color="#38bdf8"/>
+              <stop offset="100%" stop-color="#4f46e5"/>
+            </radialGradient>
+            <linearGradient id="siriPaneRing" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
+              <stop offset="50%" stop-color="#a5f3fc" stop-opacity="0.45"/>
+              <stop offset="100%" stop-color="#818cf8" stop-opacity="0.75"/>
+            </linearGradient>
+          </defs>
+          <circle cx="10" cy="10" r="8" fill="url(#siriPaneOrb)"/>
+          <path d="M3.2 10.4c2.2-2.6 4.6-2.4 6.8 0s4.6 2.6 6.8 0" fill="none" stroke="url(#siriPaneRing)" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="7.4" cy="7.2" r="2.1" fill="#ffffff" fill-opacity="0.38"/>
+        </svg>
+        <h2>Siri</h2>
+      </div>
+      <button type="button" class="siri-clear" id="siriClear" title="清空对话" aria-label="清空对话">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4.5 4.5l.6 8.5a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-8.5"/></svg>
+      </button>
+    </header>
+    <div class="siri-chips" role="toolbar" aria-label="快捷方式">
+      <button type="button" class="siri-chip" id="sum" title="生成当前页面摘要">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2" width="11" height="12" rx="2"/><path d="M5 5.5h6M5 8h6M5 10.5h3.5"/></svg>
+        <span>页面摘要</span>
+      </button>
+      <button type="button" class="siri-chip" id="tr" title="对照翻译当前页面">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4h7M5.5 2.5V4M3.5 4c.2 2.4 1.8 4.4 4.2 5.2M7 4c-.4 2-1.8 3.8-4 4.8"/><path d="M8.5 13.5l2.5-6 2.5 6M9.3 11.5h3.4"/></svg>
+        <span>对照翻译</span>
+      </button>
+    </div>
+    <div id="out" class="siri-out siri-thread" role="log" aria-live="polite"></div>
+    <form class="siri-composer" id="siriForm">
+      <textarea id="q" rows="1" placeholder="请输入关于当前页面的问题"></textarea>
+      <button type="submit" class="primary siri-send" id="ask" title="提交问题" aria-label="提交问题">
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12.5V3.5M4.5 7L8 3.5 11.5 7"/></svg>
+      </button>
+    </form>
+  `;
+
   const out = document.getElementById('out');
-  async function run(kind) {
-    out.textContent = '思考中';
-    try {
-      const r = await window.aib.invoke('siri:ask', kind, document.getElementById('q').value);
-      out.textContent = (r && r.text) || '';
-    } catch (e) { out.textContent = e.message; }
+  const qInput = document.getElementById('q');
+  const form = document.getElementById('siriForm');
+  const clearBtn = document.getElementById('siriClear');
+  let busy = false;
+
+  const resizeInput = () => {
+    qInput.style.height = 'auto';
+    qInput.style.height = Math.min(qInput.scrollHeight, 108) + 'px';
+  };
+  qInput.addEventListener('input', resizeInput);
+
+  function appendTurn(label) {
+    const turn = document.createElement('div');
+    turn.className = 'siri-turn';
+    const userBubble = document.createElement('div');
+    userBubble.className = 'siri-msg user';
+    userBubble.setAttribute('data-prompt', label);
+    const aiBubble = document.createElement('div');
+    aiBubble.className = 'siri-msg ai loading';
+    aiBubble.textContent = '正在处理…';
+    turn.append(userBubble, aiBubble);
+    out.appendChild(turn);
+    out.scrollTop = out.scrollHeight;
+    return aiBubble;
   }
+
+  async function run(kind) {
+    if (busy) return;
+    const rawQ = qInput.value.trim();
+    if (kind === 'ask' && !rawQ) {
+      qInput.focus();
+      return;
+    }
+    const label = kind === 'summary' ? '页面摘要' : kind === 'translate' ? '对照翻译' : rawQ;
+    const payload = kind === 'ask' ? rawQ : '';
+    if (kind === 'ask') {
+      qInput.value = '';
+      resizeInput();
+    }
+    busy = true;
+    const aiBubble = appendTurn(label);
+    try {
+      const r = await window.aib.invoke('siri:ask', kind, payload);
+      aiBubble.classList.remove('loading');
+      aiBubble.textContent = (r && r.text) || '';
+    } catch (e) {
+      aiBubble.classList.remove('loading');
+      aiBubble.classList.add('error');
+      aiBubble.textContent = (e && e.message) || String(e);
+    } finally {
+      busy = false;
+      out.scrollTop = out.scrollHeight;
+    }
+  }
+
   document.getElementById('sum').onclick = () => run('summary');
   document.getElementById('tr').onclick = () => run('translate');
-  document.getElementById('ask').onclick = () => run('ask');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    run('ask');
+  });
+  qInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      run('ask');
+    }
+  });
+  clearBtn.onclick = () => {
+    out.innerHTML = '';
+    qInput.focus();
+  };
 })();

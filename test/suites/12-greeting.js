@@ -9,9 +9,9 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   const ch = await app.chrome();
   const inv = (...a) => ch.evaluate((a) => window.aib.invoke(...a), a);
   let home, sp;
-  await test('默认问候语：Felix，今天想做什么？（无装饰图标）', async () => {
+  await test('默认问候语：Felix，请问需要什么帮助？（无装饰图标）', async () => {
     home = await app.waitPage(u => u.startsWith('aibrowser://home'));
-    await until(async () => (await home.locator('#greet').innerText()) === 'Felix，今天想做什么？', 5000, 'default greeting');
+    await until(async () => (await home.locator('#greet').innerText()) === 'Felix，请问需要什么帮助？', 5000, 'default greeting');
     assert((await home.locator('.spark-inline').count()) === 0, 'spark decoration removed');
   });
   await test('设置 → 通用 有“显示名称”和“主页问候语”，主页无需刷新即时更新', async () => {
@@ -28,18 +28,18 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   await test('留空问候语 → 本地化默认；只改显示名称；英文默认', async () => {
     await sp.fill('#greeting', ''); await sp.fill('#dname', 'Amy'); await sp.press('#dname', 'Enter');
     await until(async () => (await inv('settings:get')).greeting === '', 3000, 'saved');
-    await until(async () => (await home.locator('#greet').innerText()) === 'Amy，今天想做什么？', 5000, 'default w/ new name');
+    await until(async () => (await home.locator('#greet').innerText()) === 'Amy，请问需要什么帮助？', 5000, 'default w/ new name');
     await inv('settings:patch', { lang: 'en' });
     await until(async () => (await home.locator('#greet').innerText()) === 'Amy, what would you like to do today?', 5000, 'english default');
     await inv('settings:patch', { lang: 'zh' });
   });
   await test('空显示名称：{name} 及其后的逗号被去掉', async () => {
     await sp.fill('#dname', ''); await sp.click('#greetsave');
-    await until(async () => (await home.locator('#greet').innerText()) === '今天想做什么？', 5000, 'no name');
+    await until(async () => (await home.locator('#greet').innerText()) === '请问需要什么帮助？', 5000, 'no name');
   });
   await test('恢复默认问候语', async () => {
     await sp.click('#greetreset');
-    await until(async () => (await home.locator('#greet').innerText()) === 'Felix，今天想做什么？', 5000, 'reset');
+    await until(async () => (await home.locator('#greet').innerText()) === 'Felix，请问需要什么帮助？', 5000, 'reset');
     assert((await home.locator('.spark-inline').count()) === 0, 'no spark after reset');
   });
   await app.close();

@@ -13,7 +13,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   await test('首页（中文）：只有问候语与输入框', async () => {
     await app.setMode('chat'); await app.submit('aibrowser://home'); const h = await app.waitPage(u => u.startsWith('aibrowser://home')); await sleep(600);
     const txt = (await h.locator('body').innerText()).replace(/\s+/g, ' ').trim();
-    assert(txt.includes('Felix，今天想做什么？'), txt);
+    assert(txt.includes('Felix，请问需要什么帮助？'), txt);
     eq(await h.locator('#q').count(), 1);
     await app.screenshot(path.join(SH, '01-home.png'));
   });

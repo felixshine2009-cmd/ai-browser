@@ -13,8 +13,8 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     const ch = await app.chrome();
     await until(async () => (await app.tabsState()).tabs.length === 1, 10000, 'one tab');
     const home = await app.waitPage('aibrowser://home');
-    assert(await home.locator('#greet').innerText() === 'Felix，今天想做什么？', 'greeting');
-    assert(await home.locator('#q').getAttribute('placeholder') === '询问任何问题…', 'placeholder');
+    assert(await home.locator('#greet').innerText() === 'Felix，请问需要什么帮助？', 'greeting');
+    assert(await home.locator('#q').getAttribute('placeholder') === '请输入问题', 'placeholder');
     const bad = app.logs.join('').split('\n').filter(l => /Uncaught|TypeError|ReferenceError|UnhandledPromise|Error: /.test(l) && !/dbus|bluez|vaapi|Failed to connect/.test(l));
     assert(bad.length === 0, 'errors in log: ' + bad.slice(0, 3).join(' || '));
   });
@@ -116,7 +116,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     const ch2 = await app.chrome();
     await sp.close().catch(() => {});
     await patchSettings(app, { lang: 'zh' });
-    await until(async () => (await h2.locator('#greet').innerText()) === 'Felix，今天想做什么？', 5000, 'back to zh');
+    await until(async () => (await h2.locator('#greet').innerText()) === 'Felix，请问需要什么帮助？', 5000, 'back to zh');
   });
   await test('右上角四方格按钮打开溢出菜单，含全部 11 项（中文）', async () => {
     const ch = await app.chrome();

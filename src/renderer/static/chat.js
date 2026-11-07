@@ -87,7 +87,7 @@
       case 'queries': st.queries = ev.queries; st.direct = ev.direct; renderQueries(); if (ev.direct) setStatus(t('chat.generating')); else if (!ev.queries.length) setStatus(t('chat.thinking')); break;
       case 'search-start': break;
       case 'status': setStatus(ev.text); addTrace(ev.text); break;
-      case 'thinking': st.think = (st.think || '') + ev.text; if (els.thinking) els.thinking.textContent = '思考中\n' + st.think.slice(-500); break;
+      case 'thinking': st.think = (st.think || '') + ev.text; if (els.thinking) els.thinking.textContent = '正在处理\n' + st.think.slice(-500); break;
       case 'translate-error': setStatus((t('chat.translateFail') || 'Translation failed') + ': ' + (ev.error || '')); addTrace('✕ ' + (ev.error || '')); break;
       case 'answer-reset': st.answer = ''; st.translation = ''; queueRender(); break;
       case 'serp': break;
