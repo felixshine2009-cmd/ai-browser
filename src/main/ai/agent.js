@@ -14,6 +14,7 @@ const features = require('../ext/features');
 const registry = require('./tools');
 const store = require('../store');
 const P = require('./prompts');
+const v36 = require('../v36/v36');
 
 const LIMITS = { searches: 4, opens: 8, ms: 90000, rounds: 14, steps: 12 }; // steps = max tool calls of any kind (settings.agent.maxSteps)
 const maxSteps = () => { try { return Math.max(2, Math.min(30, Number(store.getSettings().agent.maxSteps) || LIMITS.steps)); } catch { return LIMITS.steps; } };
@@ -75,6 +76,13 @@ async function doSearch(s, emit, q, engine, queries) {
       : L(`${engineName(use)} ${bad && bad.error ? '不可用' : '没有相关结果'}，已改用 ${engineName(r.via)}`, `${engineName(use)} ${bad && bad.error ? 'unavailable' : 'had nothing relevant'}; using ${engineName(r.via)}`) });
   }
   emit(s, { type: 'serp', via: r.via, selected: use, tried: r.tried, count: r.results.length });
+  try {
+    const hits = require('../v36/extra-tools').wikiSearch(q).slice(0, 3);
+    if (hits.length) {
+      r.wiki = hits.map(h => ({ title: h.title, text: String(h.text).slice(0, 500) }));
+      emit(s, { type: 'wiki', query: q, hits: r.wiki });
+    }
+  } catch {}
   return r;
 }
 
@@ -103,6 +111,7 @@ async function runPipeline(s, ctx, D, queries, direct) {
     emit(s, { type: 'status', text: L('正在规划搜索…', 'Planning the search…') });
     const plan = await planQueries(D, q, s.ac.signal);
     direct = plan.direct; queries = plan.queries;
+    if (v36.route(q).kind === 'search') direct = false;
     if (!direct && !queries.length) queries = [q.slice(0, 120)];
   }
   emit(s, { type: 'queries', queries, direct: !!direct });
@@ -122,7 +131,7 @@ async function runPipeline(s, ctx, D, queries, direct) {
   let userContent = q;
   if (sources.length) userContent = 'Web sources:\n' + sources.map(p => `[${p.n}] ${p.title} (${p.url})\n${(p.text || p.snippet || '').slice(0, isLocal() ? 1400 : 3800)}`).join('\n\n') + `\n\nQuestion: ${q}`;
   else if (!direct && queries.length) userContent = q + '\n\n(Note: web search found no relevant pages; say so briefly, then answer from general knowledge and mark it as such.)';
-  const messages = [{ role: 'system', content: P.answer({ date: today(), local: isLocal() }) }, { role: 'user', content: userContent }];
+  const messages = [{ role: 'system', content: P.answer({ date: today(), local: isLocal() }) + '\n' + v36.answerAddendum(store.getSettings().answerStyle) }, { role: 'user', content: userContent }];
   const tools = store.getSettings().ai.source === 'local' ? [] : registry.all({ web: false }).map(registry.def);
   await answerLoop(s, ctx, D, messages, tools, () => null);
 }
@@ -131,6 +140,9 @@ async function runPipeline(s, ctx, D, queries, direct) {
 let stepSeq = 0;
 async function runTool(s, emit, name, args, ctx) {
   const id = ++stepSeq;
+  s._solveStep = (s._solveStep || 0) + 1;
+  const solve = v36.route(s.input).kind === 'solve' || s.kindOverride === 'solve';
+  emit(s, { type: 'status', text: solve ? v36.statusLabel('thinking', { solve: true, step: s._solveStep }) : v36.statusLabel('tool') });
   emit(s, { type: 'tool-step', id, name, label: registry.summarize(name, args), status: 'run' });
   const t0 = Date.now();
   try {
@@ -176,8 +188,16 @@ async function runAgent(s, ctx, D) {
   const left = () => used.searches < LIMITS.searches || used.opens < LIMITS.opens;
   const timeUp = () => Date.now() - t0 > LIMITS.ms;
   const extTools = registry.all({ web: false }).map(registry.def); let stepsUsed = 0; const stepCap = maxSteps();
-  const messages = [{ role: 'system', content: P.agent({ date: today(), engine: engineName(selectedEngine()), limits: LIMITS }) }, { role: 'user', content: q }];
-  emit(s, { type: 'status', text: L('思考中…', 'Thinking…') });
+  const add = v36.answerAddendum(store.getSettings().answerStyle);
+  const bias = v36.route(q).kind === 'search' ? '\nDefault: call web_search before answering, unless the user asked for a specific tool such as drawing a graph.' : '';
+  const messages = [{ role: 'system', content: P.agent({ date: today(), engine: engineName(selectedEngine()), limits: LIMITS }) + '\n' + add + bias }];
+  for (const m of s.prior || []) messages.push(m);
+  if (s.refs && s.refs.length) messages.push({ role: 'user', content: v36.solverContext({ refs: s.refs, turns: [] }) });
+  if (s.images && s.images.length && String(s.images[0].dataUrl || '').length < 400000) {
+    messages.push({ role: 'user', content: [{ type: 'text', text: q }, { type: 'image_url', image_url: { url: s.images[0].dataUrl } }] });
+  } else messages.push({ role: 'user', content: q + (s.images && s.images.length ? '\n（已附上题目图片）' : '') });
+  const solve = v36.route(q).kind === 'solve' || s.kindOverride === 'solve';
+  emit(s, { type: 'status', text: v36.statusLabel('thinking', { solve }) });
   emit(s, { type: 'queries', queries: [], direct: false });
 
   const handle = async (name, args) => {
@@ -190,7 +210,7 @@ async function runAgent(s, ctx, D) {
       const r = await doSearch(s, emit, query, args.engine, queries);
       r.results.forEach(x => titles.set(x.url, x.title));
       const res = r.results.slice(0, 8).map(x => ({ title: x.title, url: x.url, snippet: x.snippet.slice(0, 200) }));
-      return res.length ? { engine: r.via, results: res }
+      return res.length ? { engine: r.via, results: res, wiki: r.wiki || [] }
         : { engine: r.via, results: [], note: 'No relevant results from any engine. Try a different, shorter query (other language, name + 简介/profile, etc.) or answer that nothing was found.' };
     }
     if (name === 'open_page') {
@@ -217,7 +237,7 @@ async function runAgent(s, ctx, D) {
     if (stepsOut && !nudged) { nudged = true; messages.push({ role: 'user', content: '(Tool-step limit reached — write the final answer now from what you have.)' }); }
     const tools = stepsOut ? [] : (out ? [] : WEB_TOOLS).concat(extTools);
     let r;
-    try { r = await llm.chat({ messages, tools, signal: s.ac.signal, onDelta: t => emit(s, { type: 'answer-delta', text: t }) }); }
+    try { r = await llm.chat({ messages, tools, signal: s.ac.signal, onDelta: t => emit(s, { type: 'answer-delta', text: t }), onThinking: t => emit(s, { type: 'thinking', text: t }) }); }
     catch (e) {
       if (round === 0 && !s.ac.signal.aborted && /tool|function/i.test(String(e.message)) && !/401|403|429/.test(String(e.message))) { const err = new Error('TOOLS_UNSUPPORTED'); err.code = 'TOOLS_UNSUPPORTED'; throw err; }
       throw e;
@@ -272,7 +292,7 @@ async function runLocalTools(s, ctx, D, maxSteps = 4) {
   emit(s, { type: 'queries', queries: [], direct: true });
   emit(s, { type: 'sources', sources: [] });
   emit(s, { type: 'status', text: L('正在生成回答…', 'Writing the answer…') });
-  const ans = [{ role: 'system', content: P.answer({ date: today(), local: true }) }, { role: 'user', content: s.input + '\n\n(Tools already executed for this request, results:\n' + done.map(d => `${d.tool}(${JSON.stringify(d.args)}) -> ${forModel(d.result).slice(0, 900)}`).join('\n') + '\nBriefly tell the user what was done / the result. Do not claim anything the results do not show.)' }];
+  const ans = [{ role: 'system', content: P.answer({ date: today(), local: true }) + '\n' + v36.answerAddendum(store.getSettings().answerStyle) }, { role: 'user', content: s.input + '\n\n(Tools already executed for this request, results:\n' + done.map(d => `${d.tool}(${JSON.stringify(d.args)}) -> ${forModel(d.result).slice(0, 900)}`).join('\n') + '\nBriefly tell the user what was done / the result. Do not name the tools inside the answer. Do not claim anything the results do not show.)' }];
   await llm.chat({ messages: ans, signal: s.ac.signal, onDelta: t => emit(s, { type: 'answer-delta', text: t }) });
   return true;
 }

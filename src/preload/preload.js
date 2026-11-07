@@ -2,7 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const EVENTS = new Set(['tabs:state', 'settings:changed', 'chat:event', 'panel:call', 'downloads:changed', 'history:changed',
-  'bookmarks:changed', 'ext:changed', 'lm:progress', 'find:result', 'find:focus', 'addr:focus', 'overlay:leave', 'vkeyboard:cmd', 'selfmod:changed', 'confirm:request', 'confirm:cancel']);
+  'bookmarks:changed', 'ext:changed', 'lm:progress', 'find:result', 'find:focus', 'addr:focus', 'overlay:leave', 'vkeyboard:cmd', 'selfmod:changed', 'confirm:request', 'confirm:cancel', 'solve:photo']);
 
 if (location.protocol === 'aibrowser:') {
   // Internal pages only: privileged bridge (main re-checks sender URL on every call).
@@ -27,9 +27,11 @@ if (location.protocol === 'aibrowser:') {
     try {
       const sel = window.getSelection();
       const text = (sel && sel.toString() || '').trim();
-      if (!text || !WORD.test(text) || !sel.rangeCount) return;
+      if (!text || text.length > 500 || !sel.rangeCount) return;
+      const kind = WORD.test(text) ? 'word' : ((text.split(/\s+/).length >= 2 || /[。！？!?，,;；]/.test(text)) ? 'sentence' : '');
+      if (!kind) return;
       const r = sel.getRangeAt(0).getBoundingClientRect();
-      ipcRenderer.send('sel:lookup', { text, x: r.left, y: r.bottom });
+      ipcRenderer.send('sel:lookup', { text, kind, x: r.left, y: r.bottom });
     } catch {}
   }
   window.addEventListener('dblclick', () => { clearTimeout(timer); timer = setTimeout(report, 30); }, true);

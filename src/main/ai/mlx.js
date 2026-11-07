@@ -57,7 +57,8 @@ async function acquire(model, { key = 'chat', idleMs = 600000 } = {}) {
   if (s && s.proc.exitCode != null) { servers.delete(key); s = null; }
   if (!s) {
     const port = await freePort();
-    const proc = spawn(rt.cmd, [...rt.args, '--model', model, '--host', '127.0.0.1', '--port', String(port)], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const mtpArgs = require('../v36/mtp').extraArgs(model);
+    const proc = spawn(rt.cmd, [...rt.args, '--model', model, ...mtpArgs, '--host', '127.0.0.1', '--port', String(port)], { stdio: ['ignore', 'pipe', 'pipe'] });
     s = { proc, port, model, ready: null, idleMs, lastUsed: Date.now() };
     s.ready = waitReady(port, proc, Number(process.env.AIB_MLX_START_TIMEOUT_MS) || 180000).catch(e => { try { proc.kill(); } catch {} servers.delete(key); throw e; });
     servers.set(key, s);

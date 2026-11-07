@@ -10,7 +10,8 @@ Static, offline-capable web build of AI Browser.
 * **Physics element library** (v1.2.0): 54 built-in elements (conveyor, pulleys, rails + rod, fields, optics…), inspector for every property, custom elements (我的元件) with JSON import/export, real rigid-body simulation, touch-friendly collapsible palette; works offline.
 * Dictionary (AI), translation, GeoGebra, physics (all-parameters panel), knowledge base (IndexedDB; optional **EmbeddingGemma** vector search via transformers.js).
 * Web agent tools: `local_models_list`, `local_model_load`, `local_model_unload`, `local_model_status`, `webgpu_detect`, `kb_embed_status`, `local_models_download`, `local_models_pause`, `local_models_resume`, `local_models_status`, `local_models_disk_usage`, `local_models_clear_cache`, `local_models_delete` (delete/clear always ask).
-* Desktop-only features are grayed out (tabs / incognito, desktop llama.cpp / MLX, Chrome extensions, passwords, print).
+* Problem solving (text, image, reference notes, phone QR that opens this page), offline wiki search, themes, answer style, and thinking level.
+* Desktop-only features stay visible but grayed out, with “仅桌面版可用 / Desktop only” (tabs / incognito, desktop llama.cpp / MLX / MTP, Chrome extensions, passwords, print, Siri sidebar, Task browser control, kernel upgrade, multithreaded downloads).
 
 ## Build / serve
 

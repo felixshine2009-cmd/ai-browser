@@ -20,7 +20,7 @@
     qbar.innerHTML = `<div class="q selectable" id="q"></div><div class="ai-label" id="qlabel" style="margin-top:8px;display:none"></div><div class="query-rewrites" id="rewrites"></div>`;
     const body = el('div', 'ai-body');
     const main = el('div', 'ai-main');
-    main.innerHTML = `<div class="ai-label" id="alabel"></div><div id="status" class="status-line"></div><div id="trace" class="trace"></div><div class="ai-answer selectable" id="answer"></div><div id="toolsrow"></div><div id="pngs"></div><div id="err"></div>`;
+    main.innerHTML = `<div class="ai-label" id="alabel"></div><div id="status" class="status-line"></div><div id="thinking" class="thinking-box"></div><div id="toolsrow"></div><div id="trace" class="trace"></div><div class="ai-answer selectable" id="answer"></div><div id="pngs"></div><div id="err"></div>`;
     const side = el('div', 'ai-side');
     side.style.display = 'none';
     side.innerHTML = `<div class="ai-label" id="plabel"></div><div class="pages-read" id="pages"></div><div class="ai-label" id="slabel"></div><div id="sources"></div>`;
@@ -35,7 +35,11 @@
     els.plabel.textContent = t('chat.pagesRead');
     els.slabel.textContent = t('chat.sources');
     const fq = qs('followq'); fq.placeholder = t('home.placeholder');
-    const sendFollow = () => { const v = fq.value.trim(); if (v) window.aib.invoke('nav:submit', v); };
+    const sendFollow = async () => {
+      const v = fq.value.trim(); if (!v) return;
+      const nsid = await window.aib.invoke('chat:follow', sid, v);
+      if (nsid) location.href = 'aibrowser://chat?sid=' + nsid;
+    };
     qs('followgo').onclick = sendFollow;
     fq.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendFollow(); } });
     if (window.VKeyboard) {
@@ -83,6 +87,7 @@
       case 'queries': st.queries = ev.queries; st.direct = ev.direct; renderQueries(); if (ev.direct) setStatus(t('chat.generating')); else if (!ev.queries.length) setStatus(t('chat.thinking')); break;
       case 'search-start': break;
       case 'status': setStatus(ev.text); addTrace(ev.text); break;
+      case 'thinking': st.think = (st.think || '') + ev.text; if (els.thinking) els.thinking.textContent = '思考中\n' + st.think.slice(-500); break;
       case 'translate-error': setStatus((t('chat.translateFail') || 'Translation failed') + ': ' + (ev.error || '')); addTrace('✕ ' + (ev.error || '')); break;
       case 'answer-reset': st.answer = ''; st.translation = ''; queueRender(); break;
       case 'serp': break;
@@ -133,7 +138,7 @@
 
   // ----- question rendering
   function queueRender() { if (renderQueued) return; renderQueued = true; requestAnimationFrame(() => { renderQueued = false; renderAnswer(); }); }
-  function renderAnswer() { if (els.answer) els.answer.innerHTML = MD.render(st.answer, st.cites); }
+  function renderAnswer() { if (els.answer) els.answer.innerHTML = MD.render(String(st.answer || '').replace(/(^|\n).*((调用了|使用了).{0,16}工具|I used the \w+ tool).*/gi, '$1'), st.cites); }
   function finalizeQuestion() { renderAnswer(); renderAnswerActions(); }
   function renderAnswerActions() {
     if (!st.answer || qs('actions')) return;
@@ -206,9 +211,8 @@
     if (!els.body) return;
     const p = el('div', 'plot-panel'); p.id = 'plotpanel';
     p.innerHTML = `<div class="gg-bar"><span class="logo">Geo<span>Gebra</span></span><span>|</span><span>${esc(t('plot.area'))}</span><span style="margin-left:auto">${esc(t('plot.byAi'))}</span></div><div class="gg-canvas" id="plotcanvas"></div>`;
-    els.body.insertBefore(p, els.side);
-    els.main.style.maxWidth = '46%'; els.main.style.flex = '1';
-    els.side.style.width = '260px';
+    els.body.classList.add('tool-split');
+    els.body.insertBefore(p, els.main);
   }
   Bridge.onPanelEvent((m) => {
     if (m.aibPanelEvent === 'png' && els.pngs) {

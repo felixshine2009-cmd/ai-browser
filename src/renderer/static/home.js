@@ -8,7 +8,18 @@
     const name = (st.displayName || '').trim();
     return name ? tpl.split('{name}').join(name) : tpl.replace(/\{name\}[，,、:：\s]*/g, '').trim();
   };
-  const set = () => { g.textContent = greetText(S); document.title = t('tab.newtab'); };
+  const tools = [['geogebra', 'G'], ['physics', '物'], ['solve', '题'], ['wiki', '维'], ['dict', '词']];
+  const host = document.getElementById('hometools');
+  host.innerHTML = tools.map(([id, icon]) => `<button type="button" class="ticon" data-tool="${id}" title="">${icon}</button>`).join('');
+  host.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => window.aib.invoke('nav:openUrl', 'aibrowser://tool?id=' + b.dataset.tool));
+  const paintWork = () => document.querySelectorAll('#workswitch button').forEach(b => b.classList.toggle('on', b.dataset.work === (S.workMode || 'chat')));
+  document.querySelectorAll('#workswitch button').forEach(b => b.onclick = async () => { S = await window.aib.invoke('settings:patch', { workMode: b.dataset.work }); paintWork(); });
+  const set = () => {
+    g.textContent = greetText(S); document.title = t('tab.newtab'); paintWork();
+    const bg = (S.home && S.home.background) || '';
+    document.body.style.background = bg || '';
+    document.querySelector('.home-ai').style.alignItems = (S.home && S.home.layout) === 'top' ? 'flex-start' : '';
+  };
   set(); I18N.onChange(set);
   window.aib.on('settings:changed', (s) => { S = s; set(); });
   const q = document.getElementById('q');

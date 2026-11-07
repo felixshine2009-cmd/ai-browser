@@ -98,7 +98,9 @@ function activeTab() { return getTab(activeId); }
 function layout() {
   if (!win) return;
   const [w, h] = win.getContentSize();
-  for (const t of tabs) t.view.setBounds({ x: 0, y: CHROME_H, width: w, height: Math.max(0, h - CHROME_H) });
+  const siriW = overlays.siri ? Math.min(380, Math.round(w * 0.34)) : 0;
+  for (const t of tabs) t.view.setBounds({ x: 0, y: CHROME_H, width: Math.max(0, w - siriW), height: Math.max(0, h - CHROME_H) });
+  if (overlays.siri) overlays.siri.setBounds({ x: w - siriW, y: CHROME_H, width: siriW, height: Math.max(0, h - CHROME_H) });
   if (overlays.menu) overlays.menu.setBounds(menuBounds());
   if (overlays.find) overlays.find.setBounds(findBounds());
 }
@@ -171,6 +173,11 @@ function submit(text) {
   const mode = store.getSettings().mode;
   if (looksLikeUrl(text)) { load(t, normalizeUrl(text)); return { ok: true, type: 'url' }; }
   if (mode === 'search') { load(t, store.searchUrl(text)); return { ok: true, type: 'search' }; }
+  if (store.getSettings().workMode === 'task') {
+    const sid = chat.create(text, 'task');
+    load(t, `${SCHEME}://chat?sid=${sid}`);
+    return { ok: true, type: 'task', sid };
+  }
   const sid = chat.create(text);
   load(t, `${SCHEME}://chat?sid=${sid}`);
   return { ok: true, type: 'chat', sid };
@@ -196,7 +203,7 @@ function openOverlay(kind, bounds, query) {
   view.setBounds(bounds);
   win.contentView.addChildView(view);
   view.webContents.loadURL(`${SCHEME}://${kind}${query ? '?' + query : ''}`);
-  if (kind !== 'find') {
+  if (kind !== 'find' && kind !== 'siri') {
     let focused = false;
     view.webContents.on('focus', () => { focused = true; });
     view.webContents.on('blur', () => { if (focused) setTimeout(() => { if (overlays[kind] === view) closeOverlay(kind); }, 80); });
@@ -218,6 +225,14 @@ function closeOverlay(kind) {
   if (kind === 'find') { const t = activeTab(); if (t) { try { t.wc.stopFindInPage('clearSelection'); } catch {} } }
 }
 function toggleMenu() { if (overlays.menu) closeOverlay('menu'); else openOverlay('menu', menuBounds()); }
+function toggleSiri() {
+  if (overlays.siri) { closeOverlay('siri'); layout(); return false; }
+  const [w, h] = win.getContentSize();
+  const siriW = Math.min(380, Math.round(w * 0.34));
+  openOverlay('siri', { x: w - siriW, y: CHROME_H, width: siriW, height: Math.max(0, h - CHROME_H) });
+  layout();
+  return true;
+}
 function showFind() {
   const t = activeTab();
   if (!t || isInternal(t.wc.getURL())) return;
@@ -226,7 +241,7 @@ function showFind() {
 }
 
 let lastLookup = { word: '', t: 0 };
-function showLookup(word, x, y, tab) {
+function showLookup(word, x, y, tab, kind) {
   const now = Date.now();
   if (word === lastLookup.word && now - lastLookup.t < 700) return;
   lastLookup = { word, t: now };
@@ -238,7 +253,7 @@ function showLookup(word, x, y, tab) {
   let px = Math.round(vb.x + x - 20), py = Math.round(vb.y + y + 8);
   px = Math.max(8, Math.min(px, w - W - 8));
   if (py + H > h - 8) py = Math.max(CHROME_H + 4, Math.round(vb.y + y - H - 30));
-  openOverlay('lookup', { x: px, y: py, width: W, height: H }, 'q=' + encodeURIComponent(word));
+  openOverlay('lookup', { x: px, y: py, width: W, height: H }, 'q=' + encodeURIComponent(word) + (kind ? '&k=' + kind : ''));
 }
 
 // ---------------- context menu
@@ -249,7 +264,9 @@ function showContextMenu(tab, p) {
   const L = (zh, en) => lang === 'en' ? en : zh;
   const sel = (p.selectionText || '').trim();
   if (sel) {
-    if (/^[A-Za-z][A-Za-z'’-]{0,40}$/.test(sel)) tpl.push({ label: L(`查词 “${sel}”`, `Look up “${sel}”`), click: () => { lastLookup = { word: '', t: 0 }; showLookup(sel, p.x, p.y, tab); } });
+    const kind = require('./v36/v36').selectionKind(sel);
+    if (kind === 'word') tpl.push({ label: L(`查词 “${sel}”`, `Look up “${sel}”`), click: () => { lastLookup = { word: '', t: 0 }; showLookup(sel, p.x, p.y, tab, 'word'); } });
+    else if (kind === 'sentence') tpl.push({ label: L('翻译所选内容', 'Translate selection'), click: () => { showLookup(sel.slice(0, 500), p.x, p.y, tab, 'sentence'); } });
     tpl.push({ label: L('用 Chat 提问', 'Ask in Chat'), click: () => { const sid = chat.create(sel); createTab(`${SCHEME}://chat?sid=${sid}`); } });
     tpl.push({ label: L('拷贝', 'Copy'), role: 'copy' });
     tpl.push({ type: 'separator' });
@@ -322,7 +339,7 @@ function broadcastToActive(channel, payload) {
 }
 
 module.exports = {
-  CHROME_H, createWindow, createTab, createIncognitoTab, closeTab, activateTab, getTab, activeTab, allTabs, submit, openInternal, load, broadcastToActive,
+  CHROME_H, createWindow, createTab, createIncognitoTab, closeTab, activateTab, getTab, activeTab, allTabs, submit, openInternal, load, broadcastToActive, toggleSiri,
   toggleMenu, closeOverlay, showFind, showLookup, openOverlay, overlays, zoom, state, notify, getWin, hooks, looksLikeUrl, isInternal,
   tabInfo, layout
 };

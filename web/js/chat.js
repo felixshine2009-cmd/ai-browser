@@ -13,28 +13,42 @@ async function complete(settings, messages, signal){
     if (!localReady()) throw new Error(t('localNotLoaded'));
     return localChat({ messages, signal });
   }
-  return chatComplete({ ...settings.api, messages, signal });
+  return chatComplete({ ...settings.api, messages, signal, thinkingLevel: settings.thinkingLevel });
 }
 
-export async function handleAsk({q, settings, els, signal}){
+export async function handleAsk({q, settings, els, signal, prior}){
   const text = (q||'').trim(); if (!text) return;
-  els.status.textContent = t('thinking');
+  const A = window.AIB36;
+  const intent = A ? A.route(text) : { kind: looksMath(text) ? 'draw' : looksPhys(text) ? 'physics' : 'search' };
+  els.status.textContent = A ? A.statusLabel('thinking', { solve: intent.kind === 'solve' }) : t('thinking');
   els.answer.textContent = '';
   els.tools.innerHTML = '';
+  const chips = [];
   try {
-    if (looksPhys(text)) {
+    if (intent.kind === 'physics' || looksPhys(text)) {
       showPanel('phys');
-      els.tools.innerHTML = `<span class="chip">phys_load_example</span>`;
+      chips.push('phys_load_example');
+      els.status.textContent = A ? A.statusLabel('tool') : els.status.textContent;
       try { await panelCall('phys','loadExample',{id:'mechanics_projectile'}); } catch {}
-    } else if (looksMath(text)) {
+    } else if (intent.kind === 'draw' || looksMath(text)) {
       showPanel('ggb');
-      els.tools.innerHTML = `<span class="chip">ggb_eval</span>`;
+      chips.push('ggb_eval');
+      els.status.textContent = A ? A.statusLabel('tool') : els.status.textContent;
       const cmds = text.includes('sin') ? ['f(x)=sin(x)'] : ['f(x)=x^2'];
       try { await panelCall('ggb','eval',{commands:cmds}); } catch {}
     }
+    if (A && /[0-9]/.test(text) && intent.kind === 'solve') {
+      chips.push('hs_calc');
+    }
+    if (chips.length) els.tools.innerHTML = chips.map(c => `<span class="chip">${c}</span>`).join(' ');
     let kbHits = [];
     try { kbHits = await kbSearch(text); } catch {}
-    const sys = `You are the AI assistant inside AI Browser (web). Reply in the user's language. Be concise and factual. ${kbHits.length? 'Knowledge-base snippets:\n'+kbHits.map(h=>h.text.slice(0,400)).join('\n---\n'):''}`;
+    let wiki = [];
+    if (A) { try { wiki = A.wikiSearch(A.WIKI_SEED, text).slice(0, 3); if (wiki.length) chips.push('wiki_search'); } catch {} }
+    if (chips.length) els.tools.innerHTML = chips.map(c => `<span class="chip">${c}</span>`).join(' ');
+    const style = A ? A.answerAddendum(settings.answerStyle || 'detailed') : '';
+    const hist = (prior || []).map(m => (m.role === 'assistant' ? '助手: ' : '用户: ') + m.text).join('\n');
+    const sys = `You are the AI assistant inside AI Browser (web). Reply in the user's language. ${style} ${kbHits.length? 'Knowledge-base snippets:\n'+kbHits.map(h=>h.text.slice(0,400)).join('\n---\n'):''} ${wiki.length? 'Offline wiki:\n'+wiki.map(h=>h.title+': '+h.text).join('\n'):''} ${hist? 'Earlier:\n'+hist:''}`;
     if (looksWord(text)) {
       const entry = await complete(settings, [
         {role:'system', content:'Explain the English word: IPA, POS, Chinese gloss, 2 example sentences with translation. Markdown.'},
@@ -46,8 +60,14 @@ export async function handleAsk({q, settings, els, signal}){
       {role:'system', content:sys},
       {role:'user', content:text}
     ], signal);
-    els.answer.textContent = out;
+    els.answer.textContent = A ? A.redactToolTalk(out) : out;
     els.status.textContent = '';
+    if (A && settings) {
+      const title = A.fallbackTitle(text);
+      const chats = JSON.parse(localStorage.getItem('aib.chats') || '[]');
+      chats.unshift({ id: Date.now().toString(36), title, preview: text.slice(0, 80), updated: Date.now(), messages: (prior||[]).concat([{role:'user', text}, {role:'assistant', text: els.answer.textContent}]) });
+      localStorage.setItem('aib.chats', JSON.stringify(chats.slice(0, 40)));
+    }
   } catch (e) {
     els.status.textContent = '';
     els.answer.textContent = (e && e.message) || t('error');
