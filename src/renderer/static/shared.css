@@ -1799,6 +1799,61 @@ html[data-theme="sand"] { color-scheme: light; }
 .tool-hits article h4 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
 .tool-hits article p { margin: 0 0 10px; font-size: 13.5px; color: var(--text-secondary); line-height: 1.55; }
 
+.tool-hits article[data-path] { cursor: pointer; }
+.zim-status { text-align: center; margin: 14px 0 0; }
+.wiki-reader {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: 16px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+}
+.wiki-reader[hidden] { display: none !important; }
+.wiki-reader-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--bg-elevated, #1c1c1e) 92%, transparent);
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+.wiki-art-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wiki-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 52vh;
+  border: 0;
+  background: #fff;
+}
+.tool-main.wiki-reading .solve-home {
+  justify-content: flex-start;
+  overflow: hidden;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+.tool-main.wiki-reading .solve-greet,
+.tool-main.wiki-reading .solve-sub { display: none; }
+.tool-main.wiki-reading .solve-search {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: min(1100px, 100%);
+  display: flex;
+  flex-direction: column;
+}
+.tool-main.wiki-reading .tool-hits { margin-top: 12px; max-height: 28vh; overflow-y: auto; }
+
 .tool-split .solve-composer button.go {
   width: 40px;
   height: 40px;

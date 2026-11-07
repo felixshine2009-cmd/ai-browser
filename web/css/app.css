@@ -130,3 +130,10 @@ select option{background:var(--panel2);color:var(--text)}
 .dlstat{font-size:12px;color:var(--text-tertiary,#a9adb6);margin-top:4px;word-break:break-word}.dlstat:empty{display:none}
 #localDisk{margin-top:10px;font-size:13px}#localDisk .mrow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 0;border-top:1px solid rgba(255,255,255,.1)}
 #localDisk .mrow .nm{flex:1 1 160px;min-width:0;word-break:break-word}#localDisk .mrow button{min-height:36px}
+
+.wiki-reader { display:flex; flex-direction:column; margin-top:16px; min-height:52vh; border-radius:16px; overflow:hidden; background:#fff; }
+.wiki-reader[hidden] { display:none !important; }
+.wiki-reader-bar { display:flex; align-items:center; gap:10px; padding:8px 12px; background:rgba(0,0,0,.04); }
+.wiki-art-title { flex:1; min-width:0; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wiki-frame { flex:1; width:100%; min-height:52vh; border:0; background:#fff; }
+#wikiHits article[data-path] { cursor:pointer; }

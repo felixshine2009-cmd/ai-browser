@@ -38,7 +38,7 @@
 **语言**
 * 混元 HY-MT 翻译、长难句分析、词典查询（MDX/MDD）。搜索模式下右侧 Siri 侧栏可以摘要当前页、对照翻译，并针对这一页提问。选中单词弹出词典，选中句子弹出翻译
 * 本地知识库（EmbeddingGemma 语义检索）
-* 离线百科可与网页一起检索，词条可以交给 AI 翻译。想导入更多条目见 [docs/OFFLINE_WIKI.md](docs/OFFLINE_WIKI.md)
+* 离线百科采用与 Kiwix 应用相同的 ZIM 格式：打开 `.zim` 文件后即可检索词条并阅读完整页面（含图片、样式与内部链接）。文件会像词典一样复制到应用程序目录。仍可导入 JSONL。详见 [docs/OFFLINE_WIKI.md](docs/OFFLINE_WIKI.md)
 
 **浏览器**
 * 标签页、独立内存会话的隐身标签页、内置密码管理器、Chrome 应用商店拓展、打印 / 另存为 PDF

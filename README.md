@@ -38,7 +38,7 @@
 **Language**
 * Hunyuan HY-MT translation, sentence analysis, dictionary lookup (MDX/MDD). In search mode the Siri sidebar summarizes the page, shows a side-by-side translation, and answers questions about it. A selected word offers the dictionary; a selected sentence offers translation
 * Local knowledge base with semantic search (EmbeddingGemma)
-* Offline wiki search alongside the web, with AI translation of a page. See [docs/OFFLINE_WIKI.md](docs/OFFLINE_WIKI.md) if you want to import more articles
+* Offline encyclopedia in the ZIM format used by Kiwix: open a `.zim` file to search titles and read full article pages (with images, styles, and internal links). The file is copied into the app directory, as dictionaries are. JSONL import remains available. See [docs/OFFLINE_WIKI.md](docs/OFFLINE_WIKI.md)
 
 **Browser**
 * Tabs, incognito tabs with their own in-memory session, built-in password manager, Chrome Web Store extensions, print / save as PDF

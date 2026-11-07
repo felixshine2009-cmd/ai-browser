@@ -18,19 +18,36 @@ function extraPages() {
   } catch {}
   return pages;
 }
-function wikiSearch(q) { return v36.wikiSearch(v36.WIKI_SEED.concat(extraPages()), q).slice(0, 5); }
+async function wikiSearch(q) {
+  const hits = [];
+  try {
+    const zim = require('../wiki/zim');
+    if (zim.status().open) {
+      const found = await zim.search(q, 20);
+      for (const e of found) hits.push({ title: e.title, text: e.path || '', path: e.path, source: 'zim' });
+    }
+  } catch {}
+  const extra = v36.wikiSearch(v36.WIKI_SEED.concat(extraPages()), q).slice(0, 5);
+  const seen = new Set(hits.map(h => String(h.title || '').toLowerCase()));
+  for (const h of extra) {
+    if (seen.has(String(h.title || '').toLowerCase())) continue;
+    hits.push(Object.assign({ source: 'local' }, h));
+  }
+  return hits;
+}
 
 const tools = [
   { name: 'hs_calc', group: 'calc', description: 'High-school calculation. op: quad, kinematics, newton, ohm, kinetic, potential, wave, lens, ph, gas, arith, geo, trig, log, deriv. Pass numeric args (a,b,c / v0,a,t / m,a / V,I,R / f,lambda / coef array, etc.).',
     parameters: { type: 'object', properties: { op: { type: 'string' }, args: { type: 'object' } }, required: ['op'] },
     run: async (a) => v36.hscalc(String(a.op || ''), a.args || a) },
-  { name: 'wiki_search', group: 'wiki', description: 'Search the offline wiki (bundled articles plus any JSONL the user imported). Use together with web_search when both could help.',
+  { name: 'wiki_search', group: 'wiki', description: 'Search the offline wiki (an opened ZIM/Kiwix encyclopedia, plus bundled articles and any JSONL the user imported). Use together with web_search when both could help.',
     parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
-    run: async (a) => ({ hits: wikiSearch(a.query) }) },
+    run: async (a) => ({ hits: await wikiSearch(a.query) }) },
   { name: 'wiki_translate', group: 'wiki', description: 'Translate an offline wiki article title into the user language using the translation engine. Does not replace the stored page.',
     parameters: { type: 'object', properties: { title: { type: 'string' }, target: { type: 'string' } }, required: ['title'] },
     run: async (a) => {
-      const hit = wikiSearch(a.title)[0];
+      const hits = await wikiSearch(a.title);
+      const hit = hits[0];
       if (!hit) return { error: 'not found' };
       const tr = await require('../ai/translate').translate(hit.text, { target: a.target || 'en' });
       return { title: hit.title, translation: tr.text || tr, target: a.target || 'en' };

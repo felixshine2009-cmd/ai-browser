@@ -79,12 +79,20 @@
     main.classList.add('solve-main');
     main.innerHTML = homePage({
       title: '离线百科',
-      subtitle: '请输入检索词，以在本机离线百科中查询词条。',
+      subtitle: '请打开 ZIM 格式的离线百科文件（与 Kiwix 应用所使用的格式相同），然后检索并阅读词条。',
       inputId: 'q',
       placeholder: '请输入检索词',
       formId: 'wikiForm',
-      chips: '<button type="button" class="solve-chip" id="imptoggle" aria-expanded="false" aria-controls="wikiImp"><span>导入词条</span></button>',
-      extra: `<div id="hits" class="tool-hits"></div>
+      chips: '<button type="button" class="solve-chip" id="openZim"><span>打开 ZIM 文件</span></button><button type="button" class="solve-chip" id="imptoggle" aria-expanded="false" aria-controls="wikiImp"><span>导入词条</span></button>',
+      extra: `<p id="zimst" class="hint zim-status"></p>
+        <div id="hits" class="tool-hits"></div>
+        <section id="wikiReader" class="wiki-reader" hidden>
+          <div class="wiki-reader-bar">
+            <button type="button" class="solve-chip" id="wikiHome"><span>首页</span></button>
+            <span id="wikiArtTitle" class="wiki-art-title"></span>
+          </div>
+          <iframe id="wikiFrame" class="wiki-frame" title="离线百科词条" sandbox="allow-same-origin allow-scripts allow-popups"></iframe>
+        </section>
         <section class="solve-refs" id="wikiImp" hidden aria-label="导入词条">
           <div class="solve-refs-head"><span>导入词条</span><button type="button" class="tb-icon" id="impclose" title="收起" aria-label="收起">×</button></div>
           <p class="hint">可将 JSONL 文件（每行格式为 {"title","text"}）放入用户目录的 wiki 文件夹，亦可在下方粘贴并导入。</p>
@@ -185,14 +193,60 @@
   if (id === 'wiki') {
     const qInput = document.getElementById('q');
     const hitsEl = document.getElementById('hits');
+    const reader = document.getElementById('wikiReader');
+    const frame = document.getElementById('wikiFrame');
+    const artTitle = document.getElementById('wikiArtTitle');
+    const zimst = document.getElementById('zimst');
+    async function openArticle(articlePath, title) {
+      const item = await window.aib.invoke('wiki:article', articlePath || '');
+      if (!item || !item.url) return false;
+      main.classList.add('wiki-reading');
+      reader.hidden = false;
+      artTitle.textContent = title || item.title || item.path || '';
+      frame.src = item.url;
+      return true;
+    }
+    async function paintZim(st) {
+      st = st || await window.aib.invoke('wiki:zimStatus');
+      if (!st || !st.open) {
+        zimst.textContent = st && st.error
+          ? ('无法打开 ZIM 文件：' + st.error)
+          : '尚未打开 ZIM 文件。请选择与 Kiwix 应用相同的离线百科文件（.zim）。';
+        if (!st || !st.open) {
+          main.classList.remove('wiki-reading');
+          reader.hidden = true;
+          frame.removeAttribute('src');
+          artTitle.textContent = '';
+        }
+        return st;
+      }
+      zimst.textContent = st.copied
+        ? ('当前文件：' + st.name + '（已复制到应用程序目录，共 ' + Number(st.articleCount || 0).toLocaleString() + ' 条）')
+        : ('当前文件：' + st.name + '（共 ' + Number(st.articleCount || 0).toLocaleString() + ' 条）');
+      return st;
+    }
     const run = async () => {
       const r = await window.aib.invoke('wiki:search', qInput.value);
       const list = (r && r.hits) || [];
       hitsEl.innerHTML = list.length
-        ? list.map(h => `<article><h4>${esc(h.title)}</h4><p>${esc(h.text)}</p><button type="button" data-tr="${esc(h.title)}">全文翻译</button></article>`).join('')
+        ? list.map(h => `<article data-title="${esc(h.title)}"${h.path ? ` data-path="${esc(h.path)}"` : ''}><h4>${esc(h.title)}</h4><p>${esc(h.text || h.path || '')}</p>${h.path ? '<button type="button" data-open="1">阅读</button>' : ''}<button type="button" data-tr="${esc(h.title)}">全文翻译</button></article>`).join('')
         : (qInput.value.trim() ? '<p class="hint">未找到匹配词条。</p>' : '');
     };
     document.getElementById('wikiForm').addEventListener('submit', (e) => { e.preventDefault(); run(); });
+    if (window.aib && window.aib.on) window.aib.on('wiki:progress', (p) => {
+      if (!p || !zimst) return;
+      if (!p.active) return;
+      const pct = p.total ? Math.round(100 * p.got / p.total) : 0;
+      zimst.textContent = '正在将 ZIM 文件复制到应用程序目录… ' + pct + '%';
+    });
+    document.getElementById('openZim').onclick = async () => {
+      zimst.textContent = '正在将 ZIM 文件复制到应用程序目录…';
+      const st = await window.aib.invoke('wiki:openZim');
+      if (st && st.cancelled) { await paintZim(); return; }
+      await paintZim(st);
+      if (st && st.open) await openArticle('', st.name);
+    };
+    document.getElementById('wikiHome').onclick = () => openArticle('', '');
     const impPanel = document.getElementById('wikiImp');
     const impToggle = document.getElementById('imptoggle');
     const setImp = (open) => {
@@ -214,11 +268,19 @@
       run();
     };
     hitsEl.onclick = async (e) => {
-      const b = e.target.closest('[data-tr]');
-      if (!b) return;
-      const sid = await window.aib.invoke('nav:submit', '翻译离线百科：' + b.dataset.tr);
-      if (sid && typeof sid === 'string') location.href = 'aibrowser://chat?sid=' + sid;
+      const tr = e.target.closest('button[data-tr]');
+      if (tr) {
+        const sid = await window.aib.invoke('nav:submit', '翻译离线百科：' + tr.dataset.tr);
+        if (sid && typeof sid === 'string') location.href = 'aibrowser://chat?sid=' + sid;
+        return;
+      }
+      const art = e.target.closest('article[data-path]');
+      if (art && art.dataset.path) {
+        hitsEl.innerHTML = '';
+        await openArticle(art.dataset.path, art.dataset.title);
+      }
     };
+    paintZim().then(st => { if (st && st.open) openArticle('', st.name); });
     qInput.focus();
   }
 

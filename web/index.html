@@ -72,12 +72,24 @@
       </section>
       <section id="wikibox">
         <h3 data-i18n="wiki">百科</h3>
-        <p class="hint">请输入检索词，以在本机离线百科中查询词条。</p>
+        <p class="hint">请打开 ZIM 格式的离线百科文件（与 Kiwix 应用所使用的格式相同），然后检索并阅读词条。</p>
         <form id="wikiForm" autocomplete="off">
           <input id="wikiQ" placeholder="请输入检索词" autocomplete="off">
           <div class="row-actions"><button type="submit" class="primary">检索</button></div>
         </form>
+        <div class="row-actions">
+          <label class="primary" for="zimFile">打开 ZIM 文件</label>
+          <input id="zimFile" type="file" accept=".zim,application/octet-stream" hidden>
+        </div>
+        <p id="zimst" class="hint"></p>
         <div id="wikiHits"></div>
+        <section id="wikiReader" class="wiki-reader" hidden>
+          <div class="wiki-reader-bar">
+            <button type="button" id="wikiHome">首页</button>
+            <span id="wikiArtTitle" class="wiki-art-title"></span>
+          </div>
+          <iframe id="wikiFrame" class="wiki-frame" title="离线百科词条" sandbox="allow-same-origin allow-scripts allow-popups"></iframe>
+        </section>
       </section>
       <section id="dictbox">
         <h3 data-i18n="dict">词典</h3>
@@ -177,6 +189,9 @@
 </div>
 <script src="js/v36.js"></script>
 <script src="js/vkeyboard.js"></script>
+<script src="js/fzstd.js"></script>
+<script src="js/zim-reader.js"></script>
+<script src="js/zim-web.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

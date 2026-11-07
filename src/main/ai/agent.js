@@ -77,7 +77,7 @@ async function doSearch(s, emit, q, engine, queries) {
   }
   emit(s, { type: 'serp', via: r.via, selected: use, tried: r.tried, count: r.results.length });
   try {
-    const hits = require('../v36/extra-tools').wikiSearch(q).slice(0, 3);
+    const hits = (await require('../v36/extra-tools').wikiSearch(q)).slice(0, 3);
     if (hits.length) {
       r.wiki = hits.map(h => ({ title: h.title, text: String(h.text).slice(0, 500) }));
       emit(s, { type: 'wiki', query: q, hits: r.wiki });

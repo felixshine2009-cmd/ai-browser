@@ -9,7 +9,8 @@ if (process.env.AIB_USER_DATA) app.setPath('userData', process.env.AIB_USER_DATA
 protocol.registerSchemesAsPrivileged([
   { scheme: 'aibrowser', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
   { scheme: 'aibdict', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
-  { scheme: 'aibext', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
+  { scheme: 'aibext', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
+  { scheme: 'aibzim', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
 ]);
 
 const store = require('./store');
@@ -55,6 +56,19 @@ function registerProtocols(proto = protocol) {
     const f = features.fileFor(id, u.pathname);
     if (!f) return new Response('Not found', { status: 404 });
     return fileResponse(f);
+  });
+  proto.handle('aibzim', async (req) => {
+    try {
+      const u = new URL(req.url);
+      let zp = decodeURIComponent((u.pathname || '').replace(/^\/+/, ''));
+      if (u.hostname && u.hostname !== 'zim') zp = u.hostname + (zp ? '/' + zp : '');
+      const zim = require('./wiki/zim');
+      const item = await zim.getByPath(zp);
+      if (!item || !item.data) return new Response('Not found', { status: 404 });
+      return new Response(Buffer.from(item.data), { headers: { 'Content-Type': item.mime || 'application/octet-stream', 'Access-Control-Allow-Origin': '*' } });
+    } catch (err) {
+      return new Response(String(err && err.message || err), { status: 500 });
+    }
   });
 }
 const SDK_JS = (id) => `(function(){var EXT=${JSON.stringify(id)},n=0,pend={},rr;
@@ -451,7 +465,22 @@ function registerIpc() {
     return { url, qr: v36.qrSvg(url), desktop: true };
   });
   handle('solve:link', () => ({ url: v36.phoneLink({ desktop: true, lanUrl: global.__aibPhone && global.__aibPhone.info && global.__aibPhone.info.url }), publicUrl: v36.PUBLIC_SOLVER }));
-  handle('wiki:search', (e, q) => ({ hits: require('./v36/extra-tools').wikiSearch(q) }));
+  handle('wiki:search', async (e, q) => ({ hits: await require('./v36/extra-tools').wikiSearch(q) }));
+  handle('wiki:openZim', async () => {
+    const zim = require('./wiki/zim');
+    const files = pick({ properties: ['openFile'], filters: [{ name: 'ZIM', extensions: ['zim', 'zimaa'] }], title: '选择 ZIM 格式的离线百科文件' });
+    if (!files[0]) return Object.assign({ cancelled: true }, zim.status());
+    const st = await zim.importFile(files[0], { onProgress: (prog) => broadcast('wiki:progress', prog) });
+    broadcast('wiki:progress', { active: false, finished: true });
+    return st;
+  });
+  handle('wiki:zimStatus', () => require('./wiki/zim').status());
+  handle('wiki:article', async (e, articlePath) => {
+    const zim = require('./wiki/zim');
+    const item = await zim.getByPath(articlePath);
+    if (!item) return null;
+    return { title: item.title, path: item.path, mime: item.mime, url: 'aibzim://zim/' + encodeURI(item.path || '') };
+  });
   handle('wiki:import', (e, text) => {
     const pages = v36.parseWikiJsonl(text);
     const dir = require('./v36/extra-tools').wikiDir();
@@ -615,6 +644,7 @@ if (!gotLock) { app.quit(); } else {
     tabsMod.hooks.prepareIncognito = (ses) => { registerProtocols(ses.protocol); setupDownloads(ses); };
     registerIpc();
     registerHostServices();
+    require('./wiki/zim').openSaved().catch(e => console.error('wiki zim', e && e.message));
   dict.migrate().then(r => { if (r.copied.length || r.missing.length) { console.log('dictionary migration:', JSON.stringify(r)); broadcast('ext:changed'); } }).catch(e => console.error('dictionary migration failed', e));
     setupDownloads();
     features.reload();
