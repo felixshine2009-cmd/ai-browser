@@ -20,7 +20,7 @@ function reasonFor(status, body){
   return `HTTP ${status}${detail?': '+detail:''}`;
 }
 
-export async function chatComplete({baseUrl, apiKey, model, messages, signal}){
+export async function chatComplete({baseUrl, apiKey, model, messages, signal, thinkingLevel}){
   const key = cleanKey(apiKey), mdl = cleanText(model), url = endpoint(baseUrl);
   if (!cleanBase(baseUrl)) throw new Error('请填写 API Base URL / API Base URL is empty');
   if (!mdl) throw new Error('请填写模型名 / Model name is empty');
@@ -29,7 +29,9 @@ export async function chatComplete({baseUrl, apiKey, model, messages, signal}){
   if (key) headers['Authorization'] = 'Bearer ' + key;
   let res;
   try {
-    res = await fetch(url, { method:'POST', signal, headers, body: JSON.stringify({ model: mdl, messages, temperature:0.3, stream:false }) });
+    const think = (typeof window !== 'undefined' && window.AIB36 && thinkingLevel) ? window.AIB36.reasoningFields(thinkingLevel) : {};
+    delete think.interrupt;
+    res = await fetch(url, { method:'POST', signal, headers, body: JSON.stringify(Object.assign({ model: mdl, messages, temperature:0.3, stream:false }, think)) });
   } catch (e) {
     const cors = /Failed to fetch|NetworkError|CORS|Load failed/i.test(String(e));
     const err = new Error(cors

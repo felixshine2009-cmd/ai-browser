@@ -112,6 +112,10 @@ function openSettings(focusLocal){
   document.getElementById('dname').value = settings.displayName||'';
   document.getElementById('greeting').value = settings.greeting||'';
   document.getElementById('lang').value = getLang();
+  const ast = document.getElementById('astyle'); if (ast) ast.value = settings.answerStyle || 'detailed';
+  const th = document.getElementById('think'); if (th) th.value = settings.thinkingLevel || 'medium';
+  if (window.__paintThemes) window.__paintThemes();
+  fillProviders();
   document.getElementById('apiBase').value = settings.api.baseUrl||'';
   document.getElementById('apiKey').value = settings.api.apiKey||'';
   document.getElementById('apiModel').value = settings.api.model||'';
@@ -135,7 +139,11 @@ function collectSettings(){
   settings.greeting = document.getElementById('greeting').value;
   const lang = document.getElementById('lang').value;
   setLang(lang); settings.lang = lang;
+  const ast = document.getElementById('astyle'); if (ast) settings.answerStyle = ast.value;
+  const thk = document.getElementById('think'); if (thk) settings.thinkingLevel = thk.value;
+  if (window.AIB36) { document.documentElement.dataset.theme = settings.theme || 'aurora'; document.documentElement.style.cssText += window.AIB36.themeCss(settings.theme || 'aurora'); }
   settings.engine = document.getElementById('engKind').value;
+  settings.api.preset = document.getElementById('apiPreset').value || 'custom';
   settings.api.baseUrl = cleanBase(document.getElementById('apiBase').value);
   settings.api.apiKey = cleanKey(document.getElementById('apiKey').value);
   settings.api.model = cleanText(document.getElementById('apiModel').value);
@@ -184,6 +192,14 @@ function wireVisualViewport(){
   vv.addEventListener('resize', apply); vv.addEventListener('scroll', apply); apply();
 }
 
+function fillProviders(){
+  const sel = document.getElementById('apiPreset');
+  const A = window.AIB36;
+  if (!sel || !A) return;
+  sel.innerHTML = Object.entries(A.API_PROVIDERS).map(([id, p]) => `<option value="${id}">${p.name}</option>`).join('');
+  sel.value = (settings.api && settings.api.preset) || 'deepseek';
+  if (!A.API_PROVIDERS[sel.value]) sel.value = 'custom';
+}
 function wire(){
   document.getElementById('btnSettings').onclick = ()=>openSettings(false);
   document.getElementById('btnLocal').onclick = ()=>openSettings(true);
@@ -191,6 +207,13 @@ function wire(){
   document.getElementById('btnSave').onclick = doSaveSettings;
   document.getElementById('btnShowKey').onclick = ()=>{ const k=document.getElementById('apiKey'); k.type = k.type==='password'?'text':'password'; };
   document.getElementById('engKind').onchange = syncEngineUI;
+  const preset = document.getElementById('apiPreset');
+  if (preset) preset.onchange = () => {
+    const p = window.AIB36 && window.AIB36.providerById(preset.value);
+    if (!p || preset.value === 'custom') return;
+    document.getElementById('apiBase').value = p.baseUrl;
+    document.getElementById('apiModel').value = p.model;
+  };
   document.getElementById('localModel').onchange = updateLocalWarn;
   const setLoadUI = (st) => { // st: idle | loading | paused
     document.getElementById('btnPauseLocal').style.display = st === 'loading' ? '' : 'none';
@@ -242,8 +265,53 @@ function wire(){
   document.getElementById('btnClosePanel').onclick = closeOverlay;
   document.getElementById('ptGgb').onclick = ()=>showPanel('ggb');
   document.getElementById('ptPhys').onclick = ()=>showPanel('phys');
+  const jump = (id) => { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth' }); };
+  const bSolve = document.getElementById('btnSolve'); if (bSolve) bSolve.onclick = () => jump('solvebox');
+  const bWiki = document.getElementById('btnWiki'); if (bWiki) bWiki.onclick = () => jump('wikibox');
   document.getElementById('btnGgb').onclick = ()=>showPanel('ggb');
   document.getElementById('btnPhys').onclick = ()=>showPanel('phys');
+  const A = window.AIB36;
+  const tools = document.getElementById('hometools');
+  if (tools && A) tools.innerHTML = [['geogebra','G'],['physics','物'],['solve','题'],['wiki','维'],['dict','词']].map(([id,ic])=>`<button type="button" class="ticon" data-tool="${id}">${ic}</button>`).join('');
+  tools && tools.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tool]'); if (!b) return;
+    const id = b.dataset.tool;
+    if (id === 'geogebra') showPanel('ggb');
+    else if (id === 'physics') showPanel('phys');
+    else document.getElementById(id === 'solve' ? 'solvebox' : id === 'wiki' ? 'wikibox' : 'solvebox').scrollIntoView({behavior:'smooth'});
+  });
+  const refs = [];
+  const refAdd = document.getElementById('refAdd');
+  if (refAdd) refAdd.onclick = () => { refs.push({ title: document.getElementById('refTitle').value, text: document.getElementById('refBody').value }); document.getElementById('refList').textContent = '参考资料 ' + refs.length; };
+  const solvePhone = document.getElementById('solvePhone');
+  if (solvePhone) solvePhone.onclick = () => {
+    const url = A.PUBLIC_SOLVER;
+    document.getElementById('solveQr').innerHTML = A.qrSvg(url) + `<p>${url}</p><p>在手机上打开后可以直接拍照解题。网页版不能把照片回传到这台电脑。</p>`;
+  };
+  const solveGo = document.getElementById('solveGo');
+  if (solveGo) solveGo.onclick = async () => {
+    const q = document.getElementById('solveText').value.trim();
+    const ctx = A.solverContext({ refs, turns: [] });
+    if (abort) abort.abort(); abort = new AbortController();
+    await handleAsk({ q: (ctx ? ctx + '\n' : '') + q, settings, signal: abort.signal, els: { status: document.getElementById('status'), answer: document.getElementById('answer'), tools: document.getElementById('tools') } });
+  };
+  const wikiQ = document.getElementById('wikiQ');
+  if (wikiQ) wikiQ.oninput = () => {
+    const hits = A.wikiSearch(A.WIKI_SEED, wikiQ.value);
+    document.getElementById('wikiHits').innerHTML = hits.map(h => `<article><b>${h.title}</b><p>${h.text}</p></article>`).join('');
+  };
+  function paintThemes(){
+    const grid = document.getElementById('themeGrid'); if (!grid || !A) return;
+    grid.innerHTML = Object.values(A.THEMES).map(th => `<button type="button" class="theme-combo ${settings.theme===th.id?'on':''}" data-theme="${th.id}"><b>${th.zh}</b><span class="swatches">${Object.values(th.colors).map(c=>`<i style="background:${c}"></i>`).join('')}</span></button>`).join('');
+    grid.querySelectorAll('[data-theme]').forEach(b => b.onclick = () => { settings.theme = b.dataset.theme; applyTheme(settings.theme); saveSettings(settings); paintThemes(); });
+  }
+  function applyTheme(id){
+    if (!A) return;
+    document.documentElement.dataset.theme = id;
+    document.documentElement.style.cssText += A.themeCss(id);
+  }
+  window.__paintThemes = paintThemes;
+  applyTheme(settings.theme || 'aurora');
   document.getElementById('kbAdd').onclick = async ()=>{
     const t0 = document.getElementById('kbText').value.trim(); if(!t0) return;
     await kbAdd(t0, 'note'); document.getElementById('kbText').value=''; toast(t('saved')); refreshKb();

@@ -21,8 +21,16 @@
       this.strings = await res.json();
       const s = await window.aib.invoke('settings:get');
       this.lang = s.lang === 'en' ? 'en' : 'zh';
+      const theme = (s.appearance && s.appearance.theme) || 'aurora';
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme === 'sand' ? 'light' : 'dark';
       this.apply();
-      window.aib.on('settings:changed', (ns) => { if (ns.lang !== this.lang) this.setLang(ns.lang); });
+      window.aib.on('settings:changed', (ns) => {
+        if (ns.lang !== this.lang) this.setLang(ns.lang);
+        const th = (ns.appearance && ns.appearance.theme) || 'aurora';
+        document.documentElement.dataset.theme = th;
+        document.documentElement.style.colorScheme = th === 'sand' ? 'light' : 'dark';
+      });
       return s;
     }
   };

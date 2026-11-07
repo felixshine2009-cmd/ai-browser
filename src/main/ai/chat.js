@@ -17,9 +17,11 @@ const sessions = new Map();
 
 function today() { return new Date().toISOString().slice(0, 10); }
 
-function create(input, kindOverride) {
+function create(input, kindOverride, extra) {
+  extra = extra || {};
   const sid = crypto.randomBytes(6).toString('hex');
-  const s = { sid, input, kindOverride: kindOverride || null, events: [], wcId: null, started: false, ac: new AbortController(), done: false };
+  const s = { sid, input, kindOverride: kindOverride || null, events: [], wcId: null, started: false, ac: new AbortController(), done: false, prior: extra.prior || [], refs: extra.refs || [], images: extra.images || [], threadId: extra.threadId || null };
+  s.threadId = s.threadId || sid;
   sessions.set(sid, s);
   if (sessions.size > 60) sessions.delete(sessions.keys().next().value);
   return sid;
@@ -69,7 +71,8 @@ async function run0(s) {
     if (r) { emit(s, { type: 'kind', kind: 'word' }); emit(s, { type: 'handler-result', extId: r.extId, result: r.result, word: cl.word }); return finish(s); }
     cl = /\?|^(what|why|how|when|where|who|which)\b/i.test(cl.word) ? { kind: 'question' } : { kind: 'sentence' };
   }
-  emit(s, { type: 'kind', kind: cl.kind });
+  emit(s, { type: 'kind', kind: cl.kind === 'task' ? 'question' : cl.kind });
+  if (cl.kind === 'task') { await runTask(s); return finish(s); }
   switch (cl.kind) {
     case 'word': await runWord(s, cl.word, ctx); break;
     case 'sentence': await runSentence(s, ctx); break;
@@ -227,6 +230,41 @@ async function runArticle(s, target) {
 function runQuestion(s, ctx) { return agent.run(s, ctx, { emit, isLocal, today }); }
 
 // Re-run a question with user-edited queries
+function answerText(s) {
+  const ev = (s.events || []).filter(e => e.type === 'answer-delta');
+  return ev.map(e => e.text).join('');
+}
+function follow(sid, text, extra) {
+  extra = extra || {};
+  const old = sessions.get(sid);
+  if (!old) return create(text, extra.kind || null, extra);
+  const prior = (old.prior || []).concat([{ role: 'user', content: old.input }, { role: 'assistant', content: answerText(old) }]);
+  return create(text, extra.kind || old.kindOverride, Object.assign({ prior, refs: (extra.refs || old.refs), images: (extra.images || old.images), threadId: old.threadId || old.sid }, extra));
+}
+async function runTask(s) {
+  const v36 = require('../v36/v36');
+  const tabs = require('../tabs');
+  const registry = require('./tools');
+  emit(s, { type: 'status', text: v36.statusLabel('thinking') });
+  const result = await v36.runTask({
+    goal: s.input,
+    onStatus: (st) => emit(s, { type: 'status', text: st.label }),
+    ask: ({ goal, context }) => llm.completeJson([
+      { role: 'system', content: 'You control the browser to finish the user goal. Reply with JSON only: {"action":"navigate"|"click"|"type"|"read"|"done","args":{},"summary":""}. Use done when the goal is complete. ' + v36.answerAddendum(store.getSettings().answerStyle) },
+      { role: 'user', content: String(goal || '') + (context ? '\n' + context : '') }
+    ], { signal: s.ac.signal, maxTokens: 500, temperature: 0.1 }),
+    act: async (step) => {
+      const args = step.args || {};
+      emit(s, { type: 'tool', name: 'browser_' + (step.action || 'act'), args });
+      if (step.action === 'navigate') { const t = tabs.activeTab(); if (!t) return { error: 'no tab' }; tabs.load(t, args.url); return { ok: true, url: args.url }; }
+      if (step.action === 'click') return registry.call('browser_click', args, { wcId: s.wcId });
+      if (step.action === 'type') return registry.call('browser_type', args, { wcId: s.wcId });
+      if (step.action === 'read') { const t = tabs.activeTab(); if (!t) return { error: 'no tab' }; const text = await t.wc.executeJavaScript('document.body ? document.body.innerText : ""'); return { text: String(text).slice(0, 2000) }; }
+      return { error: 'unknown action' };
+    }
+  });
+  emit(s, { type: 'answer-delta', text: v36.redactToolTalk(result.summary || '') });
+}
 function rerun(sid, queries) {
   const old = sessions.get(sid);
   if (!old) return null;
@@ -237,4 +275,4 @@ function rerun(sid, queries) {
   return nsid;
 }
 
-module.exports = { create, attach, cancel, cancelForWebContents, rerun, get, aiEntry, classify };
+module.exports = { create, attach, cancel, cancelForWebContents, rerun, follow, get, aiEntry, classify };

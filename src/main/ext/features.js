@@ -7,7 +7,7 @@ const { app, net } = require('electron');
 const store = require('../store');
 
 const STANDARD = 'aib-feature/1';
-const PERMS = new Set(['storage', 'net', 'ai', 'tabs', 'panels', 'host.dictionary', 'host.geogebra', 'host.physics']);
+const PERMS = new Set(['storage', 'net', 'ai', 'tabs', 'panels', 'browser', 'host.dictionary', 'host.geogebra', 'host.physics']);
 const HOST_PERMS = new Set(['host.dictionary', 'host.geogebra', 'host.physics']); // builtin only
 const INPUT_TYPES = new Set(['word', 'sentence', 'article', 'question', 'any']);
 
@@ -113,7 +113,11 @@ function makeApi(rec) {
     ai: { complete: async (prompt) => { need('ai'); if (!hooks.ai) throw new Error('AI 不可用'); return hooks.ai(typeof prompt === 'string' ? [{ role: 'user', content: prompt }] : prompt); } },
     tabs: { open: (url) => { need('tabs'); hooks.openTab(String(url)); } },
     panels: { call: (ctx, panelId, method, args) => { need('panels'); return hooks.callPanel(ctx, m.id, panelId, method, args); } },
-    settings: { get: () => (store.getSettings().extensions[m.id] || {}).settings || {}, set: (v) => { const e = store.getSettings().extensions; store.patchSettings({ extensions: { ...e, [m.id]: { ...(e[m.id] || {}), settings: v } } }); } }
+    settings: { get: () => (store.getSettings().extensions[m.id] || {}).settings || {}, set: (v) => { const e = store.getSettings().extensions; store.patchSettings({ extensions: { ...e, [m.id]: { ...(e[m.id] || {}), settings: v } } }); } },
+    browser: {
+      get: () => { need('browser'); return store.publicSettings(); },
+      patch: (p) => { need('browser'); const s = require('../v36/v36').sanitizePluginPatch(p); if (Object.keys(s.patch).length) store.patchSettings(s.patch); return s; }
+    }
   };
   if (rec.builtin) {
     api.host = {};

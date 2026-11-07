@@ -99,7 +99,7 @@
       $('modelhint').textContent = t('ai.api.modelSaved', { m: it.dataset.m });
     });
     document.addEventListener('click', (e) => { if (!e.target.closest('#combo')) closePop(); });
-    $('preset').onchange = () => { const pr = presets[$('preset').value]; if (pr && $('preset').value !== 'custom') { $('baseUrl').value = pr.baseUrl; $('model').value = pr.model; $('format').value = pr.format; modelList = []; } };
+    $('preset').onchange = () => { const pr = presets[$('preset').value]; if (pr && $('preset').value !== 'custom') { $('baseUrl').value = pr.baseUrl; $('model').value = pr.model; $('format').value = pr.format; modelList = pr.models || []; } };
     const gather = () => ({ preset: $('preset').value, format: $('format').value, baseUrl: $('baseUrl').value.trim(), apiKey: $('apiKey').value, model: $('model').value.trim(), temperature: parseFloat($('temp').value) || 0 });
     $('save').onclick = async () => { await window.aib.invoke('settings:patch', { ai: { source: 'api', api: gather() } }); $('apiKey').value = ''; notice($('tres'), 'ok', t('common.saved')); await refresh(); $('activeSrc').textContent = t('ai.src.api'); };
     $('test').onclick = async () => {
@@ -624,6 +624,27 @@
     $('greetsave').onclick = saveGreet;
     ['dname', 'greeting'].forEach(id => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') saveGreet(); }));
     $('greetreset').onclick = async () => { $('greeting').value = ''; $('dname').value = 'Felix'; preview(); await saveGreet(); };
+    const look = document.createElement('div'); look.className = 'form-row';
+    const themes = [['aurora','极光'],['sand','暖沙'],['night','夜色'],['ink','墨黑']];
+    const curTheme = (S.appearance && S.appearance.theme) || 'aurora';
+    look.innerHTML = `<label>主题</label><div class="theme-grid">${themes.map(([id,name]) => `<button type="button" class="theme-combo ${curTheme===id?'on':''}" data-theme="${id}"><b>${name}</b><span class="swatches" data-sw="${id}"></span></button>`).join('')}</div>
+      <label>回答风格</label><select id="astyle"><option value="concise">简洁</option><option value="detailed">详细</option><option value="steps">步骤</option></select>
+      <label>思考等级</label><select id="think"><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="max">max</option></select>
+      <label>主页布局</label><select id="hlay"><option value="center">居中</option><option value="top">靠上</option></select>
+      <label>主页背景</label><input id="hbg" placeholder="#112233 或留空">
+      <div class="inline" style="margin-top:8px"><button class="btn-secondary" id="kcheck">检查内核更新</button><span id="kout"></span></div>`;
+    p.appendChild(look);
+    look.querySelector('#astyle').value = S.answerStyle || 'detailed';
+    look.querySelector('#think').value = S.thinkingLevel || 'medium';
+    look.querySelector('#hlay').value = (S.home && S.home.layout) || 'center';
+    look.querySelector('#hbg').value = (S.home && S.home.background) || '';
+    const sw = { aurora:['#07111f','#0c1a2e','#e8f1ff','#93a6c2','#3ee0c3','#7aa2ff','#ffb86b'], sand:['#f4ebe0','#efe2d2','#3a2a1c','#8a6f58','#c45c26','#b08968','#d4923a'], night:['#120818','#1a0d28','#f3e9ff','#a894c4','#c9a6ff','#7ec8ff','#ffc48a'], ink:['#111214','#181a1e','#f4f4f5','#9aa0a8','#d7dbe2','#8b939e','#e8c27a'] };
+    look.querySelectorAll('[data-sw]').forEach(el => { el.innerHTML = (sw[el.dataset.sw]||[]).map(c => `<i style="background:${c}"></i>`).join(''); });
+    look.querySelectorAll('[data-theme]').forEach(b => b.onclick = async () => { await window.aib.invoke('settings:patch', { appearance: { theme: b.dataset.theme } }); toast(); renderGeneral(); });
+    const saveLook = async () => { await window.aib.invoke('settings:patch', { answerStyle: look.querySelector('#astyle').value, thinkingLevel: look.querySelector('#think').value, home: { layout: look.querySelector('#hlay').value, background: look.querySelector('#hbg').value.trim() } }); toast(); };
+    ['astyle','think','hlay','hbg'].forEach(i => look.querySelector('#'+i).addEventListener('change', saveLook));
+    look.querySelector('#hbg').addEventListener('change', saveLook);
+    look.querySelector('#kcheck').onclick = async () => { const r = await window.aib.invoke('kernel:check'); look.querySelector('#kout').textContent = r.updateAvailable ? '有新内核，可在下载后替换应用' : '已是当前记录的内核'; };
     const obRow = document.createElement('div'); obRow.className='form-row'; obRow.style.marginTop='18px';
     obRow.innerHTML = `<label>${esc(t('onboard.reopenLabel'))}</label><div class="hint">${esc(t('onboard.reopenHint'))}</div><div class="inline" style="margin-top:8px"><button class="btn-secondary" id="obreopen">${esc(t('onboard.reopen'))}</button></div>`;
     p.appendChild(obRow);

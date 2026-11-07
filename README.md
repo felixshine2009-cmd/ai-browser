@@ -26,24 +26,34 @@
 
 **AI & agent**
 * AI agent that drives the browser through a single tool registry: tabs, search, page reading, settings, knowledge base, models, GeoGebra, physics, code patches…
-* Agentic web search with `[n]` citations; chat with your own cloud API key (OpenAI / Anthropic format, presets) or with local models
+* Agentic web search with `[n]` citations; chat with your own cloud API key (OpenAI / Anthropic format, presets) or with local models. In chat, web search is the default unless you ask for a tool such as a graph
+* Answer style (concise or detailed — both stay structured), thinking levels, and a live status line. Tool names stay above the answer
+* Chat titles and a chat history kept apart from browsing history. Follow-ups, especially problem solving, keep the earlier turns
 * Sensitive actions (clearing history, deleting models) always ask for confirmation; passwords are never exposed to the AI
 
 **Local models**
-* MLX and llama.cpp on desktop, WebGPU in the web version; auto-detects LM Studio, Ollama, oMLX and other OpenAI-compatible servers
+* MLX and llama.cpp on desktop, including an MTP-capable MLX LM path, plus WebGPU in the web version; auto-detects LM Studio, Ollama, oMLX and other OpenAI-compatible servers
 * Resumable downloads (pause / resume, mirror fallback, sha256 check), Hugging Face search, per-model disk usage with separate cache / file cleaning
 
 **Language**
-* Hunyuan HY-MT translation, sentence analysis, dictionary lookup (MDX/MDD)
+* Hunyuan HY-MT translation, sentence analysis, dictionary lookup (MDX/MDD). In search mode the Siri sidebar summarizes the page, shows a side-by-side translation, and answers questions about it. A selected word offers the dictionary; a selected sentence offers translation
 * Local knowledge base with semantic search (EmbeddingGemma)
+* Offline wiki search alongside the web, with AI translation of a page. See [docs/OFFLINE_WIKI.md](docs/OFFLINE_WIKI.md) if you want to import more articles
 
 **Browser**
 * Tabs, incognito tabs with their own in-memory session, built-in password manager, Chrome Web Store extensions, print / save as PDF
+* Multithreaded downloads that also start a normal download, and fall back to that normal download when the server has no Range support
+* In-app check for a newer Chromium / Electron kernel
 * First-run onboarding wizard
+* Frosted-glass chrome, a collapsible tool tray (GeoGebra, physics, problem solving, and the rest), and icon shortcuts under the home box
+* Color themes (each swatch shows the whole palette), plus a custom home background and layout
+* Feature extensions can change layout and browser settings. Task mode lets the assistant drive the browser toward a goal you type
 
 **Math**
 * Full GeoGebra (graphing, geometry, 3D, CAS, scientific) with its math keyboard
 * **Math / chemistry virtual keyboard** on the home page and in chat (Math, Chem, Greek and Ops tabs)
+* Problem solving: type or paste a question, attach a picture, add reference notes, or scan a QR code and take the photo on your phone
+* High-school calculation helpers the assistant can call (algebra, sequences, mechanics, circuits, gases, pH, and similar)
 
 **Physics**
 * Physics engine with 34 examples; every high-school parameter is editable
@@ -74,7 +84,7 @@ The **web version (PWA)** at https://felixshine2009-cmd.github.io/ai-browser/ wo
 ## First run
 
 1. **Settings → General**: display name, greeting, 中文 / English.
-2. **Settings → AI Model**: *Custom API* (presets, OpenAI / Anthropic format, **Test connection** with specific failure reasons), *Local model* (built-in catalog, Hugging Face search, engine and download source, model roles) or *Local frameworks* (LM Studio, Ollama, oMLX …).
+2. **Settings → AI Model**: *Custom API* (pick a provider such as OpenAI, DeepSeek, Qwen, Gemini, Groq, Mistral, or a custom endpoint; **Test connection** shows a specific reason if it fails), *Local model* (built-in catalog, Hugging Face search, engine and download source, model roles) or *Local frameworks* (LM Studio, Ollama, oMLX …).
 3. **Search engine**: Bing / Google / Baidu / DuckDuckGo / custom `%s`; the agent uses the selected engine.
 4. **Dictionaries**, **Knowledge base**, **Extensions**, **History**, **Passwords** and **Privacy** are sections in the same Settings page (`aibrowser://settings#passwords` …).
 

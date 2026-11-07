@@ -92,6 +92,12 @@
     clearTimeout(cwsMsgT); cwsMsgT = setTimeout(() => { delete b.dataset.flash; const a = state && state.tabs.find(x => x.active); if (a) cwsUpdate(a); }, r.ok ? 4000 : 9000);
   };
   $('menu').onclick = () => window.aib.invoke('menu:toggle');
+  const fold = document.getElementById('toolfold');
+  const icons = document.getElementById('toolicons');
+  if (fold && icons) fold.onclick = () => icons.classList.toggle('collapsed');
+  document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => window.aib.invoke('nav:openUrl', 'aibrowser://tool?id=' + b.dataset.tool));
+  const siri = document.getElementById('siri');
+  if (siri) siri.onclick = () => window.aib.invoke('siri:toggle');
   document.querySelectorAll('#modeseg .seg').forEach(s => s.onclick = async () => {
     const next = s.dataset.mode;
     // Prefer what the user is currently typing in the address bar; fall back to main reading the chat session
