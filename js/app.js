@@ -324,8 +324,10 @@ function wire(){
     if (id === 'geogebra') showPanel('ggb');
     else if (id === 'physics') showPanel('phys');
     else if (id === 'dict') {
-      const dictEl = document.getElementById('dictbox') || document.getElementById('q');
-      if (dictEl) { dictEl.scrollIntoView({ behavior: 'smooth' }); dictEl.focus?.(); }
+      const box = document.getElementById('dictbox');
+      const dictEl = document.getElementById('dictQ');
+      if (box) box.scrollIntoView({ behavior: 'smooth' });
+      if (dictEl) dictEl.focus();
     } else {
       jump(id === 'wiki' ? 'wikibox' : 'solvebox');
     }
@@ -356,11 +358,47 @@ function wire(){
     if (abort) abort.abort(); abort = new AbortController();
     await handleAsk({ q: (ctx ? ctx + '\n' : '') + q, settings, signal: abort.signal, els: { status: document.getElementById('status'), answer: document.getElementById('answer'), tools: document.getElementById('tools') } });
   };
+  const wikiForm = document.getElementById('wikiForm');
   const wikiQ = document.getElementById('wikiQ');
-  if (wikiQ) wikiQ.oninput = () => {
+  const runWiki = () => {
+    if (!wikiQ || !A) return;
     const hits = A.wikiSearch(A.WIKI_SEED, wikiQ.value);
-    document.getElementById('wikiHits').innerHTML = hits.map(h => `<article><b>${esc(h.title)}</b><p>${esc(h.text)}</p></article>`).join('');
+    const box = document.getElementById('wikiHits');
+    if (!box) return;
+    box.innerHTML = hits.length
+      ? hits.map(h => `<article><b>${esc(h.title)}</b><p>${esc(h.text)}</p></article>`).join('')
+      : (wikiQ.value.trim() ? '<p class="hint">未找到匹配词条。</p>' : '');
   };
+  if (wikiForm) wikiForm.addEventListener('submit', (e) => { e.preventDefault(); runWiki(); });
+
+  const dictForm = document.getElementById('dictForm');
+  const dictPop = document.getElementById('dictPop');
+  const closeDictPop = () => { if (dictPop) dictPop.hidden = true; };
+  const dictPopX = document.getElementById('dictPopX');
+  if (dictPopX) dictPopX.onclick = closeDictPop;
+  if (dictPop) dictPop.addEventListener('click', (e) => { if (e.target === dictPop) closeDictPop(); });
+  if (dictForm) dictForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const word = (document.getElementById('dictQ')?.value || '').trim();
+    if (!word) return;
+    if (dictPop) dictPop.hidden = false;
+    const wordEl = document.getElementById('dictPopWord');
+    const noteEl = document.getElementById('dictPopNote');
+    if (wordEl) wordEl.textContent = word;
+    if (noteEl) noteEl.textContent = 'AI 生成 · 非词典释义，仅供参考';
+    if (abort) abort.abort(); abort = new AbortController();
+    await handleAsk({
+      q: word,
+      settings,
+      signal: abort.signal,
+      asDict: true,
+      els: {
+        status: document.getElementById('dictPopStatus'),
+        answer: document.getElementById('dictPopBody'),
+        tools: { innerHTML: '' }
+      }
+    });
+  });
   function paintThemes(){
     const grid = document.getElementById('themeGrid'); if (!grid || !A) return;
     grid.innerHTML = Object.values(A.THEMES).map(th => `<button type="button" class="theme-combo ${settings.theme===th.id?'on':''}" data-theme="${esc(th.id)}"><b>${esc(th.zh)}</b><span class="swatches">${Object.values(th.colors).map(c=>`<i style="background:${esc(c)}"></i>`).join('')}</span></button>`).join('');

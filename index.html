@@ -72,9 +72,30 @@
       </section>
       <section id="wikibox">
         <h3 data-i18n="wiki">百科</h3>
-        <input id="wikiQ" placeholder="搜索离线百科">
+        <p class="hint">请输入检索词，以在本机离线百科中查询词条。</p>
+        <form id="wikiForm" autocomplete="off">
+          <input id="wikiQ" placeholder="请输入检索词" autocomplete="off">
+          <div class="row-actions"><button type="submit" class="primary">检索</button></div>
+        </form>
         <div id="wikiHits"></div>
       </section>
+      <section id="dictbox">
+        <h3 data-i18n="dict">词典</h3>
+        <p class="hint">请输入英文或中文词汇。查询结果将以词条窗口弹出；若本地词典未收录该词，仍可查看 AI 生成词条。</p>
+        <form id="dictForm" autocomplete="off">
+          <input id="dictQ" placeholder="请输入英文或中文词汇，例如 serendipity" autocomplete="off">
+          <div class="row-actions"><button type="submit" class="primary">查询</button></div>
+        </form>
+      </section>
+      <div id="dictPop" class="qr-modal" hidden>
+        <div class="qr-card" role="dialog" aria-modal="true" aria-label="词条">
+          <button type="button" class="qr-close" id="dictPopX" title="关闭" aria-label="关闭">×</button>
+          <h3 id="dictPopWord"></h3>
+          <p id="dictPopNote" class="hint"></p>
+          <div id="dictPopStatus" class="status"></div>
+          <div id="dictPopBody" class="answer"></div>
+        </div>
+      </div>
       <div id="tools" class="status"></div>
       <div id="status" class="status"></div>
       <div id="answer" class="answer"></div>
