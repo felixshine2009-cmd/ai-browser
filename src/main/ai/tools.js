@@ -224,6 +224,7 @@ const BUILTIN = [
     } }
 
 ];
+try { for (const t of require('../v36/extra-tools')) BUILTIN.push(t); } catch (e) { console.error('v36 tools', e.message); }
 
 // Declared here so every provider sees the same list; executed by agent.js with the page board.
 const WEB = [

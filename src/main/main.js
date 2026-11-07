@@ -22,7 +22,7 @@ const dict = require('./dict/mdict');
 const selfmod = require('./selfmod');
 
 const RENDERER = path.join(__dirname, '..', 'renderer');
-const PAGES = new Set(['chrome', 'home', 'chat', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'menu', 'find', 'lookup', 'onboarding', 'selfmod']);
+const PAGES = new Set(['chrome', 'home', 'chat', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'menu', 'find', 'lookup', 'onboarding', 'selfmod', 'tool', 'siri']);
 const MIME = { html: 'text/html; charset=utf-8', js: 'application/javascript', css: 'text/css', json: 'application/json', svg: 'image/svg+xml', png: 'image/png', woff2: 'font/woff2', wasm: 'application/wasm', mjs: 'application/javascript', gif: 'image/gif', jpg: 'image/jpeg', jpeg: 'image/jpeg', ico: 'image/x-icon', ttf: 'font/ttf', woff: 'font/woff', txt: 'text/plain', map: 'application/json', xml: 'text/xml', mp3: 'audio/mpeg', ogg: 'audio/ogg' };
 const mimeOf = f => MIME[path.extname(f).slice(1).toLowerCase()] || 'application/octet-stream';
 const fileResponse = (f) => new Response(fs.readFileSync(f), { headers: { 'Content-Type': mimeOf(f), 'Access-Control-Allow-Origin': '*' } });
@@ -97,6 +97,14 @@ function setupDownloads(ses = session.defaultSession) {
     item.on('updated', (ev, st) => { rec.received = item.getReceivedBytes(); rec.total = item.getTotalBytes(); rec.state = st === 'interrupted' ? 'interrupted' : (item.isPaused() ? 'paused' : 'progressing'); push(); });
     item.once('done', (ev, st) => { if (process.env.AIB_DEBUG_DL) console.log('DLDONE', st, dest, fs.existsSync(dest), item.getSavePath()); rec.state = st; rec.received = item.getReceivedBytes(); dlItems.delete(rec.id); store.saveDownloads(); push(); });
     push();
+    const par = require('./v36/parallel');
+    par.takeover({ url: item.getURL(), dest: dest + '.mtfile', normalWrite: async () => {} }).then(r => {
+      if (r.mode !== 'multithread') return;
+      try { item.cancel(); } catch {}
+      try { if (fs.existsSync(dest + '.mtfile')) fs.renameSync(dest + '.mtfile', dest); } catch {}
+      rec.path = dest; rec.state = 'completed'; rec.received = r.bytes; rec.total = r.bytes; rec.multithread = true;
+      store.saveDownloads(); push();
+    }).catch(() => {});
   });
 }
 
@@ -413,15 +421,76 @@ function registerIpc() {
   handle('page:print', (e, id) => printActive(id));
   handle('page:savePdf', (e, id) => savePdf(id));
 
+  const v36 = require('./v36/v36');
+  handle('chat:follow', (e, sid, text, extra) => chat.follow(sid, String(text || ''), extra || {}));
+  handle('chat:list', () => store.listChats());
+  handle('chat:title', async (e, sid) => {
+    const s = chat.get(sid); if (!s) return '';
+    let title = v36.fallbackTitle(s.input);
+    try {
+      const t = await llm.complete([{ role: 'system', content: v36.titlePrompt() }, { role: 'user', content: String(s.input || '').slice(0, 500) }], { maxTokens: 40, temperature: 0.2 });
+      title = v36.cleanTitle(t) || title;
+    } catch {}
+    const row = store.upsertChat({ id: s.threadId || s.sid, title, preview: String(s.input || '').slice(0, 80), updated: Date.now(), kind: s.kindOverride || 'chat' });
+    return row.title;
+  });
+  handle('solve:phone', async () => {
+    const phone = require('./v36/phone');
+    if (!global.__aibPhone) global.__aibPhone = phone.createPhoneServer({ onImage: (buf) => broadcast('solve:photo', { bytes: buf.length, dataUrl: 'data:image/jpeg;base64,' + buf.toString('base64') }) });
+    if (!global.__aibPhone.started) { global.__aibPhone.info = await global.__aibPhone.start(); global.__aibPhone.started = true; }
+    const url = global.__aibPhone.info.url;
+    return { url, qr: v36.qrSvg(url), desktop: true };
+  });
+  handle('solve:link', () => ({ url: v36.phoneLink({ desktop: true, lanUrl: global.__aibPhone && global.__aibPhone.info && global.__aibPhone.info.url }), publicUrl: v36.PUBLIC_SOLVER }));
+  handle('wiki:search', (e, q) => ({ hits: require('./v36/extra-tools').wikiSearch(q) }));
+  handle('wiki:import', (e, text) => {
+    const pages = v36.parseWikiJsonl(text);
+    const dir = require('./v36/extra-tools').wikiDir();
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'user.jsonl'), pages.map(p => JSON.stringify(p)).join('\n'));
+    return { imported: pages.length };
+  });
+  handle('collab:get', (e, tool) => ((store.getSettings().collab || {})[tool]) || { toolId: tool, notes: [] });
+  handle('collab:note', (e, tool, who, text) => {
+    const bag = Object.assign({}, store.getSettings().collab || {});
+    bag[tool] = v36.collabNote(bag[tool] || v36.collabOpen(tool), who || 'human', text);
+    store.patchSettings({ collab: bag });
+    return bag[tool];
+  });
+  handle('kernel:check', () => require('./v36/kernel').check());
+  handle('siri:toggle', () => tabsMod.toggleSiri());
+  handle('siri:read', async () => {
+    const t = tabsMod.activeTab(); if (!t) return { text: '', title: '', url: '' };
+    let text = '';
+    try { text = String(await t.wc.executeJavaScript('document.body ? document.body.innerText : ""')).slice(0, 8000); } catch {}
+    return { text, title: t.wc.getTitle(), url: t.wc.getURL() };
+  });
+  handle('siri:ask', async (e, kind, question) => {
+    const page = await (async () => { const t = tabsMod.activeTab(); if (!t) return { text: '', title: '' }; let text = ''; try { text = String(await t.wc.executeJavaScript('document.body ? document.body.innerText : ""')).slice(0, 6000); } catch {} return { text, title: t.wc.getTitle() }; })();
+    if (kind === 'translate') {
+      const tr = await require('./ai/translate').translate(page.text.slice(0, 4000), {});
+      return { text: tr.text || tr };
+    }
+    const sys = kind === 'summary' ? 'Summarize the page in Simplified Chinese. Be structured and detailed.' : 'Answer the user about the page. Do not name tools.';
+    const user = (kind === 'ask' ? String(question || '') + '\n\n' : '') + 'Page:\n' + page.text.slice(0, 5000);
+    const out = await llm.complete([{ role: 'system', content: sys + '\n' + v36.answerAddendum(store.getSettings().answerStyle) }, { role: 'user', content: user }], { maxTokens: 1200 });
+    return { text: v36.redactToolTalk(out) };
+  });
+
   // selection lookup from web pages (preload content script)
   ipcMain.on('sel:lookup', (e, p) => {
     try {
       const s = store.getSettings();
-      if (!s.selectionLookup || !p || typeof p.text !== 'string' || !/^[A-Za-z][A-Za-z'’-]{1,40}$/.test(p.text)) return;
-      if (!features.list().find(x => x.id === 'aib.dictionary' && x.enabled) || !dict.enabled().length) return;
+      if (!s.selectionLookup || !p || typeof p.text !== 'string') return;
+      const kind = p.kind || v36.selectionKind(p.text);
+      if (!kind) return;
       const tab = tabsMod.allTabs().find(t => t.wc.id === e.sender.id);
       if (!tab || tab.id !== tabsMod.activeTab()?.id) return;
-      tabsMod.showLookup(p.text, Number(p.x) || 0, Number(p.y) || 0, tab);
+      if (kind === 'word') {
+        if (!/^[A-Za-z][A-Za-z'’-]{1,40}$/.test(p.text)) return;
+        if (!features.list().find(x => x.id === 'aib.dictionary' && x.enabled) || !dict.enabled().length) return;
+      }
+      tabsMod.showLookup(p.text, Number(p.x) || 0, Number(p.y) || 0, tab, kind);
     } catch (err) { console.error('sel:lookup', err.message); }
   });
 }

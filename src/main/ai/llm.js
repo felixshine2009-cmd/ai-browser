@@ -3,18 +3,7 @@
 // All network calls happen in the main process. API keys are never logged.
 const store = require('../store');
 
-const PRESETS = {
-  openai: { name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', format: 'openai' },
-  deepseek: { name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', format: 'openai' },
-  qwen: { name: '通义千问 (DashScope)', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus', format: 'openai' },
-  zhipu: { name: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', format: 'openai' },
-  moonshot: { name: 'Moonshot Kimi', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', format: 'openai' },
-  siliconflow: { name: 'SiliconFlow', baseUrl: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen2.5-7B-Instruct', format: 'openai' },
-  openrouter: { name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o-mini', format: 'openai' },
-  ollama: { name: 'Ollama (本机)', baseUrl: 'http://localhost:11434/v1', model: 'qwen2.5:7b', format: 'openai' },
-  anthropic: { name: 'Anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-3-5-sonnet-latest', format: 'anthropic' },
-  custom: { name: '自定义', baseUrl: '', model: '', format: 'openai' }
-};
+const PRESETS = require('../v36/v36').API_PROVIDERS;
 
 let local = null; // lazy: ./local
 function getLocal() { if (!local) local = require('./local'); return local; }
@@ -111,8 +100,12 @@ async function httpError(res) {
 }
 
 // ---------- OpenAI-compatible
-async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, signal, maxTokens, jsonSchema }) {
+async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, signal, maxTokens, jsonSchema, onThinking, thinkingLevel }) {
   const body = { model: cfg.model, messages, stream: true, temperature: temperature ?? cfg.temperature };
+  try {
+    const level = thinkingLevel || require('../store').getSettings().thinkingLevel;
+    if (level) Object.assign(body, require('../v36/v36').reasoningFields(level));
+  } catch {}
   if (jsonSchema && cfg._structured !== false) body.response_format = { type: 'json_schema', json_schema: { name: 'action', schema: jsonSchema } };
   if (maxTokens) body.max_tokens = maxTokens;
   if (tools && tools.length) { body.tools = tools.map(t => ({ type: 'function', function: t })); body.tool_choice = 'auto'; }
@@ -139,6 +132,8 @@ async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, sig
     let j; try { j = JSON.parse(data); } catch { continue; }
     const d = j.choices?.[0]?.delta;
     if (!d) continue;
+    const thinkBit = d.reasoning_content || (typeof d.reasoning === 'string' ? d.reasoning : '');
+    if (thinkBit) onThinking && onThinking(thinkBit);
     if (d.content) { content += d.content; onDelta && onDelta(d.content); }
     for (const tc of d.tool_calls || []) {
       const i = tc.index ?? 0;

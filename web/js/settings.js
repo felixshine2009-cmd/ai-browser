@@ -2,10 +2,11 @@ const KEY='aib.settings.v1';
 const DEF={
   displayName:'Felix', greeting:'', lang:'zh',
   engine:'api', // 'api' | 'local'
-  api:{baseUrl:'https://api.deepseek.com/v1', apiKey:'', model:'deepseek-chat'},
+  api:{preset:'deepseek', baseUrl:'https://api.deepseek.com/v1', apiKey:'', model:'deepseek-chat'},
   local:{ modelId:'Qwen2.5-0.5B-Instruct-q4f16_1-MLC' },
   kb:{ embed:'text' }, // 'text' | 'vector'
-  search:{engine:'baidu', custom:''}
+  search:{engine:'baidu', custom:''},
+  answerStyle:'detailed', thinkingLevel:'medium', theme:'aurora', home:{layout:'center', background:''}
 };
 export function load(){
   try{

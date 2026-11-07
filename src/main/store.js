@@ -22,6 +22,13 @@ const DEFAULTS = {
   translate: { engine: 'hunyuan' }, // 'hunyuan' (bundled HY-MT, loaded only while translating) | 'chat' (current chat model)
   kb: { source: 'builtin', api: { baseUrl: '', apiKey: '', model: '' } }, // knowledge base embeddings
   agent: { maxSteps: 12 },
+  answerStyle: 'detailed',
+  thinkingLevel: 'medium',
+  workMode: 'chat',
+  appearance: { theme: 'aurora' },
+  home: { layout: 'center', background: '' },
+  toolsCollapsed: false,
+  collab: {},
   passwords: { save: true, autofill: true },
   onboarding: { completed: false, skipped: false, completedAt: 0 }
 };
@@ -66,7 +73,7 @@ class JsonFile {
   flush() { if (this._t) { clearTimeout(this._t); this._t = null; this.save(true); } }
 }
 
-let settingsFile, historyFile, bookmarksFile, downloadsFile;
+let settingsFile, historyFile, bookmarksFile, downloadsFile, chatFile, chatBag;
 
 function init() {
   const settingsPath = path.join(app.getPath('userData'), 'settings.json');
@@ -81,6 +88,9 @@ function init() {
   historyFile = new JsonFile('history.json', []);
   bookmarksFile = new JsonFile('bookmarks.json', []);
   downloadsFile = new JsonFile('downloads.json', []);
+  chatFile = new JsonFile('chats.json', []);
+  if (!Array.isArray(chatFile.data)) chatFile.data = [];
+  chatBag = require('./v36/v36').createChats(chatFile.data);
 }
 
 // ---- API key at rest: encrypted with OS keychain (safeStorage) when available.
@@ -207,11 +217,15 @@ function removeBookmark(url) { bookmarksFile.data = bookmarksFile.data.filter(b 
 function downloads() { return downloadsFile.data; }
 function saveDownloads() { downloadsFile.save(); }
 
-function flushAll() { [settingsFile, historyFile, bookmarksFile, downloadsFile].forEach(f => f && f.flush()); }
+function listChats() { return chatBag ? chatBag.list() : []; }
+function getChat(id) { return chatBag ? chatBag.get(id) : null; }
+function upsertChat(rec) { const row = chatBag.upsert(rec); chatFile.save(); return row; }
+
+function flushAll() { [settingsFile, historyFile, bookmarksFile, downloadsFile, chatFile].forEach(f => f && f.flush()); }
 
 module.exports = {
   init, getSettings, getApiKey, getKbApiKey, decKey, publicSettings, patchSettings, searchUrl, searchEngineInfo, ENGINES,
   addHistory, updateHistoryTitle, listHistory, clearHistory, countHistory, deleteHistory,
   listBookmarks, isBookmarked, toggleBookmark, removeBookmark,
-  downloads, saveDownloads, flushAll, DEFAULTS
+  downloads, saveDownloads, listChats, getChat, upsertChat, flushAll, DEFAULTS
 };
