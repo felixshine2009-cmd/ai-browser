@@ -232,6 +232,15 @@ function registerIpc() {
     return r ? r.result : null;
   });
   handle('lookup:close', () => tabsMod.closeOverlay('lookup'));
+  handle('lookup:show', (e, word, pos) => {
+    const text = String(word || '').trim();
+    if (!text) return { ok: false };
+    const tab = tabsMod.allTabs().find(t => t.wc && t.wc.id === e.sender.id) || tabsMod.activeTab();
+    const x = Number(pos && pos.x);
+    const y = Number(pos && pos.y);
+    tabsMod.showLookup(text, Number.isFinite(x) ? x : 80, Number.isFinite(y) ? y : 80, tab, 'word', { w: 480, h: 440 });
+    return { ok: true };
+  });
 
   // chat
   handle('chat:attach', (e, sid) => chat.attach(sid, e.sender.id));

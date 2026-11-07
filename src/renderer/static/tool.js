@@ -20,16 +20,87 @@
   const ICON_CLOSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4.5L9.5 8 6 11.5"/><path d="M12.5 3v10"/></svg>';
   const toggleBtn = '<button type="button" class="tb-icon notes-toggle" id="notesToggle" aria-controls="notesPane">' + ICON_PANEL + '</button>';
   const bar = (title, cls = '') => `<div class="tool-bar${cls ? ' ' + cls : ''}"><span class="tool-bar-title">${esc(title)}</span><span class="tool-bar-actions">${toggleBtn}</span></div>`;
+  const goBtn = '<button type="submit" class="go" title="提交" aria-label="提交"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 12V4M4.5 7.5L8 4l3.5 3.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></button>';
+
+  function homePage({ title, subtitle, inputId, placeholder, formId, chips, extra, field }) {
+    const control = field || `<input id="${inputId}" type="text" spellcheck="false" autocomplete="off" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}">`;
+    return `${bar(titles[id] || title, 'ghost')}<div class="solve-home" id="toolHome">
+      <div class="home-greet solve-greet"><h1>${esc(title)}</h1></div>
+      <p class="solve-sub">${esc(subtitle)}</p>
+      <div class="solve-search">
+        <form class="solve-composer" id="${formId}" autocomplete="off">
+          <div class="solve-input-row">${control}${goBtn}</div>
+        </form>
+        ${chips ? `<div class="solve-chips">${chips}</div>` : ''}
+        ${extra || ''}
+      </div>
+    </div>`;
+  }
+
+  function openExtFrame() {
+    main.classList.remove('solve-main');
+    main.classList.add('has-frame');
+    main.innerHTML = `${bar(titles[id] || id)}<iframe class="tool-frame" src="aibext://${ext}/panel.html" allow="clipboard-read; clipboard-write"></iframe>`;
+    paintNotes();
+    return main.querySelector('.tool-frame');
+  }
+
+  function panelCall(method, args) {
+    const frame = main.querySelector('.tool-frame');
+    if (!frame || !frame.contentWindow) return;
+    const callId = 'tool-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    frame.contentWindow.postMessage({ aibPanelCall: callId, method, args: args || {} }, '*');
+  }
 
   root.innerHTML = `<div class="tool-main" id="main"></div><aside class="tool-ai" id="notesPane" aria-label="协作"><header class="ta-head"><div class="ta-head-row"><h3>协作</h3><button type="button" class="tb-icon ta-close" id="notesClose" title="收起协作" aria-label="收起协作" aria-controls="notesPane" aria-expanded="true">${ICON_CLOSE}</button></div><p class="hint">用于记录修改说明与过程备注，便于对照查阅。</p></header><div id="notes" class="ta-notes"></div><div class="ta-compose"><textarea id="note" rows="3" placeholder="请输入备注"></textarea><button type="button" class="primary" id="send">添加</button></div><div id="extra"></div></aside>`;
   const main = document.getElementById('main');
-  if (ext) {
-    main.classList.add('has-frame');
-    main.innerHTML = `${bar(titles[id] || id)}<iframe class="tool-frame" src="aibext://${ext}/panel.html" allow="clipboard-read; clipboard-write"></iframe>`;
+
+  if (id === 'geogebra') {
+    main.classList.add('solve-main');
+    main.innerHTML = homePage({
+      title: 'GeoGebra',
+      subtitle: '请输入作图命令或表达式。提交后将在本页打开绘图板并执行该命令，而不会改用其他工具。',
+      inputId: 'ggbCmd',
+      placeholder: '请输入作图命令或表达式，例如 f(x)=x^2',
+      formId: 'ggbForm',
+      chips: '<button type="button" class="solve-chip" id="openBoard"><span>打开绘图板</span></button>'
+    });
+  } else if (id === 'physics') {
+    main.classList.add('solve-main');
+    main.innerHTML = homePage({
+      title: '物理实验',
+      subtitle: '请输入实验名称或说明。提交后将在本页打开物理实验台，而不会改用其他工具。',
+      inputId: 'physQ',
+      placeholder: '请输入实验名称或说明',
+      formId: 'physForm',
+      chips: '<button type="button" class="solve-chip" id="openBoard"><span>打开实验台</span></button>'
+    });
   } else if (id === 'wiki') {
-    main.innerHTML = `${bar(titles.wiki)}<div class="tool-body"><section class="card"><p class="hint">内置词条支持离线检索。如需完整词库，可将 JSONL 文件（每行格式为 {"title","text"}）放入用户目录的 wiki 文件夹，亦可在下方粘贴并导入。</p><input id="q" placeholder="请输入检索词" autocomplete="off"></section><div id="hits"></div><section class="card"><h4>导入词条</h4><textarea id="dump" rows="4" placeholder='{"title":"…","text":"…"}'></textarea><div class="row"><button type="button" id="imp">导入</button><span id="impst" class="hint"></span></div></section></div>`;
+    main.classList.add('solve-main');
+    main.innerHTML = homePage({
+      title: '离线百科',
+      subtitle: '请输入检索词，以在本机离线百科中查询词条。',
+      inputId: 'q',
+      placeholder: '请输入检索词',
+      formId: 'wikiForm',
+      chips: '<button type="button" class="solve-chip" id="imptoggle" aria-expanded="false" aria-controls="wikiImp"><span>导入词条</span></button>',
+      extra: `<div id="hits" class="tool-hits"></div>
+        <section class="solve-refs" id="wikiImp" hidden aria-label="导入词条">
+          <div class="solve-refs-head"><span>导入词条</span><button type="button" class="tb-icon" id="impclose" title="收起" aria-label="收起">×</button></div>
+          <p class="hint">可将 JSONL 文件（每行格式为 {"title","text"}）放入用户目录的 wiki 文件夹，亦可在下方粘贴并导入。</p>
+          <textarea id="dump" rows="4" placeholder='{"title":"…","text":"…"}'></textarea>
+          <div class="row"><button type="button" id="imp">导入</button><span id="impst" class="hint"></span></div>
+        </section>`
+    });
   } else if (id === 'dict') {
-    main.innerHTML = `${bar(titles.dict)}<div class="tool-body"><section class="card dict-empty"><div class="dict-empty-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5.2c2.7-.9 6.3-.9 9 .8 2.7-1.7 6.3-1.7 9-.8V19c-2.7-.9-6.3-.9-9 .8-2.7-1.7-6.3-1.7-9-.8z"/><path d="M12 6v13.8"/></svg></div><h2>词汇查询</h2><p class="hint">请输入英文或中文词汇，以查询释义、音标与双语例句。</p><div class="inline-form"><input id="w" placeholder="请输入英文或中文词汇，例如 serendipity" autocomplete="off"><button type="button" class="primary" id="go">查询</button></div></section><div id="out"></div></div>`;
+    main.classList.add('solve-main');
+    main.innerHTML = homePage({
+      title: '词典',
+      subtitle: '请输入英文或中文词汇。查询结果将以词条窗口弹出；若本地词典未收录该词，仍可查看 AI 生成词条。',
+      inputId: 'w',
+      placeholder: '请输入英文或中文词汇，例如 serendipity',
+      formId: 'dictForm'
+    });
   } else {
     main.classList.add('solve-main');
     main.innerHTML = `${bar('解题', 'ghost')}<div class="solve-home">
@@ -65,39 +136,36 @@
   const closeEl = document.getElementById('notesClose');
   const paneEl = document.getElementById('notesPane');
   function paintNotes() {
+    const tEl = document.getElementById('notesToggle');
     root.classList.toggle('notes-closed', !notesOpen);
     paneEl.hidden = !notesOpen;
     const label = notesOpen ? '收起协作' : '打开协作';
-    if (toggleEl) {
-      toggleEl.title = label;
-      toggleEl.setAttribute('aria-label', label);
-      toggleEl.setAttribute('aria-expanded', String(notesOpen));
-      toggleEl.classList.toggle('active', notesOpen);
+    if (tEl) {
+      tEl.title = label;
+      tEl.setAttribute('aria-label', label);
+      tEl.setAttribute('aria-expanded', String(notesOpen));
+      tEl.classList.toggle('on', notesOpen);
+      tEl.onclick = () => persistNotes(!notesOpen);
     }
-    if (closeEl) closeEl.setAttribute('aria-expanded', String(notesOpen));
+    closeEl.setAttribute('aria-expanded', String(notesOpen));
   }
-  function setNotes(open) {
-    notesOpen = !!open;
+  async function persistNotes(next) {
+    notesOpen = next;
     paintNotes();
-    if (notesOpen) {
-      root.classList.add('notes-anim');
-      setTimeout(() => root.classList.remove('notes-anim'), 240);
-    }
-    try { window.aib.invoke('settings:patch', { toolNotes: { [id]: notesOpen } }); } catch {}
-  }
-  paintNotes();
-  if (toggleEl) toggleEl.onclick = () => setNotes(!notesOpen);
-  if (closeEl) closeEl.onclick = () => { setNotes(false); if (toggleEl) toggleEl.focus(); };
-
-  const notesEl = document.getElementById('notes');
-  const noteInput = document.getElementById('note');
-  async function notes() {
     try {
-      const bag = await window.aib.invoke('collab:get', id);
-      notesEl.innerHTML = ((bag && bag.notes) || []).map(n => `<p><b>${n.who === 'ai' ? '助手' : '我'}</b> ${esc(n.text)}</p>`).join('');
-      notesEl.scrollTop = notesEl.scrollHeight;
+      const S = await window.aib.invoke('settings:get') || {};
+      const toolNotes = Object.assign({}, S.toolNotes || {}, { [id]: notesOpen });
+      await window.aib.invoke('settings:set', { toolNotes });
     } catch {}
   }
+  closeEl.onclick = () => persistNotes(false);
+  paintNotes();
+
+  async function notes() {
+    const list = await window.aib.invoke('collab:list', id);
+    document.getElementById('notes').innerHTML = (list || []).map(n => `<div class="note ${esc(n.who)}"><b>${esc(n.who === 'ai' ? 'AI' : '我')}</b><p>${esc(n.text)}</p></div>`).join('');
+  }
+  const noteInput = document.getElementById('note');
   async function submitNote() {
     const v = noteInput.value.trim();
     if (!v) return;
@@ -120,10 +188,20 @@
     const run = async () => {
       const r = await window.aib.invoke('wiki:search', qInput.value);
       const list = (r && r.hits) || [];
-      hitsEl.innerHTML = list.map(h => `<article><h4>${esc(h.title)}</h4><p>${esc(h.text)}</p><button type="button" data-tr="${esc(h.title)}">全文翻译</button></article>`).join('');
+      hitsEl.innerHTML = list.length
+        ? list.map(h => `<article><h4>${esc(h.title)}</h4><p>${esc(h.text)}</p><button type="button" data-tr="${esc(h.title)}">全文翻译</button></article>`).join('')
+        : (qInput.value.trim() ? '<p class="hint">未找到匹配词条。</p>' : '');
     };
-    qInput.addEventListener('input', run);
-    run();
+    document.getElementById('wikiForm').addEventListener('submit', (e) => { e.preventDefault(); run(); });
+    const impPanel = document.getElementById('wikiImp');
+    const impToggle = document.getElementById('imptoggle');
+    const setImp = (open) => {
+      impPanel.hidden = !open;
+      impToggle.setAttribute('aria-expanded', String(open));
+      impToggle.classList.toggle('on', open);
+    };
+    impToggle.onclick = () => setImp(impPanel.hidden);
+    document.getElementById('impclose').onclick = () => { setImp(false); impToggle.focus(); };
     document.getElementById('imp').onclick = async () => {
       const dumpEl = document.getElementById('dump');
       const raw = dumpEl.value.trim();
@@ -141,28 +219,46 @@
       const sid = await window.aib.invoke('nav:submit', '翻译离线百科：' + b.dataset.tr);
       if (sid && typeof sid === 'string') location.href = 'aibrowser://chat?sid=' + sid;
     };
+    qInput.focus();
   }
 
   if (id === 'dict') {
     const wInput = document.getElementById('w');
     const lookup = () => {
       const val = wInput.value.trim();
-      if (val) window.aib.invoke('nav:submit', val);
+      if (!val) { wInput.focus(); return; }
+      const box = document.getElementById('dictForm').getBoundingClientRect();
+      window.aib.invoke('lookup:show', val, { x: Math.round(box.left + 24), y: Math.round(box.bottom) });
     };
-    document.getElementById('go').onclick = lookup;
-    wInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.isComposing) {
-        e.preventDefault();
-        lookup();
+    document.getElementById('dictForm').addEventListener('submit', (e) => { e.preventDefault(); lookup(); });
+    wInput.focus();
+  }
+
+  if (id === 'geogebra' || id === 'physics') {
+    const inputId = id === 'geogebra' ? 'ggbCmd' : 'physQ';
+    const formId = id === 'geogebra' ? 'ggbForm' : 'physForm';
+    const openBoard = () => openExtFrame();
+    document.getElementById('openBoard').onclick = openBoard;
+    document.getElementById(formId).addEventListener('submit', (e) => {
+      e.preventDefault();
+      const val = document.getElementById(inputId).value.trim();
+      const existed = !!main.querySelector('.tool-frame');
+      if (!existed) openExtFrame();
+      const frame = main.querySelector('.tool-frame');
+      if (id === 'geogebra' && val) {
+        const send = () => setTimeout(() => panelCall('eval', { commands: [val] }), existed ? 50 : 500);
+        if (existed) send();
+        else frame.addEventListener('load', send, { once: true });
       }
     });
-    wInput.focus();
+    document.getElementById(inputId).focus();
   }
 
   if (id === 'solve' || (!ext && id !== 'wiki' && id !== 'dict')) {
     const refs = [];
     const $ = (x) => document.getElementById(x);
     const prob = $('prob');
+    if (!prob) return;
     const grow = () => { prob.style.height = 'auto'; prob.style.height = Math.min(prob.scrollHeight, 240) + 'px'; };
     prob.addEventListener('input', grow);
     prob.addEventListener('keydown', (e) => {

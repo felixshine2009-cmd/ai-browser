@@ -1773,6 +1773,32 @@ html[data-theme="sand"] { color-scheme: light; }
 }
 .tool-split .solve-composer textarea:focus { background: transparent; border: 0; }
 .tool-split .solve-composer textarea::placeholder { color: var(--text-tertiary); }
+.tool-split .solve-composer input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 16px;
+  line-height: 24px;
+  outline: none;
+}
+.tool-split .solve-composer input[type="text"]:focus { background: transparent; border: 0; }
+.tool-split .solve-composer input[type="text"]::placeholder { color: var(--text-tertiary); }
+.tool-hits { width: 100%; margin-top: 22px; display: flex; flex-direction: column; gap: 10px; }
+.tool-hits article {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-elevated, #1c1c1e) 88%, transparent);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+.tool-hits article h4 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.tool-hits article p { margin: 0 0 10px; font-size: 13.5px; color: var(--text-secondary); line-height: 1.55; }
+
 .tool-split .solve-composer button.go {
   width: 40px;
   height: 40px;

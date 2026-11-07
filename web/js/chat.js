@@ -16,21 +16,21 @@ async function complete(settings, messages, signal){
   return chatComplete({ ...settings.api, messages, signal, thinkingLevel: settings.thinkingLevel });
 }
 
-export async function handleAsk({q, settings, els, signal, prior}){
+export async function handleAsk({q, settings, els, signal, prior, asDict}){
   const text = (q||'').trim(); if (!text) return;
   const A = window.AIB36;
-  const intent = A ? A.route(text) : { kind: looksMath(text) ? 'draw' : looksPhys(text) ? 'physics' : 'search' };
+  const intent = asDict ? { kind: 'dict' } : (A ? A.route(text) : { kind: looksMath(text) ? 'draw' : looksPhys(text) ? 'physics' : 'search' });
   els.status.textContent = A ? A.statusLabel('thinking', { solve: intent.kind === 'solve' }) : t('thinking');
   els.answer.textContent = '';
   els.tools.innerHTML = '';
   const chips = [];
   try {
-    if (intent.kind === 'physics' || looksPhys(text)) {
+    if (!asDict && (intent.kind === 'physics' || looksPhys(text))) {
       showPanel('phys');
       chips.push('phys_load_example');
       els.status.textContent = A ? A.statusLabel('tool') : els.status.textContent;
       try { await panelCall('phys','loadExample',{id:'mechanics_projectile'}); } catch {}
-    } else if (intent.kind === 'draw' || looksMath(text)) {
+    } else if (!asDict && (intent.kind === 'draw' || looksMath(text))) {
       showPanel('ggb');
       chips.push('ggb_eval');
       els.status.textContent = A ? A.statusLabel('tool') : els.status.textContent;
@@ -49,7 +49,7 @@ export async function handleAsk({q, settings, els, signal, prior}){
     const style = A ? A.answerAddendum(settings.answerStyle || 'detailed') : '';
     const hist = (prior || []).map(m => (m.role === 'assistant' ? '助手: ' : '用户: ') + m.text).join('\n');
     const sys = `You are the AI assistant inside AI Browser (web). Reply in the user's language. ${style} ${kbHits.length? 'Knowledge-base snippets:\n'+kbHits.map(h=>h.text.slice(0,400)).join('\n---\n'):''} ${wiki.length? 'Offline wiki:\n'+wiki.map(h=>h.title+': '+h.text).join('\n'):''} ${hist? 'Earlier:\n'+hist:''}`;
-    if (looksWord(text)) {
+    if (asDict || looksWord(text)) {
       const entry = await complete(settings, [
         {role:'system', content:'Explain the English word: IPA, POS, Chinese gloss, 2 example sentences with translation. Markdown.'},
         {role:'user', content:text}

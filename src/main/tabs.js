@@ -241,15 +241,16 @@ function showFind() {
 }
 
 let lastLookup = { word: '', t: 0 };
-function showLookup(word, x, y, tab, kind) {
+function showLookup(word, x, y, tab, kind, size) {
   const now = Date.now();
-  if (word === lastLookup.word && now - lastLookup.t < 700) return;
+  if (!size && word === lastLookup.word && now - lastLookup.t < 700) return;
   lastLookup = { word, t: now };
   const t = tab || activeTab();
   if (!t) return;
   const vb = t.view.getBounds();
   const [w, h] = win.getContentSize();
-  const W = 400, H = 300;
+  const W = Number(size && size.w) > 0 ? Math.round(Number(size.w)) : 400;
+  const H = Number(size && size.h) > 0 ? Math.round(Number(size.h)) : 300;
   let px = Math.round(vb.x + x - 20), py = Math.round(vb.y + y + 8);
   px = Math.max(8, Math.min(px, w - W - 8));
   if (py + H > h - 8) py = Math.max(CHROME_H + 4, Math.round(vb.y + y - H - 30));
