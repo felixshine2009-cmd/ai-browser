@@ -12,6 +12,8 @@ import { callTool, listTools } from './agent-tools.js';
 let settings = loadSettings();
 let abort = null;
 
+const esc = (x) => String(x ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 function greetText(){
   const name = settings.displayName || 'Felix';
   const g = settings.greeting || t('greetingDefault');
@@ -20,21 +22,24 @@ function greetText(){
 
 function renderChrome(){
   applyI18n();
-  document.getElementById('greet').textContent = greetText();
+  const greetEl = document.getElementById('greet');
+  if (greetEl) greetEl.textContent = greetText();
   document.title = t('appName');
   wireDesktopOnly();
 }
 
 function fillLocalSelect(){
   const sel = document.getElementById('localModel');
-  sel.innerHTML = CATALOG.map(m => `<option value="${m.id}">${m.label} · ~${(m.vramMB/1024).toFixed(1)} GB</option>`).join('');
+  if (!sel) return;
+  sel.innerHTML = CATALOG.map(m => `<option value="${esc(m.id)}">${esc(m.label)} · ~${(m.vramMB/1024).toFixed(1)} GB</option>`).join('');
   sel.value = settings.local.modelId || CATALOG[0].id;
   updateLocalWarn();
 }
 
 function updateLocalWarn(){
   const el = document.getElementById('localWarn'); if (!el) return;
-  const w = memoryWarning(document.getElementById('localModel').value);
+  const sel = document.getElementById('localModel'); if (!sel) return;
+  const w = memoryWarning(sel.value);
   if (!w) { el.style.display = 'none'; el.textContent = ''; return; }
   el.style.display = '';
   el.textContent = (getLang() === 'zh' ? w.zh : w.en);
@@ -52,11 +57,11 @@ async function refreshDisk(){
   const box = document.getElementById('localDisk'); if (!box) return;
   let r; try { r = await diskReport(); } catch { return; }
   const est = r.estimate ? `${t('diskEstimate')}: ${fmtMB(r.estimate.usage)} / ${fmtMB(r.estimate.quota)}` : '';
-  const esc = (x) => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  box.innerHTML = `<div class="hint"><b>${t('diskTitle')}</b> · <span id="diskEst">${esc(est)}</span></div>` + (r.models.length ? r.models.map(m => `<div class="mrow" data-disk="${esc(m.id)}"><span class="nm">${esc(m.label)}<br><span class="hint">${t('diskFiles')} ${fmtMB(m.filesBytes)} · ${t('diskCache')} ${fmtMB(m.cacheBytes)}</span></span>
-      <button type="button" data-dact="cc" ${m.cacheBytes ? '' : 'disabled'}>${t('diskClearCache')}</button><button type="button" data-dact="del">${t('diskDelete')}</button></div>`).join('') : `<div class="hint">${t('diskEmpty')}</div>`);
+  box.innerHTML = `<div class="hint"><b>${esc(t('diskTitle'))}</b> · <span id="diskEst">${esc(est)}</span></div>` + (r.models.length ? r.models.map(m => `<div class="mrow" data-disk="${esc(m.id)}"><span class="nm">${esc(m.label)}<br><span class="hint">${esc(t('diskFiles'))} ${fmtMB(m.filesBytes)} · ${esc(t('diskCache'))} ${fmtMB(m.cacheBytes)}</span></span>
+      <button type="button" data-dact="cc" ${m.cacheBytes ? '' : 'disabled'}>${esc(t('diskClearCache'))}</button><button type="button" data-dact="del">${esc(t('diskDelete'))}</button></div>`).join('') : `<div class="hint">${esc(t('diskEmpty'))}</div>`);
   box.querySelectorAll('.mrow').forEach(row => {
     const id = row.dataset.disk; const m = r.models.find(x => x.id === id);
+    if (!m) return;
     row.querySelector('[data-dact="cc"]').onclick = async () => {
       const ok = await confirmDialog({ title: getLang()==='zh'?'清理缓存？':'Clear cache?', message: getLang()==='zh' ? `将清理「${m.label}」未完成下载的分片，释放约 ${fmtMB(m.cacheBytes)}。` : `Clear the unfinished shards of "${m.label}", freeing about ${fmtMB(m.cacheBytes)}.`, confirmText: getLang()==='zh'?'确认清理':'Confirm clear' });
       if (!ok) return; const d = await clearModelCache(id); doneBanner((getLang()==='zh'?'已释放 ':'Freed ') + fmtMB(d.freed)); refreshDisk();
@@ -73,16 +78,18 @@ async function refreshDisk(){
 async function refreshWebGPUBadge(){
   const b = document.getElementById('webgpuBadge');
   const d = await detectWebGPU();
-  b.textContent = d.ok ? t('webgpuOk') : t('webgpuNo');
-  b.style.color = d.ok ? 'var(--accent)' : 'var(--danger)';
+  if (b) {
+    b.textContent = d.ok ? t('webgpuOk') : t('webgpuNo');
+    b.style.color = d.ok ? 'var(--accent)' : 'var(--danger)';
+  }
   const eng = document.getElementById('engKind');
-  const localOpt = eng.querySelector('option[value="local"]');
+  const localOpt = eng && eng.querySelector('option[value="local"]');
   const loadBtn = document.getElementById('btnLoadLocal');
   const modelSel = document.getElementById('localModel');
   const reasonEl = document.getElementById('webgpuReason');
   if (!d.ok) {
-    localOpt.disabled = true;
-    if (eng.value === 'local') eng.value = 'api';
+    if (localOpt) localOpt.disabled = true;
+    if (eng && eng.value === 'local') eng.value = 'api';
     if (loadBtn) loadBtn.disabled = true;
     if (modelSel) modelSel.disabled = true;
     const msg = t('webgpuDisabled') + ' ' + reasonText(d.reason);
@@ -90,7 +97,7 @@ async function refreshWebGPUBadge(){
     const warn = document.getElementById('localWarn');
     if (warn) { warn.style.display = ''; warn.textContent = msg; }
   } else {
-    localOpt.disabled = false;
+    if (localOpt) localOpt.disabled = false;
     if (loadBtn) loadBtn.disabled = false;
     if (modelSel) modelSel.disabled = false;
     if (reasonEl) { reasonEl.style.display = 'none'; reasonEl.textContent = ''; }
@@ -99,16 +106,34 @@ async function refreshWebGPUBadge(){
 }
 
 function syncEngineUI(){
-  const kind = document.getElementById('engKind').value;
-  document.getElementById('localBlock').style.display = kind === 'local' ? '' : 'none';
-  document.getElementById('apiBase').closest('.form-row').style.display = kind === 'api' ? '' : 'none';
-  document.getElementById('apiKey').closest('.form-row').style.display = kind === 'api' ? '' : 'none';
-  document.getElementById('apiModel').closest('.form-row').style.display = kind === 'api' ? '' : 'none';
+  const eng = document.getElementById('engKind'); if (!eng) return;
+  const kind = eng.value;
+  const lb = document.getElementById('localBlock');
+  if (lb) lb.style.display = kind === 'local' ? '' : 'none';
+  ['apiBase', 'apiKey', 'apiModel'].forEach(id => {
+    const el = document.getElementById(id);
+    const row = el && el.closest('.form-row');
+    if (row) row.style.display = kind === 'api' ? '' : 'none';
+  });
   if (kind === 'local') { updateLocalWarn(); refreshCacheHint(); }
 }
 
+function applyTheme(id){
+  const A = window.AIB36;
+  const themeId = id || 'aurora';
+  document.documentElement.dataset.theme = themeId;
+  if (!A || typeof A.themeCss !== 'function') return;
+  let styleEl = document.getElementById('aib-theme-vars');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'aib-theme-vars';
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = `:root { ${A.themeCss(themeId)} }`;
+}
+
 function openSettings(focusLocal){
-  const s = document.getElementById('settings');
+  const s = document.getElementById('settings'); if (!s) return;
   document.getElementById('dname').value = settings.displayName||'';
   document.getElementById('greeting').value = settings.greeting||'';
   document.getElementById('lang').value = getLang();
@@ -132,7 +157,10 @@ function openSettings(focusLocal){
     syncEngineUI();
   }
 }
-function closeSettings(){ document.getElementById('settings').classList.remove('open'); }
+function closeSettings(){
+  const s = document.getElementById('settings');
+  if (s) s.classList.remove('open');
+}
 
 function collectSettings(){
   settings.displayName = document.getElementById('dname').value.trim() || 'Felix';
@@ -141,9 +169,10 @@ function collectSettings(){
   setLang(lang); settings.lang = lang;
   const ast = document.getElementById('astyle'); if (ast) settings.answerStyle = ast.value;
   const thk = document.getElementById('think'); if (thk) settings.thinkingLevel = thk.value;
-  if (window.AIB36) { document.documentElement.dataset.theme = settings.theme || 'aurora'; document.documentElement.style.cssText += window.AIB36.themeCss(settings.theme || 'aurora'); }
+  applyTheme(settings.theme || 'aurora');
   settings.engine = document.getElementById('engKind').value;
-  settings.api.preset = document.getElementById('apiPreset').value || 'custom';
+  const presetEl = document.getElementById('apiPreset');
+  if (presetEl) settings.api.preset = presetEl.value || 'custom';
   settings.api.baseUrl = cleanBase(document.getElementById('apiBase').value);
   settings.api.apiKey = cleanKey(document.getElementById('apiKey').value);
   settings.api.model = cleanText(document.getElementById('apiModel').value);
@@ -171,7 +200,8 @@ async function doSaveSettings(){
 
 function setMode(mode){
   document.querySelectorAll('#modeseg .seg').forEach(b=>b.classList.toggle('active', b.dataset.mode===mode));
-  document.getElementById('askrow').style.display = mode==='chat'?'':'none';
+  const askrow = document.getElementById('askrow');
+  if (askrow) askrow.style.display = mode==='chat'?'':'none';
 }
 
 function doSearch(q){
@@ -187,7 +217,8 @@ function wireVisualViewport(){
   const apply = ()=>{
     const gap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
     document.documentElement.style.setProperty('--kb', gap+'px');
-    document.getElementById('app').style.paddingBottom = gap ? gap+'px' : '';
+    const appEl = document.getElementById('app');
+    if (appEl) appEl.style.paddingBottom = gap ? gap+'px' : '';
   };
   vv.addEventListener('resize', apply); vv.addEventListener('scroll', apply); apply();
 }
@@ -196,17 +227,19 @@ function fillProviders(){
   const sel = document.getElementById('apiPreset');
   const A = window.AIB36;
   if (!sel || !A) return;
-  sel.innerHTML = Object.entries(A.API_PROVIDERS).map(([id, p]) => `<option value="${id}">${p.name}</option>`).join('');
+  sel.innerHTML = Object.entries(A.API_PROVIDERS).map(([id, p]) => `<option value="${esc(id)}">${esc(p.name)}</option>`).join('');
   sel.value = (settings.api && settings.api.preset) || 'deepseek';
   if (!A.API_PROVIDERS[sel.value]) sel.value = 'custom';
 }
 function wire(){
-  document.getElementById('btnSettings').onclick = ()=>openSettings(false);
-  document.getElementById('btnLocal').onclick = ()=>openSettings(true);
-  document.getElementById('btnCloseSettings').onclick = closeSettings;
-  document.getElementById('btnSave').onclick = doSaveSettings;
-  document.getElementById('btnShowKey').onclick = ()=>{ const k=document.getElementById('apiKey'); k.type = k.type==='password'?'text':'password'; };
-  document.getElementById('engKind').onchange = syncEngineUI;
+  const bindClick = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+  bindClick('btnSettings', ()=>openSettings(false));
+  bindClick('btnLocal', ()=>openSettings(true));
+  bindClick('btnCloseSettings', closeSettings);
+  bindClick('btnSave', doSaveSettings);
+  bindClick('btnShowKey', ()=>{ const k=document.getElementById('apiKey'); if (k) k.type = k.type==='password'?'text':'password'; });
+  const engKindEl = document.getElementById('engKind');
+  if (engKindEl) engKindEl.onchange = syncEngineUI;
   const preset = document.getElementById('apiPreset');
   if (preset) preset.onchange = () => {
     const p = window.AIB36 && window.AIB36.providerById(preset.value);
@@ -214,11 +247,15 @@ function wire(){
     document.getElementById('apiBase').value = p.baseUrl;
     document.getElementById('apiModel').value = p.model;
   };
-  document.getElementById('localModel').onchange = updateLocalWarn;
+  const localModelEl = document.getElementById('localModel');
+  if (localModelEl) localModelEl.onchange = updateLocalWarn;
   const setLoadUI = (st) => { // st: idle | loading | paused
-    document.getElementById('btnPauseLocal').style.display = st === 'loading' ? '' : 'none';
-    document.getElementById('btnResumeLocal').style.display = st === 'paused' ? '' : 'none';
-    document.getElementById('btnLoadLocal').disabled = st === 'loading';
+    const pauseBtn = document.getElementById('btnPauseLocal');
+    const resumeBtn = document.getElementById('btnResumeLocal');
+    const loadBtn = document.getElementById('btnLoadLocal');
+    if (pauseBtn) pauseBtn.style.display = st === 'loading' ? '' : 'none';
+    if (resumeBtn) resumeBtn.style.display = st === 'paused' ? '' : 'none';
+    if (loadBtn) loadBtn.disabled = st === 'loading';
   };
   const doLoad = async ()=>{
     const id = document.getElementById('localModel').value;
@@ -239,19 +276,19 @@ function wire(){
       prog.textContent = st && st.state === 'error' ? statusText(st) : ''; toast(String(e.message||e).slice(0,200)); refreshCacheHint();
     }
   };
-  document.getElementById('btnLoadLocal').onclick = doLoad;
-  document.getElementById('btnResumeLocal').onclick = doLoad;
-  document.getElementById('btnPauseLocal').onclick = () => { pauseLoad(); };
-  document.getElementById('btnUnloadLocal').onclick = async ()=>{
+  bindClick('btnLoadLocal', doLoad);
+  bindClick('btnResumeLocal', doLoad);
+  bindClick('btnPauseLocal', () => { pauseLoad(); });
+  bindClick('btnUnloadLocal', async ()=>{
     await unloadModel(); document.getElementById('localProg').textContent = ''; toast(t('localUnload'));
-  };
-  document.getElementById('btnTest').onclick = async ()=>{
+  });
+  bindClick('btnTest', async ()=>{
     collectSettings(); saveSettings(settings); // test exactly what is in the form, and keep it
     try { const r = await testConnection(settings.api); toast('OK: '+(r||'').slice(0,40)); }
     catch(e){ toast(String(e.message||e).slice(0,160)); }
-  };
+  });
   document.querySelectorAll('#modeseg .seg').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
-  document.getElementById('btnSend').onclick = async ()=>{
+  bindClick('btnSend', async ()=>{
     const q = document.getElementById('q').value;
     if (document.querySelector('#modeseg .seg.active')?.dataset.mode==='search') return doSearch(q);
     if (abort) abort.abort(); abort = new AbortController();
@@ -260,37 +297,61 @@ function wire(){
       answer:document.getElementById('answer'),
       tools:document.getElementById('tools'),
     }});
-  };
-  document.getElementById('q').addEventListener('keydown', ev=>{ if(ev.key==='Enter'&&!ev.shiftKey){ ev.preventDefault(); document.getElementById('btnSend').click(); }});
-  document.getElementById('btnClosePanel').onclick = closeOverlay;
-  document.getElementById('ptGgb').onclick = ()=>showPanel('ggb');
-  document.getElementById('ptPhys').onclick = ()=>showPanel('phys');
+  });
+  const qEl = document.getElementById('q');
+  if (qEl) qEl.addEventListener('keydown', ev=>{ if(ev.key==='Enter'&&!ev.shiftKey&&!ev.isComposing){ ev.preventDefault(); document.getElementById('btnSend')?.click(); }});
+  bindClick('btnClosePanel', closeOverlay);
+  bindClick('ptGgb', ()=>showPanel('ggb'));
+  bindClick('ptPhys', ()=>showPanel('phys'));
   const jump = (id) => { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth' }); };
-  const bSolve = document.getElementById('btnSolve'); if (bSolve) bSolve.onclick = () => jump('solvebox');
-  const bWiki = document.getElementById('btnWiki'); if (bWiki) bWiki.onclick = () => jump('wikibox');
-  document.getElementById('btnGgb').onclick = ()=>showPanel('ggb');
-  document.getElementById('btnPhys').onclick = ()=>showPanel('phys');
+  bindClick('btnSolve', () => jump('solvebox'));
+  bindClick('btnWiki', () => jump('wikibox'));
+  bindClick('btnGgb', ()=>showPanel('ggb'));
+  bindClick('btnPhys', ()=>showPanel('phys'));
   const A = window.AIB36;
   const tools = document.getElementById('hometools');
-  if (tools && A) tools.innerHTML = [['geogebra','G'],['physics','物'],['solve','题'],['wiki','维'],['dict','词']].map(([id,ic])=>`<button type="button" class="ticon" data-tool="${id}">${ic}</button>`).join('');
+  const toolDefs = [
+    ['geogebra', 'GeoGebra', '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 13.5h12M2.5 14V2"/><path d="M3 11.5c2.2-6 4.8-6 7-1.5s2.5 1.5 3.5-3"/><circle cx="6.5" cy="7" r="1.3"/><circle cx="11.5" cy="9.5" r="1.3"/></svg>'],
+    ['physics', '物理', '<svg viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="8" rx="6.5" ry="2.6" transform="rotate(-30 8 8)"/><ellipse cx="8" cy="8" rx="6.5" ry="2.6" transform="rotate(30 8 8)"/><circle cx="8" cy="8" r="1.2"/></svg>'],
+    ['solve', '解题', '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2" width="11" height="12" rx="2"/><path d="M5.2 6.2l1.6 1.6 3.8-3.4"/><path d="M5.2 10.8h5.6"/></svg>'],
+    ['wiki', '百科', '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="2.6" ry="6"/><path d="M2.3 6h11.4M2.3 10h11.4"/></svg>'],
+    ['dict', '词典', '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5c1.8-.6 4.2-.6 6 .5 1.8-1.1 4.2-1.1 6-.5v9.2c-1.8-.6-4.2-.6-6 .5-1.8-1.1-4.2-1.1-6-.5z"/><path d="M8 4v9.2"/></svg>']
+  ];
+  if (tools && A) tools.innerHTML = toolDefs.map(([id, label, svg]) => `<button type="button" class="ticon" data-tool="${id}" title="${label}" aria-label="${label}">${svg}</button>`).join('');
   tools && tools.addEventListener('click', (e) => {
     const b = e.target.closest('[data-tool]'); if (!b) return;
     const id = b.dataset.tool;
     if (id === 'geogebra') showPanel('ggb');
     else if (id === 'physics') showPanel('phys');
-    else document.getElementById(id === 'solve' ? 'solvebox' : id === 'wiki' ? 'wikibox' : 'solvebox').scrollIntoView({behavior:'smooth'});
+    else if (id === 'dict') {
+      const dictEl = document.getElementById('dictbox') || document.getElementById('q');
+      if (dictEl) { dictEl.scrollIntoView({ behavior: 'smooth' }); dictEl.focus?.(); }
+    } else {
+      jump(id === 'wiki' ? 'wikibox' : 'solvebox');
+    }
   });
   const refs = [];
   const refAdd = document.getElementById('refAdd');
-  if (refAdd) refAdd.onclick = () => { refs.push({ title: document.getElementById('refTitle').value, text: document.getElementById('refBody').value }); document.getElementById('refList').textContent = '参考资料 ' + refs.length; };
+  if (refAdd) refAdd.onclick = () => {
+    const titleEl = document.getElementById('refTitle');
+    const bodyEl = document.getElementById('refBody');
+    const tVal = (titleEl?.value || '').trim();
+    const bVal = (bodyEl?.value || '').trim();
+    if (!tVal && !bVal) return;
+    refs.push({ title: tVal, text: bVal });
+    if (titleEl) titleEl.value = '';
+    if (bodyEl) bodyEl.value = '';
+    document.getElementById('refList').textContent = '参考资料 ' + refs.length + ' 条';
+  };
   const solvePhone = document.getElementById('solvePhone');
   if (solvePhone) solvePhone.onclick = () => {
     const url = A.PUBLIC_SOLVER;
-    document.getElementById('solveQr').innerHTML = A.qrSvg(url) + `<p>${url}</p><p>在手机上打开后可以直接拍照解题。网页版不能把照片回传到这台电脑。</p>`;
+    document.getElementById('solveQr').innerHTML = A.qrSvg(url) + `<p>${esc(url)}</p><p>在手机上打开后可以直接拍照解题。网页版不能把照片回传到这台电脑。</p>`;
   };
   const solveGo = document.getElementById('solveGo');
   if (solveGo) solveGo.onclick = async () => {
     const q = document.getElementById('solveText').value.trim();
+    if (!q) return;
     const ctx = A.solverContext({ refs, turns: [] });
     if (abort) abort.abort(); abort = new AbortController();
     await handleAsk({ q: (ctx ? ctx + '\n' : '') + q, settings, signal: abort.signal, els: { status: document.getElementById('status'), answer: document.getElementById('answer'), tools: document.getElementById('tools') } });
@@ -298,41 +359,37 @@ function wire(){
   const wikiQ = document.getElementById('wikiQ');
   if (wikiQ) wikiQ.oninput = () => {
     const hits = A.wikiSearch(A.WIKI_SEED, wikiQ.value);
-    document.getElementById('wikiHits').innerHTML = hits.map(h => `<article><b>${h.title}</b><p>${h.text}</p></article>`).join('');
+    document.getElementById('wikiHits').innerHTML = hits.map(h => `<article><b>${esc(h.title)}</b><p>${esc(h.text)}</p></article>`).join('');
   };
   function paintThemes(){
     const grid = document.getElementById('themeGrid'); if (!grid || !A) return;
-    grid.innerHTML = Object.values(A.THEMES).map(th => `<button type="button" class="theme-combo ${settings.theme===th.id?'on':''}" data-theme="${th.id}"><b>${th.zh}</b><span class="swatches">${Object.values(th.colors).map(c=>`<i style="background:${c}"></i>`).join('')}</span></button>`).join('');
+    grid.innerHTML = Object.values(A.THEMES).map(th => `<button type="button" class="theme-combo ${settings.theme===th.id?'on':''}" data-theme="${esc(th.id)}"><b>${esc(th.zh)}</b><span class="swatches">${Object.values(th.colors).map(c=>`<i style="background:${esc(c)}"></i>`).join('')}</span></button>`).join('');
     grid.querySelectorAll('[data-theme]').forEach(b => b.onclick = () => { settings.theme = b.dataset.theme; applyTheme(settings.theme); saveSettings(settings); paintThemes(); });
-  }
-  function applyTheme(id){
-    if (!A) return;
-    document.documentElement.dataset.theme = id;
-    document.documentElement.style.cssText += A.themeCss(id);
   }
   window.__paintThemes = paintThemes;
   applyTheme(settings.theme || 'aurora');
-  document.getElementById('kbAdd').onclick = async ()=>{
+  bindClick('kbAdd', async ()=>{
     const t0 = document.getElementById('kbText').value.trim(); if(!t0) return;
     await kbAdd(t0, 'note'); document.getElementById('kbText').value=''; toast(t('saved')); refreshKb();
-  };
-  document.getElementById('kbClear').onclick = async ()=>{
+  });
+  bindClick('kbClear', async ()=>{
     const n = (await kbList()).length;
     if (!n) { doneBanner(t('cleared').replace('{n}', 0)); return; }
     const ok = await confirmDialog({ title: t('kbClearTitle'), message: t('kbClearMsg').replace('{n}', n), detail: getLang()==='zh'?'此操作无法撤销。':'This cannot be undone.', confirmText: getLang()==='zh'?'确认清除':'Confirm clear' });
     if (!ok) return;
     await kbClear(); refreshKb(); doneBanner(t('cleared').replace('{n}', n));
-  };
-  document.getElementById('kbQuery').oninput = async (ev)=>{
+  });
+  const kbQ = document.getElementById('kbQuery');
+  if (kbQ) kbQ.oninput = async (ev)=>{
     const hits = await kbSearch(ev.target.value); renderKb(hits);
   };
 }
 
 async function refreshKb(){ renderKb(await kbList()); }
 function renderKb(items){
-  const el = document.getElementById('kbList');
+  const el = document.getElementById('kbList'); if (!el) return;
   if (!items.length){ el.textContent = t('kbEmpty'); return; }
-  el.innerHTML = items.map(d=>`<div class="chip" title="${(d.text||'').slice(0,200)}">${(d.title||'note')} · ${(d.text||'').slice(0,40)}</div>`).join('');
+  el.innerHTML = items.map(d=>`<div class="chip" title="${esc((d.text||'').slice(0,200))}">${esc(d.title||'note')} · ${esc((d.text||'').slice(0,40))}</div>`).join('');
 }
 
 setLang(settings.lang||getLang());
