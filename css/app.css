@@ -137,3 +137,5 @@ select option{background:var(--panel2);color:var(--text)}
 .wiki-art-title { flex:1; min-width:0; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .wiki-frame { flex:1; width:100%; min-height:52vh; border:0; background:#fff; }
 #wikiHits article[data-path] { cursor:pointer; }
+
+.thinking-box{white-space:pre-wrap;font-size:12px;color:var(--muted);background:color-mix(in srgb,var(--paper) 80%,transparent);border:1px solid color-mix(in srgb,var(--muted) 25%,transparent);border-radius:10px;padding:10px 12px;margin:8px 0;max-height:220px;overflow:auto}

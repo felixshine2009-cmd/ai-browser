@@ -20,18 +20,90 @@ function reasonFor(status, body){
   return `HTTP ${status}${detail?': '+detail:''}`;
 }
 
-export async function chatComplete({baseUrl, apiKey, model, messages, signal, thinkingLevel}){
-  const key = cleanKey(apiKey), mdl = cleanText(model), url = endpoint(baseUrl);
-  if (!cleanBase(baseUrl)) throw new Error('请填写 API Base URL / API Base URL is empty');
+function thinkingParams(thinkingLevel, ctx){
+  if (!thinkingLevel || typeof window === 'undefined' || !window.AIB36) return {};
+  const think = window.AIB36.reasoningFields(thinkingLevel, ctx) || {};
+  delete think.interrupt;
+  return think;
+}
+
+function extractThink(piece){
+  if (typeof window !== 'undefined' && window.AIB36 && window.AIB36.extractThinkingDelta) {
+    return window.AIB36.extractThinkingDelta(piece) || '';
+  }
+  if (!piece) return '';
+  const d = piece.choices ? (piece.choices[0] && (piece.choices[0].delta || piece.choices[0].message)) : piece;
+  return (d && (d.reasoning_content || (typeof d.reasoning === 'string' ? d.reasoning : ''))) || '';
+}
+
+function toAnthropic(messages){
+  let system = '';
+  const out = [];
+  for (const m of messages) {
+    if (m.role === 'system') { system += (system ? '\n' : '') + (typeof m.content === 'string' ? m.content : ''); continue; }
+    out.push({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content });
+  }
+  return { system, messages: out };
+}
+
+async function readSse(res, { onDelta, onThinking }){
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', content = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.search(/\r?\n/)) >= 0) {
+      const line = buf.slice(0, i);
+      buf = buf.slice(buf[i] === '\r' ? i + 2 : i + 1);
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === '[DONE]') continue;
+      let j; try { j = JSON.parse(data); } catch { continue; }
+      const thinkBit = extractThink(j);
+      if (thinkBit) onThinking && onThinking(thinkBit);
+      const d = j.choices?.[0]?.delta;
+      if (d && d.content) { content += d.content; onDelta && onDelta(d.content); }
+      if (j.type === 'content_block_delta' && j.delta && j.delta.type === 'text_delta' && j.delta.text) {
+        content += j.delta.text; onDelta && onDelta(j.delta.text);
+      }
+    }
+  }
+  return content;
+}
+
+export async function chatComplete({baseUrl, apiKey, model, messages, signal, thinkingLevel, onDelta, onThinking, format, preset}){
+  const key = cleanKey(apiKey), mdl = cleanText(model), base = cleanBase(baseUrl);
+  if (!base) throw new Error('请填写 API Base URL / API Base URL is empty');
   if (!mdl) throw new Error('请填写模型名 / Model name is empty');
   if (/[^\x20-\x7e]/.test(key)) throw new Error('API Key 含有非法字符（可能被自动填充成圆点）/ API key has invalid characters (autofill?) — retype it');
+  const provider = (typeof window !== 'undefined' && window.AIB36 && window.AIB36.detectProviderId)
+    ? window.AIB36.detectProviderId({ provider: preset, preset, model: mdl, baseUrl: base, format })
+    : (preset || 'custom');
+  const think = thinkingParams(thinkingLevel, { provider, preset, model: mdl, baseUrl: base, format: format || (provider === 'anthropic' ? 'anthropic' : 'openai') });
+  const anthropic = format === 'anthropic' || provider === 'anthropic';
   const headers = { 'Content-Type':'application/json' };
-  if (key) headers['Authorization'] = 'Bearer ' + key;
+  let url, body;
+  if (anthropic) {
+    if (key) headers['x-api-key'] = key;
+    headers['anthropic-version'] = '2023-06-01';
+    const mapped = toAnthropic(messages);
+    body = Object.assign({ model: mdl, messages: mapped.messages, stream: true, max_tokens: 4096 }, think);
+    if (mapped.system) body.system = mapped.system;
+    if (think && think.thinking) {
+      if (think.thinking.type === 'enabled') body.temperature = 1;
+    } else body.temperature = 0.3;
+    url = base.replace(/\/v1$/, '') + '/v1/messages';
+  } else {
+    if (key) headers['Authorization'] = 'Bearer ' + key;
+    body = Object.assign({ model: mdl, messages, temperature: 0.3, stream: true }, think);
+    url = endpoint(baseUrl);
+  }
   let res;
   try {
-    const think = (typeof window !== 'undefined' && window.AIB36 && thinkingLevel) ? window.AIB36.reasoningFields(thinkingLevel) : {};
-    delete think.interrupt;
-    res = await fetch(url, { method:'POST', signal, headers, body: JSON.stringify(Object.assign({ model: mdl, messages, temperature:0.3, stream:false }, think)) });
+    res = await fetch(url, { method:'POST', signal, headers, body: JSON.stringify(body) });
   } catch (e) {
     const cors = /Failed to fetch|NetworkError|CORS|Load failed/i.test(String(e));
     const err = new Error(cors
@@ -43,8 +115,16 @@ export async function chatComplete({baseUrl, apiKey, model, messages, signal, th
     const txt = await res.text().catch(()=> '');
     const err = new Error(reasonFor(res.status, txt)); err.status = res.status; throw err;
   }
+  const ct = res.headers.get('content-type') || '';
+  if (ct.includes('event-stream') || ct.includes('text/plain')) {
+    return readSse(res, { onDelta, onThinking });
+  }
   const j = await res.json();
-  return j.choices?.[0]?.message?.content || '';
+  const thinkBit = extractThink(j) || (j.choices?.[0]?.message && extractThink(j.choices[0].message));
+  if (thinkBit) onThinking && onThinking(thinkBit);
+  const content = j.choices?.[0]?.message?.content || j.content?.[0]?.text || '';
+  if (content) onDelta && onDelta(content);
+  return content;
 }
 export async function testConnection(cfg){
   return chatComplete({...cfg, messages:[{role:'user', content:'ping — reply with pong only'}]});

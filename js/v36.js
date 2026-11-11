@@ -8,7 +8,7 @@
   // API providers the user can pick. `custom` leaves the endpoint blank.
   const API_PROVIDERS = {
     openai: { name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', format: 'openai', models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'o4-mini'] },
-    deepseek: { name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', format: 'openai', models: ['deepseek-chat', 'deepseek-reasoner'] },
+    deepseek: { name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', format: 'openai', models: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-flash'] },
     qwen: { name: '通义千问 (DashScope)', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus', format: 'openai', models: ['qwen-plus', 'qwen-turbo', 'qwen-max'] },
     zhipu: { name: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', format: 'openai', models: ['glm-4-flash', 'glm-4-plus', 'glm-4-air'] },
     moonshot: { name: 'Moonshot', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', format: 'openai', models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'] },
@@ -25,6 +25,7 @@
     perplexity: { name: 'Perplexity', baseUrl: 'https://api.perplexity.ai', model: 'sonar', format: 'openai', models: ['sonar', 'sonar-pro'] },
     ollama: { name: 'Ollama (本机)', baseUrl: 'http://localhost:11434/v1', model: 'qwen2.5:7b', format: 'openai', models: ['qwen2.5:7b', 'llama3.1'] },
     anthropic: { name: 'Anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-3-5-sonnet-latest', format: 'anthropic', models: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest'] },
+    xai: { name: 'xAI', baseUrl: 'https://api.x.ai/v1', model: 'grok-4.7', format: 'openai', models: ['grok-4.7', 'grok-4.6', 'grok-4.5'] },
     custom: { name: '自定义', baseUrl: '', model: '', format: 'openai', models: [] }
   };
   function providerById(id) { return API_PROVIDERS[id] || API_PROVIDERS.custom; }
@@ -69,12 +70,202 @@
     const x = String(level || 'medium').toLowerCase();
     return THINKING.includes(x) ? x : 'medium';
   }
-  function reasoningFields(level) {
+  function detectProviderId(ctx) {
+    ctx = ctx || {};
+    const preset = String(ctx.provider || ctx.preset || '').toLowerCase();
+    if (preset && preset !== 'custom' && API_PROVIDERS[preset]) return preset;
+    if (ctx.format === 'anthropic') return 'anthropic';
+    const base = String(ctx.baseUrl || '').toLowerCase();
+    const model = String(ctx.model || '').toLowerCase();
+    if (/anthropic\.com/.test(base)) return 'anthropic';
+    if (/api\.openai\.com/.test(base)) return 'openai';
+    if (/deepseek\.com/.test(base)) return 'deepseek';
+    if (/dashscope|compatible-mode\/v1|aliyuncs\.com/.test(base)) return 'qwen';
+    if (/bigmodel\.cn|open\.bigmodel|api\.z\.ai/.test(base)) return 'zhipu';
+    if (/moonshot\.(cn|ai)|api\.kimi\.ai/.test(base)) return 'moonshot';
+    if (/siliconflow/.test(base)) return 'siliconflow';
+    if (/openrouter\.ai/.test(base)) return 'openrouter';
+    if (/generativelanguage\.googleapis|aiplatform\.googleapis/.test(base)) return 'gemini';
+    if (/(^|\/\/)api\.x\.ai|[.]x\.ai\//.test(base)) return 'xai';
+    if (/api\.groq\.com/.test(base)) return 'groq';
+    if (/api\.mistral\.ai/.test(base)) return 'mistral';
+    if (/together\.(xyz|ai)/.test(base)) return 'together';
+    if (/minimax/.test(base)) return 'minimax';
+    if (/volces\.com|volcengine|\bark\./.test(base)) return 'doubao';
+    if (/stepfun/.test(base)) return 'stepfun';
+    if (/lingyiwanwu/.test(base)) return 'yi';
+    if (/perplexity\.ai/.test(base)) return 'perplexity';
+    if (/:11434\b/.test(base) || /ollama/.test(base)) return 'ollama';
+    if (/(^|\/)grok-/.test(model) || /x-ai\//.test(model)) return 'xai';
+    return preset || 'custom';
+  }
+  function modelOf(ctx) { return String((ctx && ctx.model) || '').toLowerCase(); }
+  function tokenBudget(id) {
+    return ({ low: 1024, medium: 4096, high: 10000, max: 32000 })[id] || 4096;
+  }
+  function qwenBudget(id) {
+    return ({ low: 1024, medium: 4096, high: 8192, max: 16384 })[id] || 4096;
+  }
+  function openaiIsReasoningModel(model) {
+    if (!model) return false;
+    if (/gpt-4o|gpt-4\.1|gpt-4-turbo|gpt-3\.5|chatgpt-4o|gpt-4($|[^0-9])/.test(model) && !/gpt-4[05]/.test(model)) return false;
+    return /(^|\/)(o[1-9]([.-]|$)|gpt-5|gpt-6)/.test(model);
+  }
+  function openaiEffort(id, model) {
+    if (/(^|\/)o[1-4]([.-]|$)/.test(model)) return id === 'max' ? 'high' : id;
+    if (/gpt-5($|[^0-9.])/.test(model) && !/gpt-5\.[1-9]/.test(model)) return id === 'max' ? 'high' : id;
+    return id;
+  }
+  function claudeThinkingMode(model) {
+    if (!model || !/claude/.test(model)) return null;
+    if (/3-5|3\.5/.test(model)) return null;
+    if (/4-7|4\.7/.test(model)) return 'adaptive';
+    if (/4-6|4\.6/.test(model)) return 'adaptive';
+    if (/sonnet-5|opus-5|haiku-5|fable|mythos|claude-5/.test(model)) return 'adaptive';
+    if (/4-5|4\.5/.test(model)) return 'enabled';
+    if (/3-7|3\.7/.test(model)) return 'enabled';
+    if (/sonnet-4|opus-4|haiku-4|claude-4/.test(model)) return 'enabled';
+    return null;
+  }
+  function deepseekEffort(id) {
+    if (id === 'low') return 'low';
+    if (id === 'max') return 'max';
+    return 'high';
+  }
+  function reasoningFields(level, ctx) {
     const id = normThinking(level);
-    const openai = id === 'max' ? 'high' : id;
-    return { reasoning_effort: openai, thinking: { level: id }, interrupt: false };
+    ctx = ctx || {};
+    const provider = detectProviderId(ctx);
+    const model = modelOf(ctx);
+    if (provider === 'openai') {
+      if (!openaiIsReasoningModel(model)) return {};
+      return { reasoning_effort: openaiEffort(id, model) };
+    }
+    if (provider === 'anthropic') {
+      const mode = claudeThinkingMode(model);
+      if (mode === 'adaptive') {
+        return { thinking: { type: 'adaptive' }, output_config: { effort: id }, max_tokens: 16000 };
+      }
+      if (mode === 'enabled') {
+        const b = tokenBudget(id);
+        return { thinking: { type: 'enabled', budget_tokens: b }, max_tokens: b + 4096 };
+      }
+      return {};
+    }
+    if (provider === 'gemini') {
+      if (/gemini-2\.5|gemini-2-5|gemini-3/.test(model)) {
+        return { reasoning_effort: id === 'max' ? 'high' : id };
+      }
+      return {};
+    }
+    if (provider === 'deepseek') {
+      if (/deepseek-chat(?!-|v)|deepseek-chat$/.test(model)) return {};
+      if (/deepseek-reasoner/.test(model)) return {};
+      if (/deepseek-flash|deepseek-v[34]|deepseek-r1/.test(model)) {
+        return { thinking: { type: 'enabled' }, reasoning_effort: deepseekEffort(id) };
+      }
+      return {};
+    }
+    if (provider === 'xai') {
+      if (/grok-3-mini/.test(model)) return { reasoning_effort: id === 'low' ? 'low' : 'high' };
+      if (/grok-4\.[6-9]|grok-4-[6-9]|grok-4\.7|grok-4-7/.test(model)) {
+        return { reasoning_effort: id === 'max' ? 'xhigh' : id };
+      }
+      if (/grok-4/.test(model)) return { reasoning_effort: id === 'max' ? 'high' : id };
+      return {};
+    }
+    if (provider === 'qwen') {
+      if (/qwen2\.5|qwen2-5/.test(model) && !/thinking|qwq/.test(model)) return {};
+      if (/qwen3|qwq|qwen-plus|qwen-turbo|qwen-max|qwen-flash|qwen-long/.test(model)) {
+        return { enable_thinking: true, thinking_budget: qwenBudget(id) };
+      }
+      return {};
+    }
+    if (provider === 'moonshot') {
+      if (/kimi-k3/.test(model)) return { reasoning_effort: deepseekEffort(id) };
+      if (/kimi-k2\.7|kimi-k2-7/.test(model)) return {};
+      if (/kimi-k2/.test(model)) return { thinking: { type: 'enabled' } };
+      return {};
+    }
+    if (provider === 'zhipu') {
+      if (/glm-4\.[5-9]|glm-4-[6-9]|glm-5/.test(model)) {
+        const out = { thinking: { type: 'enabled' } };
+        if (/glm-5/.test(model)) out.reasoning_effort = id === 'medium' ? 'high' : id;
+        return out;
+      }
+      return {};
+    }
+    if (provider === 'doubao') {
+      if (/seed|thinking|1\.5|1-5|doubao-1/.test(model)) return { thinking: { type: 'enabled' } };
+      return {};
+    }
+    if (provider === 'openrouter') {
+      return { reasoning: { effort: id } };
+    }
+    if (provider === 'mistral') {
+      if (/magistral|mistral-small-26|mistral-medium-3|ministral|reasoning/.test(model)) {
+        return { reasoning_effort: id === 'max' ? 'high' : id };
+      }
+      return {};
+    }
+    if (provider === 'siliconflow') {
+      if (/deepseek-r1|deepseek-v[34]|qwq|qwen3|glm-4\.[5-9]|glm-5|reasoner|thinking/.test(model)) {
+        const out = { enable_thinking: true };
+        if (/deepseek-v4|glm-5/.test(model)) out.reasoning_effort = deepseekEffort(id);
+        else out.thinking_budget = qwenBudget(id);
+        return out;
+      }
+      return {};
+    }
+    if (provider === 'ollama') {
+      return { think: id === 'max' ? 'high' : id };
+    }
+    if (provider === 'groq') {
+      if (/gpt-oss|qwen3|qwen\/|deepseek-r1|owl|reasoning/.test(model)) {
+        return { reasoning_effort: id === 'max' ? 'high' : id, reasoning_format: 'parsed' };
+      }
+      return {};
+    }
+    if (provider === 'together') {
+      if (/gpt-oss/.test(model)) return { reasoning_effort: id === 'max' ? 'high' : id };
+      return {};
+    }
+    if (provider === 'minimax') {
+      if (/minimax-m|abab7/.test(model)) return { reasoning_effort: id === 'max' ? 'max' : id };
+      return {};
+    }
+    if (provider === 'stepfun') {
+      if (/step-r|step-3|step-2x/.test(model)) return { reasoning_effort: id === 'max' ? 'high' : id };
+      return {};
+    }
+    if (provider === 'perplexity') {
+      if (/sonar-reasoning|sonar-deep|r1/.test(model)) return { reasoning_effort: id === 'max' ? 'high' : id };
+      return {};
+    }
+    return {};
   }
   function thinkingPolicy() { return { interrupt: false, maxWaitMs: null }; }
+  function extractThinkingDelta(piece) {
+    if (!piece) return '';
+    if (typeof piece === 'string') return piece;
+    if (piece.type === 'content_block_delta' && piece.delta) {
+      if (piece.delta.type === 'thinking_delta') return piece.delta.thinking || piece.delta.text || '';
+      return '';
+    }
+    if (piece.delta && piece.delta.type === 'thinking_delta') return piece.delta.thinking || '';
+    const d = piece.choices ? (piece.choices[0] && (piece.choices[0].delta || piece.choices[0].message)) : piece;
+    if (!d) return '';
+    if (typeof d.reasoning_content === 'string' && d.reasoning_content) return d.reasoning_content;
+    if (typeof d.reasoning === 'string' && d.reasoning) return d.reasoning;
+    if (d.reasoning && typeof d.reasoning.content === 'string') return d.reasoning.content;
+    if (d.reasoning && typeof d.reasoning.text === 'string') return d.reasoning.text;
+    if (Array.isArray(d.reasoning_details)) {
+      return d.reasoning_details.map(function (x) {
+        return (x && (x.text || x.summary || '')) || '';
+      }).join('');
+    }
+    return '';
+  }
 
   function route(text) {
     const q = String(text || '');
@@ -458,7 +649,7 @@
 
   return {
     API_PROVIDERS, providerById, THEMES, themeOf, themeCss, dictScheme, STYLES, normStyle, styleBlock, answerAddendum,
-    THINKING, normThinking, reasoningFields, thinkingPolicy, route, selectionKind, statusLabel,
+    THINKING, normThinking, detectProviderId, reasoningFields, thinkingPolicy, extractThinkingDelta, route, selectionKind, statusLabel,
     cmpVer, kernelPlan, sanitizePluginPatch, createChats, fallbackTitle, cleanTitle, titlePrompt,
     collabOpen, collabNote, solverSession, solverAddRef, solverAddTurn, solverContext, PUBLIC_SOLVER, phoneLink, phonePage,
     hscalc, WIKI_SEED, wikiSearch, parseWikiJsonl, downloadPlan, mtpProbeConfig, mtpExtraArgs, redactToolTalk, qrMatrix, qrSvg, runTask
