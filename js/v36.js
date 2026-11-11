@@ -137,12 +137,15 @@
     ctx = ctx || {};
     const provider = detectProviderId(ctx);
     const model = modelOf(ctx);
+    // Capabilities reported by the provider's model list (when known) take precedence over name-based detection.
+    const caps = ctx.caps || null;
+    if (caps && caps.reasoning === false) return {};
     if (provider === 'openai') {
       if (!openaiIsReasoningModel(model)) return {};
       return { reasoning_effort: openaiEffort(id, model) };
     }
     if (provider === 'anthropic') {
-      const mode = claudeThinkingMode(model);
+      const mode = (caps && caps.thinking !== undefined) ? caps.thinking : claudeThinkingMode(model);
       if (mode === 'adaptive') {
         return { thinking: { type: 'adaptive' }, output_config: { effort: id }, max_tokens: 16000 };
       }

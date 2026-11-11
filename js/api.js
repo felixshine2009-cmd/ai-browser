@@ -111,7 +111,7 @@ export async function chatTurn(opts){
   return { content, toolCalls, reasoning: calls.reasoning };
 }
 
-export async function chatComplete({baseUrl, apiKey, model, messages, signal, thinkingLevel, onDelta, onThinking, format, preset, tools, _calls}){
+export async function chatComplete({baseUrl, apiKey, model, messages, signal, thinkingLevel, onDelta, onThinking, format, preset, tools, caps, _calls}){
   const key = cleanKey(apiKey), mdl = cleanText(model), base = cleanBase(baseUrl);
   if (!base) throw new Error('请填写 API Base URL / API Base URL is empty');
   if (!mdl) throw new Error('请填写模型名 / Model name is empty');
@@ -119,13 +119,14 @@ export async function chatComplete({baseUrl, apiKey, model, messages, signal, th
   const provider = (typeof window !== 'undefined' && window.AIB36 && window.AIB36.detectProviderId)
     ? window.AIB36.detectProviderId({ provider: preset, preset, model: mdl, baseUrl: base, format })
     : (preset || 'custom');
-  const think = thinkingParams(thinkingLevel, { provider, preset, model: mdl, baseUrl: base, format: format || (provider === 'anthropic' ? 'anthropic' : 'openai') });
+  const think = thinkingParams(thinkingLevel, { provider, preset, model: mdl, baseUrl: base, format: format || (provider === 'anthropic' ? 'anthropic' : 'openai'), caps: caps || null });
   const anthropic = format === 'anthropic' || provider === 'anthropic';
   const headers = { 'Content-Type':'application/json' };
   let url, body;
   if (anthropic) {
     if (key) headers['x-api-key'] = key;
     headers['anthropic-version'] = '2023-06-01';
+    headers['anthropic-dangerous-direct-browser-access'] = 'true'; // Anthropic's documented opt-in for browser (CORS) requests
     const mapped = toAnthropic(messages);
     body = Object.assign({ model: mdl, messages: mapped.messages, stream: true, max_tokens: 4096 }, think);
     if (mapped.system) body.system = mapped.system;

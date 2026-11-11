@@ -8,8 +8,10 @@ import { addText as kbAdd, list as kbList, search as kbSearch, clear as kbClear,
 import { CATALOG, detectWebGPU, loadModel, unload as unloadModel, getProgress, isReady, memoryWarning, listCachedModels, reasonText, isPhone, pauseLoad, getDownloadStatus, statusText, diskReport, clearModelCache, deleteModelFiles, fmtMB } from './local-model.js';
 import { confirmDialog, doneBanner } from './confirm.js';
 import { callTool, listTools } from './agent-tools.js';
+import * as MW from './models-web.js';
 
 let settings = loadSettings();
+try { MW.migrate(settings); saveSettings(settings); } catch {}
 let abort = null;
 
 const esc = (x) => String(x ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -141,6 +143,7 @@ function openSettings(focusLocal){
   const th = document.getElementById('think'); if (th) th.value = settings.thinkingLevel || 'medium';
   if (window.__paintThemes) window.__paintThemes();
   fillProviders();
+  paintProvModels({ auto: true });
   document.getElementById('apiBase').value = settings.api.baseUrl||'';
   document.getElementById('apiKey').value = settings.api.apiKey||'';
   document.getElementById('apiModel').value = settings.api.model||'';
@@ -192,10 +195,38 @@ async function doSaveSettings(){
     try { await enableVector((p)=> { document.getElementById('localProg').textContent = (p||{}).status || t('localProgress'); }); }
     catch(e){ toast(String(e.message||e).slice(0,160)); settings.kb.embed = 'text'; document.getElementById('kbEmbed').value='text'; }
   } else { await disableVector(); }
+  const sync = MW.syncFromApi(settings);
   saveSettings(settings);
   renderChrome();
   toast(t('saved'));
   closeSettings();
+  refreshPickers();
+  // provider saved / key changed: fetch its model list in the background
+  if (sync.needsFetch) MW.refresh(settings, sync.pid).then(() => { saveSettings(settings); refreshPickers(); }).catch(() => {});
+}
+// ---- model lists (settings sheet) + model switchers next to the inputs
+const pickers = [];
+function refreshPickers(){ pickers.forEach(p => p.refresh()); }
+function formValues(){
+  return { baseUrl: cleanBase(document.getElementById('apiBase').value), apiKey: cleanKey(document.getElementById('apiKey').value) };
+}
+function paintProvModels(o){
+  const box = document.getElementById('provModels'); const sel = document.getElementById('apiPreset');
+  if (!box || !sel) return;
+  MW.renderList(box, settings, sel.value || 'custom', { ...(o || {}), formValues, save: () => saveSettings(settings), onChange: refreshPickers });
+}
+function mountPickers(){
+  if (!window.AIBModelPicker) return;
+  for (const id of ['askModel', 'solveModel']) {
+    const host = document.getElementById(id); if (!host) continue;
+    pickers.push(window.AIBModelPicker.mount(host, {
+      lang: () => getLang(),
+      load: () => MW.pickerData(settings),
+      select: async (ref) => { MW.select(settings, ref); saveSettings(settings); setTimeout(refreshPickers, 0); return MW.pickerData(settings); },
+      onManage: () => openSettings(false)
+    }));
+  }
+  window.__AIB_MP__ = pickers[0];
 }
 
 function setMode(mode){
@@ -243,9 +274,19 @@ function wire(){
   const preset = document.getElementById('apiPreset');
   if (preset) preset.onchange = () => {
     const p = window.AIB36 && window.AIB36.providerById(preset.value);
-    if (!p || preset.value === 'custom') return;
-    document.getElementById('apiBase').value = p.baseUrl;
-    document.getElementById('apiModel').value = p.model;
+    const saved = (settings.providers || {})[preset.value];
+    if (saved) {
+      // a provider configured before: restore its own address, key and first enabled model
+      document.getElementById('apiBase').value = saved.baseUrl || (p && p.baseUrl) || '';
+      document.getElementById('apiKey').value = saved.apiKey || '';
+      const en = (saved.models || []).find(m => m.enabled);
+      document.getElementById('apiModel').value = preset.value === settings.api.preset ? settings.api.model : ((en && en.id) || (p && p.model) || '');
+    } else if (p && preset.value !== 'custom') {
+      document.getElementById('apiBase').value = p.baseUrl;
+      document.getElementById('apiModel').value = p.model;
+      document.getElementById('apiKey').value = '';
+    }
+    paintProvModels({ auto: true });
   };
   const localModelEl = document.getElementById('localModel');
   if (localModelEl) localModelEl.onchange = updateLocalWarn;
@@ -523,6 +564,7 @@ setLang(settings.lang||getLang());
 renderChrome();
 mountPanels(document.getElementById('plotcanvas'));
 wire();
+mountPickers();
 wireVisualViewport();
 wireDesktopOnly();
 refreshKb();
