@@ -27,14 +27,26 @@
     side.innerHTML = `<div class="ai-label" id="plabel"></div><div class="pages-read" id="pages"></div><div class="ai-label" id="slabel"></div><div id="sources"></div>`;
     body.append(main, side);
     const follow = el('div', 'chat-follow');
-    follow.innerHTML = `<div class="home-search-box chat-follow-box"><textarea id="followq" rows="1" spellcheck="false" placeholder=""></textarea><button type="button" class="go" id="followgo" title="Send">↵</button></div><div id="vkhost"></div>`;
+    follow.innerHTML = `<div class="chat-follow-bar"><div id="followmodel"></div></div><div class="home-search-box chat-follow-box"><textarea id="followq" rows="1" spellcheck="false" placeholder=""></textarea><button type="button" class="go" id="followgo" title="Send">↵</button></div><div id="vkhost"></div>`;
     page.append(qbar, body, follow);
     root.appendChild(page);
     els = { q: qs('q'), qlabel: qs('qlabel'), rewrites: qs('rewrites'), alabel: qs('alabel'), status: qs('status'), trace: qs('trace'), answer: qs('answer'), toolsrow: qs('toolsrow'), pngs: qs('pngs'), err: qs('err'), side, plabel: qs('plabel'), pages: qs('pages'), slabel: qs('slabel'), sources: qs('sources'), body, main, followq: qs('followq') };
     els.runs = qs('runs'); els.figs = qs('figs');
     runs = window.RunPanels ? RunPanels.create(els.runs, els.figs, { lang: () => I18N.lang, onStop: (id) => window.aib.invoke('chat:stopTool', id) }) : null;
     els.q.textContent = st.input;
-    els.alabel.textContent = t('chat.answer');
+    els.alabel.textContent = t('chat.answer') + (st.modelLabel ? ' · ' + st.modelLabel : '');
+    // per-conversation model switcher: applies to follow-up questions in this conversation
+    if (window.AIBModelPicker && qs('followmodel')) {
+      const mp = AIBModelPicker.mount(qs('followmodel'), {
+        lang: () => I18N.lang,
+        scopeNote: () => (I18N.lang === 'en' ? 'This chat' : '本对话'),
+        load: () => window.aib.invoke('models:picker', sid),
+        select: (ref) => window.aib.invoke('models:select', ref, sid),
+        onManage: () => window.aib.invoke('nav:openUrl', 'aibrowser://settings#ai')
+      });
+      window.__AIB_MP__ = mp;
+      if (!window.__AIB_MP_SUB__) { window.__AIB_MP_SUB__ = true; window.aib.on('models:changed', () => window.__AIB_MP__ && window.__AIB_MP__.refresh()); }
+    }
     els.plabel.textContent = t('chat.pagesRead');
     els.slabel.textContent = t('chat.sources');
     const fq = qs('followq'); fq.placeholder = t('home.placeholder');
@@ -89,6 +101,7 @@
         break;
       case 'queries': st.queries = ev.queries; st.direct = ev.direct; renderQueries(); if (ev.direct) setStatus(t('chat.generating')); else if (!ev.queries.length) setStatus(t('chat.thinking')); break;
       case 'search-start': break;
+      case 'model': st.modelLabel = ev.label || ''; if (els.alabel) els.alabel.textContent = t('chat.answer') + (st.modelLabel ? ' · ' + st.modelLabel : ''); break;
       case 'status': setStatus(ev.text); addTrace(ev.text); break;
       case 'thinking': st.think = (st.think || '') + ev.text; if (els.thinking) els.thinking.textContent = '正在处理\n' + st.think.slice(-500); break;
       case 'translate-error': setStatus((t('chat.translateFail') || 'Translation failed') + ': ' + (ev.error || '')); addTrace('✕ ' + (ev.error || '')); break;

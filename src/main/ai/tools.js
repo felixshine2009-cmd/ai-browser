@@ -90,7 +90,7 @@ const BUILTIN = [
     run: async (a) => { let text = String(a.text || ''); if (!text && a.url) { text = (await require('./search').readPage(httpUrl(a.url), { maxChars: 6000 })).text; } if (!text.trim()) throw new Error('text or url required');
       const r = await trMod().translate(text.slice(0, 8000), { target: a.target }); return { target: r.target, translation: r.text, model: r.model }; } },
   { name: 'analyze_sentence', group: 'language', description: 'Grammar-analyse an English sentence: translation, clause structure (subject/predicate/object…), key phrases.', parameters: obj({ sentence: str('the sentence') }, ['sentence']),
-    run: async (a) => { const llm = require('./llm'), P = require('./prompts'); const local = store.getSettings().ai.source === 'local';
+    run: async (a) => { const llm = require('./llm'), P = require('./prompts'); const local = llm.activeSource() === 'local';
       const j = await llm.completeJson([{ role: 'system', content: P.sentence({ local }) }, { role: 'user', content: String(a.sentence || '') }]);
       try { const tr = await trMod().translate(String(a.sentence), {}); j.translation = tr.text; } catch {} return j; } },
   // ---- knowledge base
@@ -221,7 +221,13 @@ const BUILTIN = [
       const path = local.modelPathOf(ent); if (!path || !require('fs').existsSync(path)) throw new Error('model not downloaded yet');
       const s = store.patchSettings({ ai: { source: 'local', local: { modelId: a.id, modelPath: path } } });
       return { selected: a.id, path, source: s.ai.source };
-    } }
+    } },
+  { name: 'chat_models_list', group: 'models', description: 'List the chat models enabled in the model switcher, grouped by provider, and the current model.', parameters: obj({}),
+    run: async () => { const p = require('./models').picker({}); return { current: p.current, groups: p.groups.map(g => ({ provider: g.id, name: g.name, models: g.models.map(m => m.id) })) }; } },
+  { name: 'chat_models_refresh', group: 'models', description: "Fetch a provider's model list from its official list endpoint (falls back to the built-in list when unavailable).", parameters: obj({ provider: str('provider id, e.g. openai, deepseek, anthropic, gemini, ollama') }, ['provider']),
+    run: async (a) => require('./models').refresh(String(a.provider)) },
+  { name: 'chat_model_use', group: 'models', description: 'Make an enabled model the current chat model for new conversations.', parameters: obj({ provider: str('provider id, or "local"'), model: str('model id') }, ['provider', 'model']),
+    run: async (a) => { require('./models').select({ provider: String(a.provider), model: String(a.model) }); return { current: require('./models').picker({}).current }; } }
 
 ];
 try { for (const t of require('../v36/extra-tools')) BUILTIN.push(t); } catch (e) { console.error('v36 tools', e.message); }

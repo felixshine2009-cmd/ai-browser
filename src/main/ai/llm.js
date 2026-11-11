@@ -105,7 +105,7 @@ async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, sig
   try {
     const level = thinkingLevel || require('../store').getSettings().thinkingLevel;
     const v36 = require('../v36/v36');
-    if (level) Object.assign(body, v36.reasoningFields(level, { provider: cfg.preset, preset: cfg.preset, model: cfg.model, baseUrl: cfg.baseUrl, format: cfg.format }));
+    if (level) Object.assign(body, v36.reasoningFields(level, { provider: cfg.preset, preset: cfg.preset, model: cfg.model, baseUrl: cfg.baseUrl, format: cfg.format, caps: cfg.caps || modelCaps(cfg.preset, cfg.model) }));
   } catch {}
   if (jsonSchema && cfg._structured !== false) body.response_format = { type: 'json_schema', json_schema: { name: 'action', schema: jsonSchema } };
   if (maxTokens) body.max_tokens = maxTokens;
@@ -174,7 +174,7 @@ async function chatAnthropic(cfg, key, { messages, tools, temperature, onDelta, 
   let think = {};
   try {
     const level = thinkingLevel || require('../store').getSettings().thinkingLevel;
-    think = require('../v36/v36').reasoningFields(level, { provider: 'anthropic', model: cfg.model, baseUrl: cfg.baseUrl, format: 'anthropic' }) || {};
+    think = require('../v36/v36').reasoningFields(level, { provider: 'anthropic', model: cfg.model, baseUrl: cfg.baseUrl, format: 'anthropic', caps: cfg.caps || modelCaps(cfg.preset, cfg.model) }) || {};
   } catch {}
   if (think && Object.keys(think).length) {
     Object.assign(body, think);
@@ -210,9 +210,44 @@ async function chatAnthropic(cfg, key, { messages, tools, temperature, onDelta, 
   return { content, toolCalls: Object.values(calls).map(c => ({ ...c, arguments: c.arguments || '{}' })) };
 }
 
+// Per-conversation model override: chat.js runs a session inside withModel({provider, model}, fn);
+// every llm.chat() call made while that session runs (agent steps, tools, follow-ups) uses the override.
+const { AsyncLocalStorage } = require('async_hooks');
+const modelScope = new AsyncLocalStorage();
+function withModel(ref, fn) { return ref && ref.provider && ref.model ? modelScope.run({ ref }, fn) : fn(); }
+function overrideRef() { const s = modelScope.getStore(); return s ? s.ref : null; }
+function modelCaps(pid, model) {
+  try { return require('./model-catalog').capsOf(pid || 'custom', model, store.getSettings().ai.providers || {}); } catch { return null; }
+}
 function currentConfig() {
   const s = store.getSettings().ai;
+  const ref = overrideRef();
+  if (ref && ref.provider === 'local') return { source: 'local', api: s.api, local: { ...s.local, roles: { ...(s.local.roles || {}), chat: ref.model } }, override: ref };
+  if (ref && (s.providers || {})[ref.provider]) {
+    const p = s.providers[ref.provider];
+    const def = PRESETS[ref.provider] || {};
+    return { source: 'api', api: { ...s.api, preset: ref.provider, format: p.format || def.format || 'openai', baseUrl: p.baseUrl || def.baseUrl || '', model: ref.model }, local: s.local, key: store.getProviderKey(ref.provider), override: ref };
+  }
   return { source: s.source, api: s.api, local: s.local };
+}
+function activeSource() { return currentConfig().source; }
+// {provider, model, label} of the model that the current scope will use
+function activeModel() {
+  const c = currentConfig();
+  if (c.source === 'local') {
+    const target = roleOf(c, 'chat') || '';
+    return { provider: 'local', model: target || (c.local.modelId || ''), label: localLabel(target || c.local.modelId || c.local.modelPath || '') };
+  }
+  const pid = c.api.preset || 'custom';
+  return { provider: pid, model: c.api.model, label: ((PRESETS[pid] || {}).name || pid) + ' · ' + c.api.model };
+}
+function localLabel(target) {
+  const t = String(target || '');
+  const fw = t.match(/^fw:([^:]+):(.+)$/); if (fw) return fw[1] + ' · ' + fw[2];
+  const m = t.match(/^(mlx|llama):(.+)$/);
+  let name = m ? m[2] : t.split(/[\\/]/).pop();
+  try { const e = m && getLocal().findEntry(m[2]); if (e && e.name) name = e.name; } catch {}
+  return (lang() === 'en' ? 'Local · ' : '本地 · ') + (name || (lang() === 'en' ? 'model' : '模型'));
 }
 
 /**
@@ -271,7 +306,7 @@ async function chat(opts) {
   const c = currentConfig();
   if (c.source === 'local') return chatLocalRouted(c, opts);
   if (!c.api.baseUrl || !c.api.model) throw Object.assign(new Error('API 未配置：请在 设置 → AI 模型 中填写 Base URL 与模型'), { code: 'NO_CONFIG' });
-  const key = store.getApiKey();
+  const key = c.override ? c.key : store.getApiKey();
   const fn = c.api.format === 'anthropic' ? chatAnthropic : chatOpenAI;
   try { validateBase(c.api.baseUrl); return await fn(c.api, key, opts); }
   catch (e) { if (opts.signal && opts.signal.aborted) throw e; throw friendly(e, key, c.api.baseUrl); }
@@ -375,4 +410,4 @@ async function testConnection(override) {
   }
 }
 
-module.exports = { chat, complete, completeJson, events, hasRole, roleOf, extractJson, testConnection, fetchModels, friendly, maskSecrets, PRESETS };
+module.exports = { withModel, activeSource, activeModel, modelCaps, localLabel, chat, complete, completeJson, events, hasRole, roleOf, extractJson, testConnection, fetchModels, friendly, maskSecrets, PRESETS };

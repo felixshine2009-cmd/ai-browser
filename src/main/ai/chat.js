@@ -60,7 +60,16 @@ function get(sid) { return sessions.get(sid); }
 async function run(s) {
   const onNotice = (text) => emit(s, { type: 'notice', text });
   llm.events.on('notice', onNotice);
-  try { await run0(s); } finally { llm.events.off('notice', onNotice); }
+  // per-conversation model (chosen in this thread's switcher); otherwise the global current model
+  const models = require('./models');
+  const ref = models.threadModel(s.threadId || s.sid);
+  try {
+    await llm.withModel(ref, async () => {
+      const m = llm.activeModel();
+      emit(s, { type: 'model', provider: m.provider, model: m.model, label: ref ? models.labelOf(ref) : m.label, override: !!ref });
+      await run0(s);
+    });
+  } finally { llm.events.off('notice', onNotice); }
 }
 async function run0(s) {
   const ctx = { wcId: s.wcId, sid: s.sid, threadId: s.threadId || s.sid };
@@ -84,7 +93,7 @@ async function run0(s) {
 function finish(s) { if (s.done) return; s.done = true; emit(s, { type: 'done' }); }
 
 // ---------- word
-const isLocal = () => store.getSettings().ai.source === 'local';
+const isLocal = () => llm.activeSource() === 'local';
 
 // Placeholders that small models often copy verbatim from poorly-written prompts / schemas
 const ZH_PLACEHOLDERS = /^(中文释义|中文意思|汉语释义|释义|例句翻译|短释义|chinese meaning|definition|gloss)$/i;

@@ -11,6 +11,8 @@ const DEFAULTS = {
   ai: {
     source: 'api', // 'api' | 'local'
     api: { preset: 'openai', format: 'openai', baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini', temperature: 0.3 },
+    // per provider: { baseUrl, format, apiKey, models:[{id,enabled,manual?,ctx?,vision?,reasoning?}], fetchedAt, listSource, listError }
+    providers: {},
     local: { modelPath: '', modelId: '', translateModelId: '', hfMirror: false, contextSize: 4096, engine: 'auto', hub: { endpoint: 'mirror', custom: '' }, custom: [], roles: {}, frameworks: { overrides: {}, custom: [] } }
   },
   dicts: [], // {id,name,mdx,mdd:[],enabled}
@@ -87,6 +89,12 @@ function init() {
   const fresh = raw === null || (typeof raw === 'object' && !Object.keys(raw).length);
   if (fresh) settingsFile.data.onboarding = { completed: false, skipped: false, completedAt: 0 };
   else if (!Object.prototype.hasOwnProperty.call(raw, 'onboarding')) settingsFile.data.onboarding = { completed: true, skipped: false, completedAt: 0 };
+  // v5.4.0: per-provider model lists. Existing single-provider config becomes one provider entry, its model enabled.
+  if (!raw || !raw.ai || !raw.ai.providers || !Object.keys(raw.ai.providers).length) {
+    const a = settingsFile.data.ai;
+    a.providers = require('./ai/model-catalog').migrate(a, Object.keys(require('./v36/v36').API_PROVIDERS));
+    if (raw) settingsFile.save();
+  }
   historyFile = new JsonFile('history.json', []);
   bookmarksFile = new JsonFile('bookmarks.json', []);
   downloadsFile = new JsonFile('downloads.json', []);
@@ -126,6 +134,7 @@ function publicSettings() {
     for (const c of fw.custom || []) { c.hasKey = !!c.apiKey; c.apiKey = ''; }
   } catch {}
   if (s.kb && s.kb.api) { s.kb.api.hasKey = !!s.kb.api.apiKey; s.kb.api.apiKey = ''; }
+  for (const p of Object.values(s.ai.providers || {})) { if (p && typeof p === 'object') { p.hasKey = !!p.apiKey; p.apiKey = ''; } }
   return s;
 }
 function patchSettings(patch) {
@@ -137,6 +146,10 @@ function patchSettings(patch) {
     else patch.ai.api.apiKey = encKey(k);
   }
   delete patch.ai?.api?.hasKey;
+  // switching the active provider without typing a key: use the key saved for that provider (never another provider's key)
+  if (patch.ai && patch.ai.api && patch.ai.api.preset && patch.ai.api.preset !== ((settingsFile.data.ai || {}).api || {}).preset && !('apiKey' in patch.ai.api)) {
+    patch.ai.api.apiKey = ((((settingsFile.data.ai || {}).providers || {})[patch.ai.api.preset]) || {}).apiKey || '';
+  }
   if (patch.kb && patch.kb.api) {
     if ('apiKey' in patch.kb.api) { const k = patch.kb.api.apiKey; if (k === '' || k == null) delete patch.kb.api.apiKey; else if (k === '__clear__') patch.kb.api.apiKey = ''; else patch.kb.api.apiKey = encKey(k); }
     delete patch.kb.api.hasKey;
@@ -148,9 +161,57 @@ function patchSettings(patch) {
     for (const [id, o] of Object.entries(fwp.overrides || {})) fix(o, (cur.overrides || {})[id]);
     if (Array.isArray(fwp.custom)) for (const c of fwp.custom) fix(c, (cur.custom || []).find(x => x.id === c.id));
   }
+  const provPatch = patch.ai && patch.ai.providers;
+  if (provPatch) {
+    for (const [pid, o] of Object.entries(provPatch)) {
+      if (!o || typeof o !== 'object') continue;
+      delete o.hasKey;
+      if ('apiKey' in o) { const k = o.apiKey; if (k === '' || k == null) delete o.apiKey; else if (k === '__clear__') o.apiKey = ''; else if (!/^(enc|b64):/.test(k)) o.apiKey = encKey(k); }
+    }
+  }
   if (patch.dicts) settingsFile.data.dicts = patch.dicts, delete patch.dicts;
   if (patch.chromeExtensions) settingsFile.data.chromeExtensions = patch.chromeExtensions, delete patch.chromeExtensions;
   settingsFile.data = deepMerge(settingsFile.data, patch);
+  syncProviders(patch);
+  settingsFile.save();
+  return publicSettings();
+}
+// Keep the active API config (ai.api) and its provider entry (ai.providers[preset]) in step, in both directions.
+function syncProviders(patch) {
+  const ai = settingsFile.data.ai; if (!ai) return;
+  ai.providers = ai.providers || {};
+  const api = ai.api || {};
+  const pid = api.preset || 'custom';
+  const pp = patch.ai && patch.ai.providers && patch.ai.providers[pid];
+  if (patch.ai && patch.ai.api) {
+    const cur = ai.providers[pid] || { models: [], fetchedAt: 0, listSource: '' };
+    const next = { ...cur, baseUrl: api.baseUrl || cur.baseUrl || '', format: api.format || cur.format || 'openai' };
+    if ('apiKey' in patch.ai.api) next.apiKey = api.apiKey;
+    else if (!cur.apiKey && api.apiKey) next.apiKey = api.apiKey;
+    if (api.model && !(next.models || []).some(m => m.id === api.model)) next.models = (next.models || []).concat([{ id: api.model, enabled: true, manual: true }]);
+    else if (api.model) next.models = next.models.map(m => (m.id === api.model ? { ...m, enabled: true } : m));
+    ai.providers[pid] = next;
+  } else if (pp) {
+    const p = ai.providers[pid];
+    if ('baseUrl' in pp) api.baseUrl = p.baseUrl;
+    if ('format' in pp) api.format = p.format;
+    if ('apiKey' in pp) api.apiKey = p.apiKey;
+  }
+}
+function getProviderKey(pid) { const p = ((settingsFile.data.ai || {}).providers || {})[pid]; return p ? decKey(p.apiKey) : ''; }
+// Make (provider, model) the active chat model. 'local' selects a local target ('llama:<id>' | 'mlx:<id>' | 'fw:<fw>:<model>').
+function setActiveModel(pid, model) {
+  const ai = settingsFile.data.ai;
+  if (pid === 'local') {
+    ai.source = 'local';
+    ai.local.roles = { ...(ai.local.roles || {}), chat: String(model || '') };
+  } else {
+    const p = (ai.providers || {})[pid];
+    if (!p) throw new Error('unknown provider ' + pid);
+    const def = require('./v36/v36').API_PROVIDERS[pid] || {};
+    ai.api = { ...ai.api, preset: pid, format: p.format || def.format || 'openai', baseUrl: p.baseUrl || def.baseUrl || '', apiKey: p.apiKey || '', model: String(model || '') };
+    ai.source = 'api';
+  }
   settingsFile.save();
   return publicSettings();
 }
@@ -226,7 +287,7 @@ function upsertChat(rec) { const row = chatBag.upsert(rec); chatFile.save(); ret
 function flushAll() { [settingsFile, historyFile, bookmarksFile, downloadsFile, chatFile].forEach(f => f && f.flush()); }
 
 module.exports = {
-  init, getSettings, getApiKey, getKbApiKey, decKey, publicSettings, patchSettings, searchUrl, searchEngineInfo, ENGINES,
+  init, getSettings, getApiKey, getKbApiKey, getProviderKey, setActiveModel, decKey, publicSettings, patchSettings, searchUrl, searchEngineInfo, ENGINES,
   addHistory, updateHistoryTitle, listHistory, clearHistory, countHistory, deleteHistory,
   listBookmarks, isBookmarked, toggleBookmark, removeBookmark,
   downloads, saveDownloads, listChats, getChat, upsertChat, flushAll, DEFAULTS

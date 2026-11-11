@@ -132,7 +132,7 @@ async function runPipeline(s, ctx, D, queries, direct) {
   if (sources.length) userContent = 'Web sources:\n' + sources.map(p => `[${p.n}] ${p.title} (${p.url})\n${(p.text || p.snippet || '').slice(0, isLocal() ? 1400 : 3800)}`).join('\n\n') + `\n\nQuestion: ${q}`;
   else if (!direct && queries.length) userContent = q + '\n\n(Note: web search found no relevant pages; say so briefly, then answer from general knowledge and mark it as such.)';
   const messages = [{ role: 'system', content: P.answer({ date: today(), local: isLocal() }) + '\n' + v36.answerAddendum(store.getSettings().answerStyle) }, { role: 'user', content: userContent }];
-  const tools = store.getSettings().ai.source === 'local' ? [] : registry.all({ web: false }).map(registry.def);
+  const tools = llm.activeSource() === 'local' ? [] : registry.all({ web: false }).map(registry.def);
   await answerLoop(s, ctx, D, messages, tools, () => null);
 }
 
@@ -322,7 +322,7 @@ async function run(s, ctx, D) {
   const local = D.isLocal();
   if (s.queriesOverride) return runPipeline(s, ctx, D, s.queriesOverride, false);
   // local frameworks (LM Studio / Ollama / oMLX / vLLM …) usually support native tool calling → use the full agent first
-  const fwChat = local && /^fw:/.test(llm.roleOf({ local: store.getSettings().ai.local }, 'chat'));
+  const fwChat = local && /^fw:/.test(String(llm.activeModel().model || ''));
   if (local && !fwChat) {
     if (await runLocalTools(s, ctx, D).catch(e => { if (s.ac.signal.aborted) throw e; console.error('local tool loop failed:', e && e.message); return false; })) return;
     return runPipeline(s, ctx, D, null, false);

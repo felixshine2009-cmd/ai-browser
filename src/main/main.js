@@ -159,7 +159,35 @@ function registerIpc() {
   handle('selfmod:setSafeMode', (e, on) => { const r = selfmod.setSafeMode(on); broadcast('selfmod:changed', selfmod.readState()); return r; });
   handle('selfmod:read', (e, rel) => ({ path: rel, content: selfmod.readCurrent(rel) }));
   handle('ai:presets', () => llm.PRESETS);
-  handle('ai:test', (e, cfg) => llm.testConnection(cfg));
+  handle('ai:test', async (e, cfg) => {
+    const r = await llm.testConnection(cfg);
+    // a successful test also refreshes that provider's cached model list
+    if (r && r.ok && r.via === 'models' && cfg && cfg.preset) { try { await modelsM().refresh(cfg.preset, cfg); broadcast('settings:changed', store.publicSettings()); } catch {} }
+    return r;
+  });
+  // model lists per provider + the model switcher
+  const modelsM = () => require('./ai/models');
+  const modelsChanged = () => { const s = store.publicSettings(); broadcast('settings:changed', s); broadcast('models:changed', {}); tabsMod.notify(); return s; };
+  handle('models:refresh', async (e, pid, override) => { const r = await modelsM().refresh(String(pid || 'custom'), override || {}); modelsChanged(); return r; });
+  handle('models:setEnabled', (e, pid, ids, on) => { if (pid === 'local') modelsM().setLocalEnabled(ids, !!on); else modelsM().setEnabled(String(pid), ids, !!on); modelsChanged(); return true; });
+  handle('models:add', (e, pid, id) => { modelsM().addManual(String(pid), String(id || '')); modelsChanged(); return true; });
+  handle('models:remove', (e, pid, id) => { modelsM().remove(String(pid), String(id || '')); modelsChanged(); return true; });
+  // which thinking fields each model gets (same mapping as chat requests), for the settings list
+  handle('models:hints', (e, pid) => {
+    const v36m = require('./v36/v36'); const p = (store.getSettings().ai.providers || {})[pid] || {}; const out = {};
+    for (const m of p.models || []) { try { out[m.id] = Object.keys(v36m.reasoningFields('medium', { provider: pid, preset: pid, model: m.id, baseUrl: p.baseUrl, format: p.format, caps: llm.modelCaps(pid, m.id) }) || {}).filter(k => k !== 'max_tokens'); } catch { out[m.id] = []; } }
+    return out;
+  });
+  handle('models:local', async (e, force) => { if (force) await modelsM().detectFw(true); return modelsM().localList(); });
+  handle('models:picker', async (e, sid) => {
+    modelsM().detectFw(false).then((l) => { if (l && l.some(f => f.up)) broadcast('models:changed', {}); }).catch(() => {});
+    const s = sid ? chat.get(sid) : null;
+    return modelsM().picker({ threadId: s ? (s.threadId || s.sid) : '' });
+  });
+  handle('models:select', (e, ref, sid) => {
+    if (sid) { const s = chat.get(sid); if (s) { modelsM().setThreadModel(s.threadId || s.sid, ref); broadcast('models:changed', {}); return modelsM().picker({ threadId: s.threadId || s.sid }); } }
+    modelsM().select(ref); modelsChanged(); return modelsM().picker({});
+  });
   handle('engines:list', () => store.ENGINES);
 
   // tabs / navigation
@@ -380,7 +408,7 @@ function registerIpc() {
     store.patchSettings({ ai: { local: { custom } } }); broadcast('settings:changed', store.publicSettings()); return id;
   });
   handle('hub:removeCustom', (e, id) => { local().deleteModel(id); const L = store.getSettings().ai.local; const roles = { ...(L.roles || {}) }; for (const k of Object.keys(roles)) if (roles[k].endsWith(id)) roles[k] = ''; store.patchSettings({ ai: { local: { custom: (L.custom || []).filter(x => x.id !== id), roles } } }); broadcast('settings:changed', store.publicSettings()); broadcast('lm:progress', { id, deleted: true }); });
-  handle('fw:detect', () => fwM().detect());
+  handle('fw:detect', async () => { const l = await fwM().detect(); require('./ai/models').noteFw(l); return l; });
   handle('fw:test', (e, cfg) => { cfg = cfg || {}; if (!cfg.apiKey && cfg.id) { const t = fwM().targets().find(x => x.id === cfg.id); if (t) cfg.apiKey = t.apiKey; } return fwM().test(cfg); });
   handle('mlx:status', () => mlxM().status());
   handle('mlx:recheck', () => { mlxM().detectRuntime(true); return mlxM().status(); });

@@ -29,6 +29,18 @@
   };
   set(); I18N.onChange(set);
   window.aib.on('settings:changed', (s) => { S = s; set(); });
+  // model switcher: the choice becomes the current model for new conversations
+  if (window.AIBModelPicker) {
+    const mp = AIBModelPicker.mount(document.getElementById('homemodel'), {
+      lang: () => (S.lang === 'en' ? 'en' : 'zh'),
+      load: () => window.aib.invoke('models:picker'),
+      select: (ref) => window.aib.invoke('models:select', ref),
+      onManage: () => window.aib.invoke('nav:openUrl', 'aibrowser://settings#ai')
+    });
+    window.__AIB_MP__ = mp;
+    window.aib.on('models:changed', () => mp.refresh());
+    window.aib.on('settings:changed', () => mp.refresh());
+  }
   const q = document.getElementById('q');
   document.getElementById('form').addEventListener('submit', (e) => { e.preventDefault(); const v = q.value.trim(); if (v) window.aib.invoke('nav:submit', v); });
   const grow = () => { q.style.height = '24px'; q.style.height = Math.min(q.scrollHeight, 168) + 'px'; };

@@ -123,6 +123,7 @@
           </div>
         </form>
         <div class="solve-chips">
+          <span class="solve-model" id="toolmodel"></span>
           <button type="button" class="solve-chip" id="img" title="上传题目图片" aria-label="上传图片"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><circle cx="6" cy="6.6" r="1.2"/><path d="M2.5 11.5l3.4-3 2.4 2 2-1.6 3.2 2.6"/></svg><span>上传图片</span></button>
           <button type="button" class="solve-chip" id="phone" title="通过移动设备扫描二维码拍照上传" aria-label="拍照上传"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.5" y="1.75" width="7" height="12.5" rx="1.6"/><path d="M7.2 12h1.6"/></svg><span>拍照上传</span></button>
           <button type="button" class="solve-chip" id="reftoggle" title="添加公式、定理或教材内容作为参考" aria-label="添加参考资料" aria-expanded="false" aria-controls="refpanel"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.75h6.5L13 6.25v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-9.5a1 1 0 0 1 1-1z"/><path d="M9.5 2.75v3.5H13"/><path d="M5 9.25h6M5 11.5h4"/></svg><span>添加参考资料</span><em class="solve-chip-count" id="refcount" hidden></em></button>
@@ -410,5 +411,18 @@
       if (sid) location.href = 'aibrowser://chat?sid=' + sid;
     });
     prob.focus();
+  }
+  // model switcher on tool pages that send to the AI (solve)
+  const mpHost = document.getElementById('toolmodel');
+  if (mpHost && window.AIBModelPicker) {
+    const mp = AIBModelPicker.mount(mpHost, {
+      lang: () => (window.I18N && I18N.lang === 'en' ? 'en' : 'zh'),
+      load: () => window.aib.invoke('models:picker'),
+      select: (ref) => window.aib.invoke('models:select', ref),
+      onManage: () => window.aib.invoke('nav:openUrl', 'aibrowser://settings#ai')
+    });
+    window.__AIB_MP__ = mp;
+    window.aib.on('models:changed', () => mp.refresh());
+    window.aib.on('settings:changed', () => mp.refresh());
   }
 })();

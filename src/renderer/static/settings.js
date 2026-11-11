@@ -10,6 +10,7 @@
   let embed = null; // destroy handle of an embedded page (extensions / history)
   function leaveEmbed() { if (embed) { try { embed.destroy(); } catch {} embed = null; } }
   let aiTab = null; // 'api' | 'local'
+  let apiPid = null; // provider shown in the API tab (models list)
   let presets = {}, engines = {}, models = [], lmStatus = null, progress = {};
 
   // ---- prominent save feedback (green check + text, fades after ~3s; errors stay, red)
@@ -69,17 +70,29 @@
   }
   function renderApi() {
     const a = S.ai.api;
-    const modelField = `<div class="combo" id="combo"><input id="model" value="${esc(a.model)}" spellcheck="false" autocomplete="off" placeholder="${esc(t('ai.api.modelPh'))}"/><button type="button" class="combo-btn" id="modelbtn" title="${esc(t('ai.api.models'))}" tabindex="-1">▾</button><div class="combo-pop" id="modelpop" hidden></div></div><div class="hint" id="modelhint">${esc(t('ai.api.modelHint'))}</div>`;
-    document.getElementById('aibody').innerHTML =
-      row(t('ai.api.preset'), `<select id="preset">${Object.entries(presets).map(([k, v]) => `<option value="${k}" ${a.preset === k ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>`) +
-      row(t('ai.api.format'), `<select id="format"><option value="openai" ${a.format !== 'anthropic' ? 'selected' : ''}>OpenAI (/chat/completions)</option><option value="anthropic" ${a.format === 'anthropic' ? 'selected' : ''}>Anthropic (/v1/messages)</option></select>`) +
-      row('Base URL', `<input id="baseUrl" value="${esc(a.baseUrl)}" spellcheck="false"/>`) +
-      row('API Key', `<input id="apiKey" type="password" autocomplete="off" placeholder="${a.hasKey ? esc(t('ai.api.keySaved')) : 'sk-…'}"/>`, t('ai.api.keyHint')) +
+    const provs = S.ai.providers || {};
+    const pidNow = apiPid && (presets[apiPid] || apiPid === 'local') ? apiPid : (a.preset || 'custom');
+    apiPid = pidNow;
+    const saved = provs[pidNow] || null;
+    const isActive = pidNow === (a.preset || 'custom');
+    const pv = presets[pidNow] || presets.custom || {};
+    const f = isActive ? a : { baseUrl: (saved && saved.baseUrl) || pv.baseUrl || '', format: (saved && saved.format) || pv.format || 'openai', model: ((saved && (saved.models || []).find(m => m.enabled)) || {}).id || pv.model || '', temperature: a.temperature, hasKey: !!(saved && saved.hasKey) };
+    const modelField = `<div class="combo" id="combo"><input id="model" value="${esc(f.model)}" spellcheck="false" autocomplete="off" placeholder="${esc(t('ai.api.modelPh'))}"/><button type="button" class="combo-btn" id="modelbtn" title="${esc(t('ai.api.models'))}" tabindex="-1">▾</button><div class="combo-pop" id="modelpop" hidden></div></div><div class="hint" id="modelhint">${esc(t('ai.api.modelHint'))}</div>`;
+    const configured = Object.keys(provs).filter(k => presets[k] && (provs[k].hasKey || (provs[k].models || []).some(m => m.enabled)));
+    const chips = configured.length ? `<div class="prov-chips" id="provchips" role="list" aria-label="${esc(T('已配置的服务商', 'Configured providers'))}"><span class="prov-chips-l">${esc(T('已配置', 'Configured'))}</span>${configured.map(k => { const ms = provs[k].models || []; return `<button type="button" role="listitem" class="prov-chip${k === pidNow ? ' on' : ''}" data-prov="${esc(k)}">${k === (a.preset || 'custom') && S.ai.source === 'api' ? '<i class="dot" aria-hidden="true"></i>' : ''}${esc(presets[k].name)}<small>${ms.filter(m => m.enabled).length}/${ms.length}</small></button>`; }).join('')}<button type="button" class="prov-chip" data-prov="local">${esc(T('本地模型', 'Local models'))}</button></div>` : '';
+    const opts = Object.entries(presets).map(([k, v]) => `<option value="${k}" ${pidNow === k ? 'selected' : ''}>${esc(v.name)}</option>`).join('') + `<optgroup label="${esc(T('本地', 'Local'))}"><option value="local" ${pidNow === 'local' ? 'selected' : ''}>${esc(T('本地模型（已下载 / 本地框架）', 'Local models (downloaded / frameworks)'))}</option></optgroup>`;
+    document.getElementById('aibody').innerHTML = chips +
+      row(t('ai.api.preset'), `<select id="preset">${opts}</select>`) +
+      `<div id="apiform"${pidNow === 'local' ? ' hidden' : ''}>` +
+      row(t('ai.api.format'), `<select id="format"><option value="openai" ${f.format !== 'anthropic' ? 'selected' : ''}>OpenAI (/chat/completions)</option><option value="anthropic" ${f.format === 'anthropic' ? 'selected' : ''}>Anthropic (/v1/messages)</option></select>`) +
+      row('Base URL', `<input id="baseUrl" value="${esc(f.baseUrl)}" spellcheck="false"/>`) +
+      row('API Key', `<input id="apiKey" type="password" autocomplete="off" placeholder="${(isActive ? a.hasKey : f.hasKey) ? esc(t('ai.api.keySaved')) : 'sk-…'}"/>`, t('ai.api.keyHint')) +
       `<div class="form-row"><label>${esc(t('ai.api.model'))}</label>${modelField}</div>` +
       row(t('ai.api.temp'), `<input id="temp" type="number" min="0" max="2" step="0.1" value="${a.temperature}"/>`) +
-      `<div class="inline"><button class="btn-primary" id="save">${esc(t('common.save'))}</button><button class="btn-secondary" id="test">${esc(t('ai.api.test'))}</button></div><div class="test-result" id="tres"></div>`;
+      `<div class="inline"><button class="btn-primary" id="save">${esc(t('common.save'))}</button><button class="btn-secondary" id="test">${esc(t('ai.api.test'))}</button></div><div class="test-result" id="tres"></div></div>` +
+      `<section class="prov-models" id="provmodels" aria-label="${esc(T('模型列表', 'Model list'))}"></section>`;
     const $ = id => document.getElementById(id);
-    let modelList = [];
+    let modelList = (saved && (saved.models || []).map(m => m.id)) || [];
     const pop = $('modelpop');
     const drawPop = (filter) => {
       const f = (filter || '').toLowerCase();
@@ -95,13 +108,34 @@
     pop.addEventListener('click', async (e) => {
       const it = e.target.closest('[data-m]'); if (!it) return;
       $('model').value = it.dataset.m; closePop();
-      await window.aib.invoke('settings:patch', { ai: { api: { model: it.dataset.m } } }); toast(); // choosing from the list persists immediately
+      if ($('preset').value === (S.ai.api.preset || 'custom')) { await window.aib.invoke('settings:patch', { ai: { api: { model: it.dataset.m } } }); toast(); } // choosing from the list persists immediately
       $('modelhint').textContent = t('ai.api.modelSaved', { m: it.dataset.m });
     });
     document.addEventListener('click', (e) => { if (!e.target.closest('#combo')) closePop(); });
-    $('preset').onchange = () => { const pr = presets[$('preset').value]; if (pr && $('preset').value !== 'custom') { $('baseUrl').value = pr.baseUrl; $('model').value = pr.model; $('format').value = pr.format; modelList = pr.models || []; } };
+    $('aibody').querySelectorAll('[data-prov]').forEach(b => b.onclick = () => { apiPid = b.dataset.prov; renderApi(); });
+    $('preset').onchange = () => {
+      const v = $('preset').value;
+      if (v === 'local') { apiPid = 'local'; renderApi(); return; }
+      const pr = presets[v]; const sp = (S.ai.providers || {})[v];
+      apiPid = v;
+      if (pr && v !== 'custom') {
+        $('baseUrl').value = (sp && sp.baseUrl) || pr.baseUrl; $('format').value = (sp && sp.format) || pr.format;
+        const en = sp && (sp.models || []).find(m => m.enabled);
+        $('model').value = v === (S.ai.api.preset || 'custom') ? S.ai.api.model : ((en && en.id) || pr.model);
+        modelList = sp && sp.models && sp.models.length ? sp.models.map(m => m.id) : (pr.models || []);
+      } else if (sp) { $('baseUrl').value = sp.baseUrl || ''; $('format').value = sp.format || 'openai'; modelList = (sp.models || []).map(m => m.id); }
+      $('apiKey').placeholder = sp && sp.hasKey ? t('ai.api.keySaved') : 'sk-…';
+      renderProvModels(v, { auto: true });
+    };
     const gather = () => ({ preset: $('preset').value, format: $('format').value, baseUrl: $('baseUrl').value.trim(), apiKey: $('apiKey').value, model: $('model').value.trim(), temperature: parseFloat($('temp').value) || 0 });
-    $('save').onclick = async () => { await window.aib.invoke('settings:patch', { ai: { source: 'api', api: gather() } }); $('apiKey').value = ''; notice($('tres'), 'ok', t('common.saved')); await refresh(); $('activeSrc').textContent = t('ai.src.api'); };
+    $('save').onclick = async () => {
+      const g = gather(); const pid = g.preset || 'custom';
+      const prevP = (S.ai.providers || {})[pid] || {};
+      const keyChanged = !!g.apiKey; const baseChanged = (prevP.baseUrl || '') !== g.baseUrl;
+      await window.aib.invoke('settings:patch', { ai: { source: 'api', api: g } }); $('apiKey').value = ''; notice($('tres'), 'ok', t('common.saved')); await refresh(); $('activeSrc').textContent = t('ai.src.api');
+      // provider saved / key changed: fetch its model list automatically
+      if (keyChanged || baseChanged || !prevP.fetchedAt) renderProvModels(pid, { fetch: true }); else renderProvModels(pid);
+    };
     $('test').onclick = async () => {
       const btn = $('test'); btn.disabled = true;
       $('tres').className = 'save-note block'; $('tres').textContent = t('ai.api.testing');
@@ -119,7 +153,83 @@
       if (modelList.length && !cur) { $('model').value = modelList[0]; }
       notice(res, 'ok', msg, { sticky: true });
       if (modelList.length) { $('modelhint').textContent = t('ai.api.fetched', { n: r.count }) + ' — ' + t('ai.api.pickHint'); openPop(''); }
+      await refresh(); renderProvModels(gather().preset || 'custom');
     };
+    renderProvModels(pidNow, { auto: true });
+  }
+
+  // ---- per-provider model list: auto fetch (official list endpoint) / built-in fallback, enable checkboxes, search, manual IDs
+  let provFilter = '';
+  const ago = (ts) => {
+    const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (s < 60) return T('刚刚', 'just now');
+    if (s < 3600) return T(`${Math.round(s / 60)} 分钟前`, `${Math.round(s / 60)} min ago`);
+    if (s < 86400) return T(`${Math.round(s / 3600)} 小时前`, `${Math.round(s / 3600)} h ago`);
+    return new Date(ts).toLocaleString(I18N.lang === 'en' ? 'en-US' : 'zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
+  };
+  const fmtCtx = (v) => (window.AIBModelPicker ? AIBModelPicker.fmtCtx(v) : String(v || ''));
+  async function renderProvModels(pid, o) {
+    o = o || {};
+    const box = document.getElementById('provmodels'); if (!box) return;
+    const isLocal = pid === 'local';
+    const name = isLocal ? T('本地模型', 'Local models') : ((presets[pid] || {}).name || pid);
+    let list, p = {}, hints = {};
+    if (isLocal) {
+      list = await window.aib.invoke('models:local', !!o.fetch).catch(() => []);
+    } else {
+      p = (S.ai.providers || {})[pid] || {};
+      const stale = !p.fetchedAt || (Date.now() - p.fetchedAt > 24 * 3600e3);
+      const canFetch = p.hasKey || ['ollama', 'openrouter', 'custom'].includes(pid) || (pid === (S.ai.api.preset || 'custom') && S.ai.api.hasKey);
+      if (o.fetch || (o.auto && stale && canFetch && !o._fetched)) {
+        box.innerHTML = `<div class="pm-head"><h3>${esc(T('模型列表', 'Models'))} · ${esc(name)}</h3></div><div class="pm-status">${esc(T('正在从服务商获取模型列表…', 'Fetching the model list from the provider…'))}</div>`;
+        let r; try { r = await window.aib.invoke('models:refresh', pid); } catch (e) { r = { ok: false, error: e.message }; }
+        await refresh();
+        if (apiPid !== pid) return;
+        return renderProvModels(pid, { _fetched: true, result: r });
+      }
+      list = p.models || [];
+      hints = await window.aib.invoke('models:hints', pid).catch(() => ({})) || {};
+    }
+    const total = list.length, on = list.filter(m => m.enabled).length;
+    let status = '';
+    if (isLocal) status = T('已下载的内置模型与正在运行的本地框架中的模型。', 'Downloaded built-in models and models from running local frameworks.');
+    else if (p.listSource === 'api') status = T(`已从服务商接口获取 · ${ago(p.fetchedAt)}`, `Fetched from the provider · ${ago(p.fetchedAt)}`) + (p.filtered ? T(` · 已隐藏 ${p.filtered} 个非对话模型`, ` · ${p.filtered} non-chat models hidden`) : '') + (p.listError ? T(`。最近一次更新未成功：${p.listError}`, `. The last refresh failed: ${p.listError}`) : '');
+    else if (p.listSource === 'builtin') status = T('内置推荐列表', 'Built-in list') + (p.listError ? T(`（${p.listError}）`, ` (${p.listError})`) : '') + T('。您仍可手动添加模型 ID。', '. You can still add model IDs manually.');
+    else status = T('尚未获取模型列表。保存 API Key 后将自动获取，也可点击“自动获取模型”。', 'The model list has not been fetched yet. It is fetched after you save an API key, or click “Fetch models”.');
+    const f = provFilter.trim().toLowerCase();
+    const shown = list.filter(m => !f || (m.id + ' ' + (m.name || '')).toLowerCase().includes(f));
+    const chip = (txt, cls, title) => `<span class="pm-chip${cls ? ' ' + cls : ''}"${title ? ` title="${esc(title)}"` : ''}>${esc(txt)}</span>`;
+    const rows = shown.map(m => {
+      const tk = hints[m.id] || [];
+      const chips = [
+        m.vision ? chip(T('视觉', 'Vision')) : '',
+        m.reasoning ? chip(T('思考', 'Thinking')) : '',
+        m.ctx ? chip(fmtCtx(m.ctx), '', T('上下文长度', 'Context length')) : '',
+        tk.length ? chip(T('思考参数', 'Thinking params'), 'pm-think', tk.join(', ')) : '',
+        m.manual ? chip(T('手动添加', 'Manual'), 'pm-manual') : '',
+        m.builtin ? chip(T('内置', 'Built-in'), 'pm-manual') : '',
+        m.stale ? chip(T('服务商列表中已不存在', 'No longer listed'), 'pm-warn') : ''
+      ].join('');
+      const rm = (m.manual || m.stale) && !isLocal ? `<button type="button" class="pm-rm" data-rm="${esc(m.id)}" title="${esc(T('移除', 'Remove'))}" aria-label="${esc(T('移除', 'Remove'))} ${esc(m.id)}">×</button>` : '';
+      return `<label class="pm-row"><input type="checkbox" data-mid="${esc(m.id)}" ${m.enabled ? 'checked' : ''}/><span class="pm-id">${esc(m.name || m.id)}${m.name && m.name !== m.id ? `<small>${esc(m.id)}</small>` : ''}</span><span class="pm-chips">${chips}</span>${rm}</label>`;
+    }).join('');
+    box.innerHTML = `<div class="pm-head"><h3>${esc(T('模型列表', 'Models'))} · ${esc(name)}</h3><button type="button" class="btn-secondary" id="pmfetch">${esc(isLocal ? T('重新检测', 'Detect again') : T('自动获取模型', 'Fetch models'))}</button></div>
+      <div class="pm-status${p.listError && p.listSource !== 'api' ? ' warn' : ''}" id="pmstatus">${esc(status)}${!isLocal && p.listUrl ? ` <code>${esc(p.listUrl)}</code>` : ''}</div>
+      <div class="pm-tools"><input id="pmq" type="search" placeholder="${esc(T('搜索模型', 'Search models'))}" value="${esc(provFilter)}" autocomplete="off" spellcheck="false"/><button type="button" class="btn-secondary" id="pmall">${esc(T('全选', 'Select all'))}</button><button type="button" class="btn-secondary" id="pmnone">${esc(T('全不选', 'Select none'))}</button><span class="pm-count" id="pmcount">${esc(T(`已启用 ${on} / 共 ${total}`, `${on} of ${total} enabled`))}</span></div>
+      <div class="pm-list" id="pmlist">${rows || `<div class="pm-empty">${esc(total ? T('未找到匹配的模型', 'No matching models') : (isLocal ? T('暂无可用的本地模型。', 'No local models available.') : T('暂无模型。', 'No models yet.')))}</div>`}</div>
+      ${isLocal ? '' : `<div class="pm-add"><input id="pmadd" placeholder="${esc(T('手动添加模型 ID，例如 gpt-4o-mini', 'Add a model ID manually, e.g. gpt-4o-mini'))}" autocomplete="off" spellcheck="false"/><button type="button" class="btn-secondary" id="pmaddbtn">${esc(T('添加', 'Add'))}</button></div>`}
+      <div class="hint">${esc(T('仅勾选的模型会出现在首页与对话页的模型切换器中。', 'Only checked models appear in the model switcher on the home and chat pages.'))}</div>`;
+    const $ = id => document.getElementById(id);
+    $('pmfetch').onclick = () => renderProvModels(pid, { fetch: true });
+    $('pmq').oninput = (e) => { provFilter = e.target.value; const pos = e.target.selectionStart; renderProvModels(pid).then(() => { const q = $('pmq'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch {} } }); };
+    const setEn = async (ids, v) => { if (!ids.length) return; await window.aib.invoke('models:setEnabled', pid, ids, v); await refresh(); toast(); renderProvModels(pid); };
+    $('pmall').onclick = () => setEn(shown.filter(m => !m.enabled).map(m => m.id), true);
+    $('pmnone').onclick = () => setEn(shown.filter(m => m.enabled).map(m => m.id), false);
+    box.querySelectorAll('[data-mid]').forEach(cb => cb.onchange = () => setEn([cb.dataset.mid], cb.checked));
+    box.querySelectorAll('[data-rm]').forEach(b => b.onclick = async (e) => { e.preventDefault(); await window.aib.invoke('models:remove', pid, b.dataset.rm); await refresh(); toast(); renderProvModels(pid); });
+    const add = async () => { const v = $('pmadd').value.trim(); if (!v) return; await window.aib.invoke('models:add', pid, v); await refresh(); toast(); renderProvModels(pid); };
+    if ($('pmaddbtn')) { $('pmaddbtn').onclick = add; $('pmadd').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }; }
+    if (o.result && !o.result.ok && o.result.error) notice($('pmstatus'), 'bad', T('获取失败：', 'Fetch failed: ') + o.result.error + (o.result.keptCache ? T('。已保留上次获取的列表。', '. The previous list is kept.') : T('。已改用内置推荐列表。', '. Showing the built-in list.')), { sticky: true });
   }
   // Local models. Selecting a model (radio / whole card) is independent from downloading it:
   //  - the selection is stored immediately (settings.ai.local.modelId + modelPath = expected file location);
