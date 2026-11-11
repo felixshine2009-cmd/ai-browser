@@ -86,6 +86,9 @@ jobs:
           rm -rf Payload
           mkdir Payload
           cp -R "$APP" "Payload/$(basename "$APP")"
+          VER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "Payload/$(basename "$APP")/Info.plist")
+          echo "CFBundleShortVersionString=$VER"
+          if [[ "${GITHUB_REF_NAME:-}" == ipad-v* ]] && [[ "$VER" != "${GITHUB_REF_NAME#ipad-v}" ]]; then echo "version $VER does not match tag $GITHUB_REF_NAME"; exit 1; fi
           zip -r AI-Browser-iPad-unsigned.ipa Payload
           ls -lh AI-Browser-iPad-unsigned.ipa
           unzip -l AI-Browser-iPad-unsigned.ipa | tail -1

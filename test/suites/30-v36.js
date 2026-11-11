@@ -175,9 +175,9 @@ module.exports = async ({ test, group, assert, eq }) => {
   });
   await test('版本号与网页缓存名匹配，网页把桌面功能标灰', () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
-    eq(pkg.version, '5.3.0');
+    eq(pkg.version, '5.4.0');
     const sw = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'sw.js'), 'utf8');
-    assert(sw.includes("aib-web-v2.3.0"));
+    assert(sw.includes("aib-web-v2.4.0"));
     const html = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'index.html'), 'utf8');
     assert(html.includes('data-desktop-only') && html.includes('Siri'));
     const zh = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'js', 'i18n.js'), 'utf8');

@@ -147,9 +147,10 @@ function patchSettings(patch) {
     else patch.ai.api.apiKey = encKey(k);
   }
   delete patch.ai?.api?.hasKey;
-  // switching the active provider without typing a key: use the key saved for that provider (never another provider's key)
-  if (patch.ai && patch.ai.api && patch.ai.api.preset && patch.ai.api.preset !== ((settingsFile.data.ai || {}).api || {}).preset && !('apiKey' in patch.ai.api)) {
-    patch.ai.api.apiKey = ((((settingsFile.data.ai || {}).providers || {})[patch.ai.api.preset]) || {}).apiKey || '';
+  // switching the active provider without typing a key: use the key saved for that provider, if it has one
+  if (patch.ai && patch.ai.api && patch.ai.api.preset && patch.ai.api.preset !== ((settingsFile.data.ai || {}).api || {}).preset && !patch.ai.api.apiKey) {
+    const savedKey = ((((settingsFile.data.ai || {}).providers || {})[patch.ai.api.preset]) || {}).apiKey;
+    if (savedKey) patch.ai.api.apiKey = savedKey;
   }
   if (patch.kb && patch.kb.api) {
     if ('apiKey' in patch.kb.api) { const k = patch.kb.api.apiKey; if (k === '' || k == null) delete patch.kb.api.apiKey; else if (k === '__clear__') patch.kb.api.apiKey = ''; else patch.kb.api.apiKey = encKey(k); }

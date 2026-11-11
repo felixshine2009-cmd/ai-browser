@@ -182,10 +182,10 @@ function registerIpc() {
   handle('models:picker', async (e, sid) => {
     modelsM().detectFw(false).then((l) => { if (l && l.some(f => f.up)) broadcast('models:changed', {}); }).catch(() => {});
     const s = sid ? chat.get(sid) : null;
-    return modelsM().picker({ threadId: s ? (s.threadId || s.sid) : '' });
+    return modelsM().picker({ threadId: s ? (s.threadId || s.sid) : (sid || '') });
   });
   handle('models:select', (e, ref, sid) => {
-    if (sid) { const s = chat.get(sid); if (s) { modelsM().setThreadModel(s.threadId || s.sid, ref); broadcast('models:changed', {}); return modelsM().picker({ threadId: s.threadId || s.sid }); } }
+    if (sid) { const s = chat.get(sid); const tid = s ? (s.threadId || s.sid) : sid; modelsM().setThreadModel(tid, ref); broadcast('models:changed', {}); return modelsM().picker({ threadId: tid }); }
     modelsM().select(ref); modelsChanged(); return modelsM().picker({});
   });
   handle('engines:list', () => store.ENGINES);

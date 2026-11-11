@@ -27,6 +27,8 @@
 **AI & agent**
 * AI agent that drives the browser through a single tool registry: tabs, search, page reading, settings, knowledge base, models, GeoGebra, physics, code patches…
 * Agentic web search with `[n]` citations; chat with your own cloud API key (OpenAI / Anthropic format, presets) or with local models. In chat, web search is the default unless you ask for a tool such as a graph
+* Model lists for each provider: the app fetches the available models from the provider's official list endpoint when you save a key, and again when you press Refresh. If the list cannot be fetched, a clearly labeled built-in list is shown. You can add or remove model IDs by hand, choose which models are enabled (search, select all / none, vision, thinking and context-length hints), and only enabled models appear in the switchers
+* Quick model switcher next to the input on the home page, in chat, in problem solving and in the web version: grouped by provider, searchable and keyboard friendly. In chat, a choice can apply to the current conversation only
 * Answer style (concise or detailed — both stay structured), thinking levels, and a live status line. Tool names stay above the answer
 * Chat titles and a chat history kept apart from browsing history. Follow-ups, especially problem solving, keep the earlier turns
 * Sensitive actions (clearing history, deleting models) always ask for confirmation; passwords are never exposed to the AI
@@ -77,7 +79,7 @@ An unsigned iPad build is available as `AI-Browser-iPad-unsigned.ipa`. It wraps 
 
 The IPA is **unsigned**. Install it by sideloading with a tool such as AltStore or Sideloadly and your own Apple ID. Free Apple Developer accounts must re-sign the app every 7 days.
 
-See the [iPad release](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v1.1.0).
+See the [iPad release](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v1.2.0).
 
 ## Install (recommended)
 
