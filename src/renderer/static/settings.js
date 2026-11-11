@@ -2,7 +2,7 @@
   let S = await I18N.init();
   const root = document.getElementById('root');
   const esc = MD.esc;
-  const NAV = [['ai', 'settings.nav.ai'], ['search', 'settings.nav.search'], ['dict', 'settings.nav.dict'], ['kb', 'settings.nav.kb'], ['ext', 'menu.extensions'], ['history', 'menu.history'], ['passwords', 'settings.nav.passwords'], ['general', 'settings.nav.general'], ['privacy', 'settings.nav.privacy']];
+  const NAV = [['ai', 'settings.nav.ai'], ['search', 'settings.nav.search'], ['dict', 'settings.nav.dict'], ['kb', 'settings.nav.kb'], ['python', 'settings.nav.python'], ['ext', 'menu.extensions'], ['history', 'menu.history'], ['passwords', 'settings.nav.passwords'], ['general', 'settings.nav.general'], ['privacy', 'settings.nav.privacy']];
   // section <-> URL hash (aibrowser://settings#extensions). 'ext' is the internal id, 'extensions' the public hash.
   const hashOf = id => (id === 'ext' ? 'extensions' : id);
   const fromHash = () => { let h = (location.hash || '#ai').slice(1); if (h === 'extensions') h = 'ext'; return NAV.some(n => n[0] === h) ? h : 'ai'; };
@@ -687,7 +687,88 @@
     pane().classList.add('wide');
     embed = window.mountHistory(pane());
   }
-  function renderPane() { leaveEmbed(); ({ ai: renderAI, search: renderSearch, dict: renderDict, kb: renderKb, ext: renderExt, history: renderHistory, passwords: renderPasswords, general: renderGeneral, privacy: renderPrivacy }[cur] || renderAI)(); }
+  // ---------------- Python & Linux VM
+  let vmOff = null;
+  const fmtB = (n) => (n >= 1e9 ? (n / 1e9).toFixed(2) + ' GB' : (n / 1e6).toFixed(0) + ' MB');
+  async function renderPython() {
+    await refresh();
+    const pyS = Object.assign({ engine: 'auto', timeoutSec: 600, index: '' }, S.python || {});
+    const vmS = Object.assign({ memoryMB: 2048, cpus: 2, diskGB: 16 }, S.vm || {});
+    const p = pane();
+    p.innerHTML = `<h2>${esc(T('Python 与 Linux 虚拟机', 'Python & Linux VM'))}</h2>
+      <div class="sub">${esc(T('AI 可以运行 Python 代码完成计算与编程，也可以在内置的 Linux 虚拟机中像使用自己的电脑一样执行命令。', 'The AI can run Python for computation and programming, and use the built-in Linux VM like its own computer.'))}</div>
+      <h3 class="sec-h">${esc(T('Python', 'Python'))}</h3>
+      <div class="form-row"><label>${esc(T('运行环境', 'Runtime'))}</label><div class="hint" id="pyinfo">…</div></div>
+      <div class="form-row"><label>${esc(T('运行位置', 'Run Python in'))}</label><select id="pyeng">
+        <option value="auto" ${pyS.engine === 'auto' ? 'selected' : ''}>${esc(T('自动（虚拟机运行时使用虚拟机，否则使用内置 Python）', 'Auto (the VM when it is running, otherwise built-in Python)'))}</option>
+        <option value="local" ${pyS.engine === 'local' ? 'selected' : ''}>${esc(T('内置 Python', 'Built-in Python'))}</option>
+        <option value="vm" ${pyS.engine === 'vm' ? 'selected' : ''}>${esc(T('Linux 虚拟机', 'Linux VM'))}</option></select></div>
+      <div class="form-row"><label>${esc(T('单次运行时限（秒）', 'Time limit per run (seconds)'))}</label><input type="number" id="pytime" min="5" max="86400" value="${esc(pyS.timeoutSec)}" style="width:120px"/></div>
+      <div class="form-row"><label>${esc(T('软件源', 'Package index'))}</label><select id="pyidx">
+        <option value="" ${!pyS.index ? 'selected' : ''}>PyPI（pypi.org）</option>
+        <option value="https://pypi.tuna.tsinghua.edu.cn/simple" ${/tuna/.test(pyS.index) ? 'selected' : ''}>${esc(T('清华大学镜像', 'Tsinghua mirror'))}</option>
+        <option value="https://mirrors.aliyun.com/pypi/simple/" ${/aliyun/.test(pyS.index) ? 'selected' : ''}>${esc(T('阿里云镜像', 'Aliyun mirror'))}</option></select></div>
+      <div class="form-row"><label>${esc(T('安装库', 'Install a package'))}</label><div class="inline"><input id="pyname" placeholder="${esc(T('例如 seaborn networkx', 'e.g. seaborn networkx'))}" spellcheck="false" style="flex:1"/><button class="btn-primary" id="pyinst">${esc(T('安装', 'Install'))}</button></div><div id="pyres"></div><pre class="run-out" id="pylog" hidden></pre></div>
+      <div class="form-row"><label>${esc(T('已安装的库', 'Installed packages'))}</label><div id="pylist" class="hint">…</div></div>
+      <h3 class="sec-h">${esc(T('Linux 虚拟机', 'Linux VM'))}</h3>
+      <div class="form-row"><label>${esc(T('状态', 'Status'))}</label><div id="vmstat" class="hint">…</div></div>
+      <div class="inline" id="vmbtns"><button class="btn-primary" id="vmstart">${esc(T('启动', 'Start'))}</button><button class="btn-secondary" id="vmstop">${esc(T('关闭', 'Stop'))}</button><button class="btn-secondary" id="vmshare">${esc(T('打开共享文件夹', 'Open shared folder'))}</button><button class="btn-danger" id="vmreset">${esc(T('重置虚拟机', 'Reset VM'))}</button></div><div id="vmres"></div>
+      <div class="form-row"><label>${esc(T('内存', 'Memory'))}：<b id="vmmemv">${vmS.memoryMB} MB</b></label><input type="range" id="vmmem" min="1024" max="8192" step="256" value="${vmS.memoryMB}"/></div>
+      <div class="form-row"><label>${esc(T('处理器核心', 'CPU cores'))}：<b id="vmcpuv">${vmS.cpus}</b></label><input type="range" id="vmcpu" min="1" max="8" step="1" value="${vmS.cpus}"/></div>
+      <div class="form-row"><label>${esc(T('磁盘上限（GB）', 'Disk limit (GB)'))}：<b id="vmdiskv">${vmS.diskGB}</b></label><input type="range" id="vmdisk" min="8" max="128" step="4" value="${vmS.diskGB}"/><div class="hint">${esc(T('内存、核心与磁盘设置在下次启动虚拟机时生效；磁盘只会按需占用实际空间。', 'Memory, cores and disk take effect at the next VM start; the disk only uses space as needed.'))}</div></div>`;
+    const $ = (id) => document.getElementById(id);
+    $('pyeng').onchange = async (e) => { await window.aib.invoke('settings:patch', { python: { engine: e.target.value } }); toast(); };
+    $('pytime').onchange = async (e) => { const v = Math.max(5, Math.min(86400, Number(e.target.value) || 600)); e.target.value = v; await window.aib.invoke('settings:patch', { python: { timeoutSec: v } }); toast(); };
+    $('pyidx').onchange = async (e) => { await window.aib.invoke('settings:patch', { python: { index: e.target.value } }); toast(); };
+    const loadPy = async () => {
+      const i = await window.aib.invoke('py:info');
+      $('pyinfo').textContent = (i.bundled ? T('内置 Python ', 'Built-in Python ') : T('系统 Python ', 'System Python ')) + (i.version || '') + ' · ' + i.executable;
+      const rows = i.packages || [];
+      $('pylist').innerHTML = rows.length ? `<table class="pkg-table"><tbody>${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.version)}</td><td>${r.location === 'bundled' ? esc(T('内置', 'Built-in')) : `<button class="btn-secondary pkg-rm" data-rm="${esc(r.name)}">${esc(T('卸载', 'Uninstall'))}</button>`}</td></tr>`).join('')}</tbody></table>` : esc(T('暂无', 'None'));
+      p.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
+        const name = b.dataset.rm;
+        const ok = await window.AIBConfirm.ask({ title: T('卸载 Python 库？', 'Uninstall package?'), message: T(`将卸载「${name}」。`, `Uninstall "${name}".`), confirmText: T('确认卸载', 'Uninstall') });
+        if (!ok) return; b.disabled = true;
+        const r = await window.aib.invoke('py:uninstall', name);
+        notice($('pyres'), r.ok ? 'ok' : 'bad', r.ok ? T(`已卸载「${name}」`, `Uninstalled ${name}`) : (r.error || T('卸载失败', 'Uninstall failed')));
+        loadPy();
+      });
+    };
+    $('pyinst').onclick = async () => {
+      const v = $('pyname').value.trim(); if (!v) return;
+      $('pyinst').disabled = true; notice($('pyres'), 'ok', T('正在安装，请稍候…', 'Installing…'), { sticky: true });
+      const r = await window.aib.invoke('py:install', v.split(/[\s,]+/));
+      $('pyinst').disabled = false;
+      $('pylog').hidden = !r.output; $('pylog').textContent = r.output || '';
+      notice($('pyres'), r.ok ? 'ok' : 'bad', r.ok ? T('安装完成：', 'Installed: ') + (r.packages || []).join(', ') : (r.error || T('安装失败', 'Install failed')));
+      if (r.ok) $('pyname').value = '';
+      loadPy();
+    };
+    const PH = { stopped: T('未运行', 'Stopped'), preparing: T('正在准备…', 'Preparing…'), downloading: T('正在下载镜像…', 'Downloading image…'), booting: T('正在启动…', 'Starting…'), running: T('运行中', 'Running'), stopping: T('正在关闭…', 'Stopping…'), error: T('出错', 'Error') };
+    const showVm = (s) => {
+      if (!$('vmstat')) return;
+      if (!s.supported) { $('vmstat').textContent = T('此设备不支持内置 Linux 虚拟机（需要 Apple Silicon Mac，macOS 12 或更高版本）。', 'The built-in Linux VM needs an Apple Silicon Mac with macOS 12 or later.'); $('vmbtns').querySelectorAll('button').forEach(b => { if (b.id !== 'vmshare') b.disabled = true; }); return; }
+      let txt = PH[s.phase] || s.phase;
+      if (s.phase === 'downloading' && s.progress && s.progress.total) txt += ` ${Math.round(100 * s.progress.got / s.progress.total)}%（${fmtB(s.progress.got)} / ${fmtB(s.progress.total)}）`;
+      if (s.phase === 'running' && s.info) txt += ` · Linux ${s.info.kernel} · Python ${s.info.python}` + (s.info.ip ? ` · IP ${s.info.ip}` : '');
+      txt += ' · ' + T('磁盘占用 ', 'Disk used ') + (s.diskBytes ? fmtB(s.diskBytes) : T('尚未下载镜像（首次启动约需下载 220 MB）', 'image not downloaded yet (about 220 MB on first start)'));
+      if (s.error) txt += '\n' + T('原因：', 'Reason: ') + s.error;
+      $('vmstat').textContent = txt; $('vmstat').style.whiteSpace = 'pre-wrap';
+      const busy = ['preparing', 'downloading', 'booting', 'stopping'].includes(s.phase);
+      $('vmstart').disabled = busy || s.phase === 'running'; $('vmstop').disabled = busy || s.phase !== 'running'; $('vmreset').disabled = busy;
+    };
+    showVm(await window.aib.invoke('vm:status'));
+    if (vmOff) vmOff(); vmOff = window.aib.on('vm:state', (s) => { if (cur === 'python') showVm(s); });
+    $('vmstart').onclick = async () => { $('vmstart').disabled = true; const r = await window.aib.invoke('vm:start'); showVm(r.status); notice($('vmres'), r.ok ? 'ok' : 'bad', r.ok ? T('Linux 虚拟机已就绪', 'The Linux VM is ready') : (r.error || T('启动失败', 'Failed to start'))); };
+    $('vmstop').onclick = async () => { const r = await window.aib.invoke('vm:stop'); showVm(r.status); notice($('vmres'), 'ok', T('Linux 虚拟机已关闭', 'The Linux VM has stopped')); };
+    $('vmreset').onclick = async () => { const r = await window.aib.invoke('vm:reset'); if (r.declined) return; showVm(r.status); notice($('vmres'), 'ok', T('虚拟机已重置', 'The VM has been reset')); };
+    $('vmshare').onclick = () => window.aib.invoke('vm:openShare');
+    const slider = (id, lab, key, unit) => { const el = $(id); el.oninput = () => { $(lab).textContent = el.value + (unit || ''); }; el.onchange = async () => { await window.aib.invoke('settings:patch', { vm: { [key]: Number(el.value) } }); toast(); }; };
+    slider('vmmem', 'vmmemv', 'memoryMB', ' MB'); slider('vmcpu', 'vmcpuv', 'cpus'); slider('vmdisk', 'vmdiskv', 'diskGB');
+    loadPy();
+  }
+
+  function renderPane() { leaveEmbed(); ({ python: renderPython, ai: renderAI, search: renderSearch, dict: renderDict, kb: renderKb, ext: renderExt, history: renderHistory, passwords: renderPasswords, general: renderGeneral, privacy: renderPrivacy }[cur] || renderAI)(); }
   window.addEventListener('hashchange', () => { const n = fromHash(); if (n === cur) return; cur = n; shell(); renderPane(); });
   document.title = t('settings.title');
   shell(); renderPane();

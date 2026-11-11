@@ -36,6 +36,23 @@ jobs:
           print('copied', src, '->', dst)
           PY
 
+      - name: Embed the Linux VM (v86 + Alpine Linux) into www/vm
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VM_RELEASE: v5.3.0
+        run: |
+          set -euo pipefail
+          gh release download "$VM_RELEASE" -p 'linux-vm-x86-v86.tar.gz' -D /tmp
+          tar -C mobile/www -xzf /tmp/linux-vm-x86-v86.tar.gz
+          test -f mobile/www/vm/manifest.json
+          du -sh mobile/www/vm
+          cat mobile/www/vm/manifest.json
+
+      - name: Smoke-test the embedded Linux VM (boots in v86, runs Python)
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node scripts/v86-smoke.cjs mobile/www/vm
+
       - name: Install Capacitor dependencies
         working-directory: mobile
         run: npm ci
@@ -68,7 +85,7 @@ jobs:
           cp -R "$APP" "Payload/$(basename "$APP")"
           zip -r AI-Browser-iPad-unsigned.ipa Payload
           ls -lh AI-Browser-iPad-unsigned.ipa
-          unzip -l AI-Browser-iPad-unsigned.ipa | head -40
+          unzip -l AI-Browser-iPad-unsigned.ipa | tail -1
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4

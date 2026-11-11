@@ -259,6 +259,27 @@ function registerIpc() {
   // chat
   handle('chat:attach', (e, sid) => chat.attach(sid, e.sender.id));
   handle('chat:cancel', (e, sid) => chat.cancel(sid));
+  handle('chat:stopTool', (e, stepId) => require('./ai/agent').stopStep(stepId));
+  // ---- embedded Python + Linux VM (settings page)
+  const pyMod = () => require('./python');
+  const vmMod = () => require('./vm');
+  handle('py:info', () => Object.assign(pyMod().info(), { packages: pyMod().list() }));
+  handle('py:install', async (e, names) => { try { return await pyMod().install(names); } catch (err) { return { ok: false, error: String(err.message || err) }; } });
+  handle('py:uninstall', async (e, name) => { try { return await pyMod().uninstall(name); } catch (err) { return { ok: false, error: String(err.message || err) }; } });
+  handle('py:resetSessions', () => { pyMod().stopAll(); return { ok: true }; });
+  handle('vm:status', () => vmMod().status());
+  handle('vm:start', async () => { try { return { ok: true, status: await vmMod().start() }; } catch (err) { return { ok: false, error: String(err.message || err), status: vmMod().status() }; } });
+  handle('vm:stop', async () => ({ ok: true, status: await vmMod().stop() }));
+  handle('vm:reset', async () => {
+    const ok = await require('./confirm').ask({ host: 'settings', danger: true, title: { zh: '重置 Linux 虚拟机？', en: 'Reset the Linux VM?' },
+      message: { zh: '虚拟机磁盘中的所有文件和已安装的软件都会被删除，下次启动时将重新准备系统镜像。共享文件夹中的文件会保留。', en: 'All files and installed software on the VM disk will be deleted; the system image is prepared again on next start. Files in the shared folder are kept.' },
+      detail: { zh: '此操作无法撤销。', en: 'This cannot be undone.' }, confirmText: { zh: '确认重置', en: 'Reset' } });
+    if (!ok) return { ok: false, declined: true, status: vmMod().status() };
+    return { ok: true, status: await vmMod().reset() };
+  });
+  handle('vm:openShare', () => { const d = vmMod().dirs().share; require('fs').mkdirSync(d, { recursive: true }); require('electron').shell.openPath(d); return { ok: true, path: d }; });
+  handle('vm:ping', async () => { try { return { ok: true, info: await vmMod().ping() }; } catch (err) { return { ok: false, error: String(err.message || err) }; } });
+  try { vmMod().events.on('state', (s) => broadcast('vm:state', s)); } catch (err) { console.error('vm events', err.message); }
   handle('chat:rerun', (e, sid, queries) => chat.rerun(sid, queries));
   handle('chat:aiEntry', async (e, word) => chat.aiEntry(word));
   handle('panel:reply', (e, reqId, result, error) => { const p = panelPending.get(reqId); if (!p) return; panelPending.delete(reqId); error ? p.reject(new Error(error)) : p.resolve(result); });
@@ -654,5 +675,5 @@ if (!gotLock) { app.quit(); } else {
     app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) tabsMod.createWindow(); });
   });
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-  app.on('before-quit', () => store.flushAll());
+  app.on('before-quit', () => { store.flushAll(); try { require('./python').stopAll(); } catch {} try { require('./vm').shutdownSync(); } catch {} });
 }

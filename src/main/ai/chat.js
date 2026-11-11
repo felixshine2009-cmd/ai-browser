@@ -63,7 +63,7 @@ async function run(s) {
   try { await run0(s); } finally { llm.events.off('notice', onNotice); }
 }
 async function run0(s) {
-  const ctx = { wcId: s.wcId, sid: s.sid };
+  const ctx = { wcId: s.wcId, sid: s.sid, threadId: s.threadId || s.sid };
   let cl = s.kindOverride ? { kind: s.kindOverride, word: s.input } : classify(s.input);
   if (cl.kind === 'word' && cl.phrase) {
     // multi-word candidate: only treat as dictionary phrase if a handler finds it

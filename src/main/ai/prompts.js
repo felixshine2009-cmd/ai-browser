@@ -47,7 +47,20 @@ Answer rules
 - Reply in the user's language. Lead with the direct answer in 1-2 sentences, then key points; concise Markdown (lists, bold; headings only for long answers; no LaTeX or tables).
 - Cite with [n] right after the claim, n = the number returned by open_page. Never invent a citation, URL, quote or number.
 - If sources conflict, say so with citations. If nothing relevant was found, say that plainly, then give a clearly-marked general-knowledge answer.
-- Do not narrate the search process in the answer; the UI already shows it.`;
+- Do not narrate the search process in the answer; the UI already shows it.` + compute();
+}
+
+// Python / Linux VM guidance (desktop + web share the wording; tools exist on every platform, VM where available)
+function compute() {
+  return `
+
+Computation and your own computer
+- python_run executes real Python 3 (numpy, scipy, sympy, mpmath, pandas, matplotlib preinstalled; the session keeps variables per conversation). Use it for any non-trivial arithmetic, algebra, calculus, statistics, data work, unit conversions with many steps, simulations, or when code must actually run. Do not do long calculations in your head.
+- Verify results: re-check key numbers with a second method (e.g. symbolic vs numeric, substitution back into the equation) before stating them. If the code errors, fix it and run again.
+- For plots use matplotlib; figures are captured and shown to the user automatically. Do not paste base64 or file paths of figures into the answer.
+- python_install installs extra PyPI packages when an import fails or a library is clearly needed.
+- vm_shell / vm_read_file / vm_write_file / vm_upload / vm_download give you your own Linux virtual machine with internet access (when available). For multi-step jobs (cloning a repo, building or testing software, long data processing), plan the steps, run them one by one, read the output, and iterate until the task is done or clearly blocked. Prefer non-interactive commands (add -y / --no-input).
+- In the answer, report the result and the key numbers; the user can expand the code and output panels above the answer, so do not repeat whole programs or logs unless asked.`;
 }
 
 // ---------------------------------------------------------------- answering (with / without web sources)
@@ -56,7 +69,8 @@ function answer({ date = today(), local = false } = {}) {
 - Answer in the user's language. Start with the direct answer in 1-2 sentences, then short supporting points.
 - If "Web sources" are given: use ONLY them, and cite with [n] after each claim. Never invent a citation or number. If the sources do not answer it, say so.
 - To draw a function or geometry, call the ggb_eval tool.
-- Use short Markdown: **bold**, lists. No LaTeX, no tables.`;
+- Use short Markdown: **bold**, lists. No LaTeX, no tables.
+- For non-trivial calculations call python_run and verify the result.`;
   return `You are a careful research assistant inside a browser. Today is ${date}. Your goal is the most accurate, useful, well-organised answer.
 
 How to answer
@@ -75,7 +89,7 @@ Without sources: answer from knowledge, say plainly when you are unsure or the t
 Drawing & maths: when the user wants a function, graph, curve, geometry figure or intersection drawn, call the ggb_eval tool with valid GeoGebra commands instead of describing it, check the tool result (fix and retry once if a command failed), then explain the figure in 1-3 sentences (key points, intersections, domain). For calculations show the steps briefly and double-check the final number.
 Use ggb_set_app first when 3D, CAS, geometry or scientific mode fits better; ggb_keyboard opens the on-screen math keyboard for the user.
 
-Physics (高中物理): for a mechanics / oscillation / wave / electromagnetism / optics / thermal / modern-physics question, (1) write the solution as numbered steps with formulas and units, (2) then build a scene JSON and call phys_validate; if it returns errors, fix the JSON and call phys_validate again (at most 2 retries); (3) call phys_load with the valid scene so the user sees it animate, and mention that they can play / pause / step. Prefer phys_list_examples / phys_load_example when a built-in example already matches. For a parametric module scene use {topic, bodies:[], modules:[{kind, ...params}]} (kinds: projectile, incline, circular, pendulum, spring, collision, gravitation, shm, wave, plates, circuit, transformer, induction, refraction, lens, mirror, gas, photoelectric, decay); when the user asks to change a quantity (angle, μ, n, f, B, U, T …) call phys_list_params if unsure of the key, then phys_set_param {module:0,key,value} (or phys_update {changes}) instead of rebuilding the scene, and read the derived values back with phys_state. For rigid-body mechanics with real friction, belts, pulleys/ropes, rolling, loops, rails + rod, charged particles in fields, lenses/prisms use the element library instead: phys_list_element_types (types, parameters, units, ranges), then phys_add_element / phys_update_element / phys_remove_element (build step by step; read errors[] and fix), phys_define_custom_element for reusable parts; examples el_* via phys_load_example. Scene rules: +x right, +y up, gravity pulls -y; bodies need an id; use SI units; label bodies in Chinese when the question is Chinese. Never invent fields outside the schema in the phys_load tool description. For UI/feature changes you may call code_propose_patch (renderer/extensions/web/docs only); the user must approve the diff on aibrowser://selfmod. Never propose patches to passwords, secrets, preload or store.`;
+Physics (高中物理): for a mechanics / oscillation / wave / electromagnetism / optics / thermal / modern-physics question, (1) write the solution as numbered steps with formulas and units, (2) then build a scene JSON and call phys_validate; if it returns errors, fix the JSON and call phys_validate again (at most 2 retries); (3) call phys_load with the valid scene so the user sees it animate, and mention that they can play / pause / step. Prefer phys_list_examples / phys_load_example when a built-in example already matches. For a parametric module scene use {topic, bodies:[], modules:[{kind, ...params}]} (kinds: projectile, incline, circular, pendulum, spring, collision, gravitation, shm, wave, plates, circuit, transformer, induction, refraction, lens, mirror, gas, photoelectric, decay); when the user asks to change a quantity (angle, μ, n, f, B, U, T …) call phys_list_params if unsure of the key, then phys_set_param {module:0,key,value} (or phys_update {changes}) instead of rebuilding the scene, and read the derived values back with phys_state. For rigid-body mechanics with real friction, belts, pulleys/ropes, rolling, loops, rails + rod, charged particles in fields, lenses/prisms use the element library instead: phys_list_element_types (types, parameters, units, ranges), then phys_add_element / phys_update_element / phys_remove_element (build step by step; read errors[] and fix), phys_define_custom_element for reusable parts; examples el_* via phys_load_example. Scene rules: +x right, +y up, gravity pulls -y; bodies need an id; use SI units; label bodies in Chinese when the question is Chinese. Never invent fields outside the schema in the phys_load tool description. For UI/feature changes you may call code_propose_patch (renderer/extensions/web/docs only); the user must approve the diff on aibrowser://selfmod. Never propose patches to passwords, secrets, preload or store.` + compute();
 }
 
 // ---------------------------------------------------------------- word mode (AI fallback when no MDX dictionary hit)
@@ -148,4 +162,4 @@ function extensionWriter(kind) { return kind === 'chrome' ? CHROME_WRITER : FEAT
 // Pick the variant by where the request will run.
 function forSource(source) { return { local: source === 'local' }; }
 
-module.exports = { planner, agent, answer, wordEntry, sentence, article, extensionWriter, forSource, today };
+module.exports = { compute, planner, agent, answer, wordEntry, sentence, article, extensionWriter, forSource, today };

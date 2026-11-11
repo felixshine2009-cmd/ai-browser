@@ -225,6 +225,7 @@ const BUILTIN = [
 
 ];
 try { for (const t of require('../v36/extra-tools')) BUILTIN.push(t); } catch (e) { console.error('v36 tools', e.message); }
+try { for (const t of require('./compute-tools').TOOLS) BUILTIN.push(t); } catch (e) { console.error('compute tools', e.message); }
 
 // Declared here so every provider sees the same list; executed by agent.js with the page board.
 const WEB = [
@@ -254,9 +255,11 @@ async function call(name, args, ctx) {
 function summarize(name, args, result) {
   const j = (v) => String(typeof v === 'string' ? v : JSON.stringify(v));
   const a = args || {};
-  const key = a.url || a.query || a.word || a.page || a.text || a.sentence || a.id || (a.commands && a.commands.length + ' cmd') || (a.scene && 'scene') || '';
+  const firstLine = (c) => String(c || '').split('\n').map(x => x.trim()).filter(x => x && !x.startsWith('#') && !/^(import|from) /.test(x))[0] || String(c || '').split('\n')[0];
+  const key = (a.code && firstLine(a.code)) || a.command || (Array.isArray(a.packages) && a.packages.join(' ')) || a.path || a.url || a.query || a.word || a.page || a.text || a.sentence || a.id || (a.commands && a.commands.length + ' cmd') || (a.scene && 'scene') || '';
   let tail = '';
-  if (result && result.error) tail = ' ✕ ' + j(result.error).slice(0, 80);
+  if (result && result.error) tail = ' ✕ ' + j(result.error).split('\n').filter(Boolean).slice(-1)[0].slice(0, 80);
+  else if (result && typeof result.exitCode === 'number' && result.exitCode !== 0) tail = ' ✕ exit ' + result.exitCode;
   return (name + (key !== '' ? ' · ' + j(key).replace(/\s+/g, ' ').slice(0, 48) : '')) + tail;
 }
 

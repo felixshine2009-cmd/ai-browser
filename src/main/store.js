@@ -22,6 +22,8 @@ const DEFAULTS = {
   translate: { engine: 'hunyuan' }, // 'hunyuan' (bundled HY-MT, loaded only while translating) | 'chat' (current chat model)
   kb: { source: 'builtin', api: { baseUrl: '', apiKey: '', model: '' } }, // knowledge base embeddings
   agent: { maxSteps: 12 },
+  python: { engine: 'auto', timeoutSec: 600, index: '' }, // engine: auto (VM when running, else embedded) | local | vm
+  vm: { memoryMB: 2048, cpus: 2, diskGB: 16 },
   answerStyle: 'detailed',
   thinkingLevel: 'medium',
   workMode: 'chat',

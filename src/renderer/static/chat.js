@@ -7,6 +7,7 @@
   const esc = MD.esc;
   const st = { kind: null, input: '', answer: '', sources: [], cites: {}, tools: [], queries: [], pages: [], done: false, error: null, direct: false, phase: 'init', pngs: [] };
   let els = {};
+  let runs = null;
   let renderQueued = false;
 
   const SPARK_Q = '';
@@ -20,7 +21,7 @@
     qbar.innerHTML = `<div class="q selectable" id="q"></div><div class="ai-label" id="qlabel" style="margin-top:8px;display:none"></div><div class="query-rewrites" id="rewrites"></div>`;
     const body = el('div', 'ai-body');
     const main = el('div', 'ai-main');
-    main.innerHTML = `<div class="ai-label" id="alabel"></div><div id="status" class="status-line"></div><div id="thinking" class="thinking-box"></div><div id="toolsrow"></div><div id="trace" class="trace"></div><div class="ai-answer selectable" id="answer"></div><div id="pngs"></div><div id="err"></div>`;
+    main.innerHTML = `<div class="ai-label" id="alabel"></div><div id="status" class="status-line"></div><div id="thinking" class="thinking-box"></div><div id="toolsrow"></div><div id="trace" class="trace"></div><div id="runs" class="runs"></div><div class="ai-answer selectable" id="answer"></div><div id="figs" class="run-figs"></div><div id="pngs"></div><div id="err"></div>`;
     const side = el('div', 'ai-side');
     side.style.display = 'none';
     side.innerHTML = `<div class="ai-label" id="plabel"></div><div class="pages-read" id="pages"></div><div class="ai-label" id="slabel"></div><div id="sources"></div>`;
@@ -30,6 +31,8 @@
     page.append(qbar, body, follow);
     root.appendChild(page);
     els = { q: qs('q'), qlabel: qs('qlabel'), rewrites: qs('rewrites'), alabel: qs('alabel'), status: qs('status'), trace: qs('trace'), answer: qs('answer'), toolsrow: qs('toolsrow'), pngs: qs('pngs'), err: qs('err'), side, plabel: qs('plabel'), pages: qs('pages'), slabel: qs('slabel'), sources: qs('sources'), body, main, followq: qs('followq') };
+    els.runs = qs('runs'); els.figs = qs('figs');
+    runs = window.RunPanels ? RunPanels.create(els.runs, els.figs, { lang: () => I18N.lang, onStop: (id) => window.aib.invoke('chat:stopTool', id) }) : null;
     els.q.textContent = st.input;
     els.alabel.textContent = t('chat.answer');
     els.plabel.textContent = t('chat.pagesRead');
@@ -95,9 +98,10 @@
       case 'page-update': { const p = st.pages.find(x => x.n === ev.n); if (p) { p.status = ev.status; if (ev.title) p.title = ev.title; renderPages(); } break; }
       case 'sources': st.sources = ev.sources; st.cites = {}; ev.sources.forEach(s => st.cites[s.n] = s); renderSources(); setStatus(t('chat.generating')); break;
       case 'answer-delta': st.answer += ev.text; setStatus(''); queueRender(); break;
-      case 'tool-step': traceStep(ev); break;
+      case 'tool-step': if (!(runs && runs.step(ev))) traceStep(ev); break;
+      case 'tool-stream': if (runs) runs.stream(ev); break;
       case 'notice': if (els.trace) { const d = el('div', 'trace-line notice'); d.textContent = ev.text; els.trace.appendChild(d); } break;
-      case 'tool': st.tools.push(ev); renderTools(); if (ev.name === 'ggb_eval' || ev.name === 'ggb_clear' || ev.name === 'ggb_export_png') ensurePlotLayout(); break;
+      case 'tool': st.tools.push(ev); renderTools(); if (runs) runs.tool(ev); if (ev.name === 'ggb_eval' || ev.name === 'ggb_clear' || ev.name === 'ggb_export_png') ensurePlotLayout(); break;
       case 'handler-result': renderHandlerResult(ev); break;
       case 'ai-entry-pending': els.dwrap.innerHTML = `<div class="status-line" style="padding:0 40px">${esc(t('dict.aiGenerating'))}</div>`; break;
       case 'ai-entry': {
@@ -180,7 +184,7 @@
   }
   function renderTools() {
     if (!els.toolsrow) return;
-    const short = (a) => { try { const c = a && a.commands; return c ? c.join('; ') : JSON.stringify(a || {}); } catch { return ''; } };
+    const short = (a) => { try { if (a && a.code) return String(a.code).split('\n').find(l => l.trim() && !/^\s*(#|import |from )/.test(l)) || '…'; if (a && a.command) return a.command; if (a && a.packages) return [].concat(a.packages).join(' '); if (a && a.path) return a.path; const c = a && a.commands; return c ? c.join('; ') : JSON.stringify(a || {}); } catch { return ''; } };
     els.toolsrow.innerHTML = `<div class="tools-row"><span>${esc(t('chat.toolsUsed'))}</span> ` + st.tools.map(x => `<span class="tool-chip ${x.error ? 'err' : ''}" title="${esc(x.error || '')}">${esc(x.name)}(${esc(short(x.args).slice(0, 80))})</span>`).join('') + '</div>';
   }
 

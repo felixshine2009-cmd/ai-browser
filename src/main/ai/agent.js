@@ -138,28 +138,48 @@ async function runPipeline(s, ctx, D, queries, direct) {
 
 // Run ONE registry tool with UI trace events (tool-step run/ok/error) and uniform error handling.
 let stepSeq = 0;
+const COMPUTE = /^(python_|vm_)/;
+const stepAborts = new Map(); // step id -> AbortController (per-tool stop button)
+function stopStep(id) { const ac = stepAborts.get(Number(id)); if (ac) { ac.abort(); return true; } return false; }
 async function runTool(s, emit, name, args, ctx) {
   const id = ++stepSeq;
+  const ac = new AbortController(); stepAborts.set(id, ac);
+  const onParent = () => ac.abort(); if (s.ac) { if (s.ac.signal.aborted) ac.abort(); else s.ac.signal.addEventListener('abort', onParent); }
+  ctx = Object.assign({}, ctx || {}, { emit: (ev) => emit(s, ev), signal: ac.signal, stepId: id, threadId: s.threadId || s.sid, sid: s.sid });
   s._solveStep = (s._solveStep || 0) + 1;
   const solve = v36.route(s.input).kind === 'solve' || s.kindOverride === 'solve';
   emit(s, { type: 'status', text: solve ? v36.statusLabel('thinking', { solve: true, step: s._solveStep }) : v36.statusLabel('tool') });
-  emit(s, { type: 'tool-step', id, name, label: registry.summarize(name, args), status: 'run' });
+  emit(s, Object.assign({ type: 'tool-step', id, name, label: registry.summarize(name, args), status: 'run' }, COMPUTE.test(name) ? { args, stoppable: true } : {}));
   const t0 = Date.now();
   try {
     const result = await registry.call(name, args, ctx);
     emit(s, { type: 'tool-step', id, name, label: registry.summarize(name, args, result), status: 'ok', ms: Date.now() - t0 });
-    emit(s, { type: 'tool', name, args, result: slimForUi(result) });
+    emit(s, { type: 'tool', id, name, args, result: slimForUi(result) });
+    if (ac.signal.aborted && !s.ac.signal.aborted && result && typeof result === 'object') result.stoppedByUser = true;
     return result;
   } catch (e) {
     const msg = String((e && e.message) || e).slice(0, 300);
     emit(s, { type: 'tool-step', id, name, label: registry.summarize(name, args, { error: msg }), status: 'error', error: msg, ms: Date.now() - t0 });
-    emit(s, { type: 'tool', name, args, error: msg });
+    emit(s, { type: 'tool', id, name, args, error: msg });
     return { error: msg };
-  }
+  } finally { stepAborts.delete(id); if (s.ac) s.ac.signal.removeEventListener('abort', onParent); }
 }
 // big base64 blobs (png exports) must not be replayed through every chat event
-function slimForUi(r) { try { const j = JSON.stringify(r); if (j.length < 60000) return r; return { note: 'large result omitted', size: j.length }; } catch { return r; } }
-function forModel(r) { const j = JSON.stringify(r); return j.length > 7000 ? j.slice(0, 7000) + '…' : j; }
+function slimForUi(r) {
+  try {
+    const j = JSON.stringify(r); if (j.length < 60000) return r;
+    // figures / images are the point of python_run & vm_read_file: keep them (bounded), clip the rest
+    if (r && Array.isArray(r.images) && j.length < 12e6) return Object.assign({}, r, { stdout: clipS(r.stdout, 40000), stderr: clipS(r.stderr, 20000), text: clipS(r.text, 40000) });
+    return { note: 'large result omitted', size: j.length };
+  } catch { return r; }
+}
+const clipS = (v, n) => (typeof v === 'string' && v.length > n ? v.slice(0, n) + '…' : v);
+// data: URLs (PNG figures) are shown to the user, never sent back to the model
+function forModel(r) {
+  const j = JSON.stringify(r, (k, v) => (typeof v === 'string' && v.startsWith('data:') && v.length > 200 ? '[image shown to the user]' : (k === 'base64' && typeof v === 'string' && v.length > 6000 ? v.slice(0, 6000) + '…' : v)));
+  const cap = r && (r.stdout != null || r.exitCode != null) ? 16000 : 7000;
+  return j && j.length > cap ? j.slice(0, cap) + '…' : j;
+}
 
 // chat <-> tool loop shared by both paths. `extra(name,args)` may handle additional tools; returns undefined if not its tool.
 async function answerLoop(s, ctx, D, messages, tools, extra, maxRounds = 5) {
@@ -229,10 +249,10 @@ async function runAgent(s, ctx, D) {
     return undefined;
   };
 
-  let toolsOn = true; let nudged = false;
-  for (let round = 0; round < LIMITS.rounds; round++) {
-    const out = timeUp() || !left();
-    const stepsOut = stepsUsed >= stepCap;
+  let toolsOn = true; let nudged = false; let computeUsed = false;
+  for (let round = 0; round < LIMITS.rounds + (computeUsed ? 30 : 0); round++) {
+    const out = (timeUp() && (used.searches || used.opens) && !computeUsed) || !left();
+    const stepsOut = stepsUsed >= stepCap + (computeUsed ? 28 : 0);
     if (out && !nudged) { nudged = true; messages.push({ role: 'user', content: '(Budget used up — write the final answer now from the pages you opened. Cite only [n] of opened pages.)' }); }
     if (stepsOut && !nudged) { nudged = true; messages.push({ role: 'user', content: '(Tool-step limit reached — write the final answer now from what you have.)' }); }
     const tools = stepsOut ? [] : (out ? [] : WEB_TOOLS).concat(extTools);
@@ -251,7 +271,7 @@ async function runAgent(s, ctx, D) {
       try {
         const x = await handle(tc.name, args);
         if (x !== undefined) return x;
-        stepsUsed++;
+        stepsUsed++; if (COMPUTE.test(tc.name)) computeUsed = true;
         return await runTool(s, emit, tc.name, args, ctx);
       } catch (e) { return { error: String(e.message || e) }; }
     }));
@@ -316,4 +336,4 @@ async function run(s, ctx, D) {
   }
 }
 
-module.exports = { run, runAgent, runPipeline, runLocalTools, runTool, planQueries, WEB_TOOLS, LIMITS };
+module.exports = { stopStep, forModel, slimForUi, run, runAgent, runPipeline, runLocalTools, runTool, planQueries, WEB_TOOLS, LIMITS };

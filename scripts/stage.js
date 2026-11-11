@@ -41,6 +41,8 @@ function stage(target = 'mac-arm64') {
   for (const d of have) if (!T.keep.includes(d)) fs.rmSync(path.join(nl, d), { recursive: true, force: true });
   // drop dev-only / huge unused bits
   for (const d of ['node_modules/.package-lock.json']) fs.rmSync(path.join(STAGE, d), { force: true });
+  // embedded CPython + scientific libraries + vfkit (Apple Silicon only)
+  if (target === 'mac-arm64' && !process.env.AIB_SKIP_RUNTIME) execFileSync('python3', [path.join(__dirname, 'stage-runtime.py'), STAGE], { stdio: 'inherit' });
   console.log('staged', STAGE, 'node-llama-cpp natives:', fs.readdirSync(nl));
   return STAGE;
 }

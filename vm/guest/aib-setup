@@ -1,0 +1,22 @@
+#!/bin/sh
+# AI Browser guest: early setup (busybox init sysinit)
+mount -t proc proc /proc 2>/dev/null
+mount -t sysfs sys /sys 2>/dev/null
+mount -t devtmpfs dev /dev 2>/dev/null
+mkdir -p /dev/pts /dev/shm /run /tmp
+mount -t devpts devpts /dev/pts 2>/dev/null
+mount -t tmpfs tmpfs /dev/shm 2>/dev/null
+mount -t tmpfs tmpfs /run 2>/dev/null
+mount -o remount,rw / 2>/dev/null
+hostname -F /etc/hostname 2>/dev/null
+for m in $(cat /etc/aib/modules 2>/dev/null); do modprobe -q "$m" 2>/dev/null; done
+ip link set lo up 2>/dev/null
+if ip link show eth0 >/dev/null 2>&1; then
+  ip link set eth0 up
+  ( udhcpc -i eth0 -q -t 8 -n >/dev/null 2>&1 ) &
+fi
+if [ -b /dev/vda ]; then ( resize2fs /dev/vda >/dev/null 2>&1 ) & fi
+mkdir -p /mnt/share /root/work /persist/site
+grep -q virtiofs /proc/filesystems 2>/dev/null && mount -t virtiofs share /mnt/share 2>/dev/null
+[ -L /root/share ] || ln -s /mnt/share /root/share 2>/dev/null
+echo "aib-setup done"

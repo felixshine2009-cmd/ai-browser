@@ -1,0 +1,18 @@
+#!/bin/busybox sh
+/bin/busybox mkdir -p /usr/bin /sbin /usr/sbin
+/bin/busybox --install -s
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev
+for m in $(cat /modules.list); do insmod /lib/modules/$m 2>/dev/null; done
+ROOT=$(sed -n 's/.*aibroot=\([^ ]*\).*/\1/p' /proc/cmdline)
+if [ "$ROOT" = "9p" ]; then
+  mount -t 9p -o trans=virtio,version=9p2000.L,cache=loose,msize=512000 host9p /newroot || { echo "9p root mount failed"; exec sh; }
+else
+  DEV=${ROOT:-/dev/vda}; i=0
+  while [ ! -b "$DEV" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
+  mount -t ext4 -o rw "$DEV" /newroot || { echo "root mount failed: $DEV"; exec sh; }
+fi
+umount /proc /sys
+mount --move /dev /newroot/dev 2>/dev/null || umount /dev
+exec switch_root /newroot /sbin/init
