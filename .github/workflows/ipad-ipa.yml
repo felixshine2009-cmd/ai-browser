@@ -19,7 +19,7 @@ jobs:
           node-version: '20'
 
       - name: Assemble web assets
-        run: bash scripts/build-web.sh dist-web
+        run: bash scripts/build-web.sh "$GITHUB_WORKSPACE/dist-web"
 
       - name: Copy web assets into Capacitor www
         run: |
@@ -31,6 +31,8 @@ jobs:
           if dst.exists():
               shutil.rmtree(dst)
           shutil.copytree(src, dst, ignore=shutil.ignore_patterns('.git'))
+          if not (dst / 'index.html').is_file():
+              raise SystemExit('mobile/www/index.html missing after copy')
           print('copied', src, '->', dst)
           PY
 

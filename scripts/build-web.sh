@@ -3,6 +3,7 @@
 # usage: scripts/build-web.sh <outdir> [zip]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"; OUT="${1:-$ROOT/dist-web}"
+if [[ "$OUT" != /* ]]; then OUT="$PWD/$OUT"; fi
 rm -rf "$OUT"; mkdir -p "$OUT"
 ( cd "$ROOT/web" && find . -mindepth 1 -maxdepth 1 ! -name ggb ! -name physics -exec cp -a {} "$OUT/" \; )
 mkdir -p "$OUT/ggb" "$OUT/physics"
