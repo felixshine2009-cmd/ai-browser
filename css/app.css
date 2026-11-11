@@ -139,3 +139,31 @@ select option{background:var(--panel2);color:var(--text)}
 #wikiHits article[data-path] { cursor:pointer; }
 
 .thinking-box{white-space:pre-wrap;font-size:12px;color:var(--muted);background:color-mix(in srgb,var(--paper) 80%,transparent);border:1px solid color-mix(in srgb,var(--muted) 25%,transparent);border-radius:10px;padding:10px 12px;margin:8px 0;max-height:220px;overflow:auto}
+
+/* v2.3.0: Python / Linux VM */
+/* ---- Python / Linux VM run panels (above the answer) and figures (in the answer) */
+.runs { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 10px; }
+.run-panel { border: 0.5px solid var(--border); border-radius: 10px; background: rgba(255,255,255,.03); overflow: hidden; }
+.run-panel > summary { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; list-style: none; font-size: 13px; color: var(--muted); user-select: none; }
+.run-panel > summary::-webkit-details-marker { display: none; }
+.run-panel > summary::before { content: '›'; display: inline-block; width: 10px; color: var(--muted); transition: transform .15s ease; }
+.run-panel[open] > summary::before { transform: rotate(90deg); }
+.run-kind { font-weight: 600; color: var(--text); white-space: nowrap; }
+.run-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.run-state { white-space: nowrap; font-size: 12px; color: var(--muted); }
+.run-panel[data-state="run"] .run-state { color: var(--accent); }
+.run-panel[data-state="err"] .run-state { color: #fca5a5; }
+.run-stop { font: inherit; font-size: 12px; padding: 3px 12px; border-radius: 6px; border: 0.5px solid var(--border); background: rgba(255,255,255,.06); color: var(--text); cursor: pointer; min-height: 26px; }
+.run-stop:hover { background: rgba(255,255,255,.12); }
+.run-body { padding: 0 12px 10px; }
+.run-h { font-size: 12px; color: var(--muted); margin: 6px 0 4px; }
+.run-code, .run-out { margin: 0; padding: 8px 10px; border-radius: 8px; background: rgba(0,0,0,.28); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 360px; overflow: auto; color: var(--text); user-select: text; }
+.run-err { color: #fca5a5; } .run-res { color: var(--accent); }
+.run-figs { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0; }
+.run-fig { margin: 0; max-width: 100%; } .run-fig img { max-width: min(100%, 720px); border-radius: 8px; background: #fff; display: block; }
+.run-fig figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.pkg-table { border-collapse: collapse; font-size: 13px; color: var(--muted); min-width: 320px; }
+.pkg-table td { padding: 4px 14px 4px 0; border-bottom: 0.5px solid var(--border); }
+.pkg-table td:first-child { color: var(--text); font-weight: 500; }
+.pkg-rm { padding: 2px 10px; font-size: 12px; }
+.py-box{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin:8px 0}.py-box .pkg-table{width:100%;min-width:0}.py-log{max-height:160px;overflow:auto;font-family:ui-monospace,Menlo,monospace;font-size:12px;white-space:pre-wrap;color:var(--muted)}
