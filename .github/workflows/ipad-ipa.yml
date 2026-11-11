@@ -1,0 +1,81 @@
+name: iPad IPA
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'ipad-v*'
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Assemble web assets
+        run: bash scripts/build-web.sh dist-web
+
+      - name: Copy web assets into Capacitor www
+        run: |
+          python3 - << 'PY'
+          import shutil
+          from pathlib import Path
+          src = Path('dist-web')
+          dst = Path('mobile/www')
+          if dst.exists():
+              shutil.rmtree(dst)
+          shutil.copytree(src, dst, ignore=shutil.ignore_patterns('.git'))
+          print('copied', src, '->', dst)
+          PY
+
+      - name: Install Capacitor dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Sync iOS project
+        working-directory: mobile
+        run: npx cap sync ios
+
+      - name: Archive unsigned iOS app
+        run: |
+          set -euo pipefail
+          xcodebuild -workspace mobile/ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/App.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            archive
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP=$(find "$PWD/build/App.xcarchive/Products/Applications" -name '*.app' -maxdepth 1 | head -1)
+          test -n "$APP"
+          rm -rf Payload
+          mkdir Payload
+          cp -R "$APP" "Payload/$(basename "$APP")"
+          zip -r AI-Browser-iPad-unsigned.ipa Payload
+          ls -lh AI-Browser-iPad-unsigned.ipa
+          unzip -l AI-Browser-iPad-unsigned.ipa | head -40
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI-Browser-iPad-unsigned
+          path: AI-Browser-iPad-unsigned.ipa
+
+      - name: Attach IPA to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/ipad-v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" AI-Browser-iPad-unsigned.ipa --clobber

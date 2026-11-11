@@ -1,0 +1,10 @@
+{
+  "appId": "io.github.felixshine2009.aibrowser",
+  "appName": "AI浏览器",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "automatic",
+    "preferredContentMode": "mobile",
+    "scheme": "App"
+  }
+}

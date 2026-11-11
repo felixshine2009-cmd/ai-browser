@@ -34,10 +34,11 @@ module.exports = async ({ test, group, assert, eq }) => {
   });
   await test('思考等级可映射且从不自动打断', () => {
     eq(v36.thinkingPolicy(), { interrupt: false, maxWaitMs: null });
-    eq(v36.reasoningFields('max').interrupt, false);
-    eq(v36.reasoningFields('max').reasoning_effort, 'high');
-    eq(v36.reasoningFields('low').reasoning_effort, 'low');
-    eq(v36.reasoningFields('max').thinking.level, 'max');
+    const oai = v36.reasoningFields('max', { provider: 'openai', model: 'o4-mini' });
+    eq(oai.reasoning_effort, 'high');
+    assert(!('interrupt' in oai));
+    eq(v36.reasoningFields('low', { provider: 'openai', model: 'o4-mini' }).reasoning_effort, 'low');
+    assert(!v36.reasoningFields('medium', { provider: 'deepseek', model: 'deepseek-chat' }).thinking);
   });
   await test('没有专门请求时默认网页搜索；作图走工具', () => {
     eq(v36.route('今天的新闻').kind, 'search');
@@ -172,15 +173,15 @@ module.exports = async ({ test, group, assert, eq }) => {
     const web = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'index.html'), 'utf8');
     assert(web.includes('id="apiPreset"'));
   });
-  await test('版本号是 3.6.0 / web-v1.4.0，网页把桌面功能标灰', () => {
+  await test('版本号与网页缓存名匹配，网页把桌面功能标灰', () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
-    eq(pkg.version, '3.6.0');
+    eq(pkg.version, '5.2.0');
     const sw = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'sw.js'), 'utf8');
-    assert(sw.includes("aib-web-v1.4.0"));
+    assert(sw.includes("aib-web-v2.2.0"));
     const html = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'index.html'), 'utf8');
     assert(html.includes('data-desktop-only') && html.includes('Siri'));
     const zh = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'js', 'i18n.js'), 'utf8');
     assert(zh.includes('仅桌面版可用') && zh.includes('Desktop only'));
-    assert(!/3\.5\.0|web-v1\.3\.0/.test(pkg.version + sw));
+    assert(!/5\.1\.0|aib-web-v2\.1\.0/.test(pkg.version + sw));
   });
 };

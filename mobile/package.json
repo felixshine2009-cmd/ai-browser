@@ -1,0 +1,16 @@
+{
+  "name": "ai-browser-ipad",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Capacitor iPad wrapper for AI Browser",
+  "scripts": {
+    "sync": "npx cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/ios": "^6.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  }
+}

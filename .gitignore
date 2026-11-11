@@ -12,3 +12,11 @@ web-tests/test-results/
 web/ggb
 web/ggb/
 web/physics/
+
+# iPad / Capacitor
+mobile/node_modules
+mobile/www
+mobile/ios/App/Pods
+mobile/ios/App/build
+mobile/ios/DerivedData
+mobile/ios/App/App/public

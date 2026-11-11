@@ -64,6 +64,14 @@
 
 The **web version (PWA)** at https://felixshine2009-cmd.github.io/ai-browser/ works with your own API key or WebGPU local models; desktop-only features are grayed out. Add it to the Home Screen on iPhone Safari. The desktop app targets **Apple Silicon (M1/M2/M3) macOS 12+**.
 
+## iPad
+
+An unsigned iPad build is available as `AI-Browser-iPad-unsigned.ipa`. It wraps the same web app with Capacitor (MIT), supports iPad (and iPhone) with all orientations, and uses the same interface: desktop-only features stay grayed out with “Desktop only”. You can open a ZIM encyclopedia (stored in the app directory when the system allows, otherwise kept in memory for the session), pick files, and use the camera or photo library when solving a problem. Local WebGPU models degrade gracefully if the device does not support WebGPU.
+
+The IPA is **unsigned**. Install it by sideloading with a tool such as AltStore or Sideloadly and your own Apple ID. Free Apple Developer accounts must re-sign the app every 7 days.
+
+See the [iPad release](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v1.0.0).
+
 ## Install (recommended)
 
 | File | Description |

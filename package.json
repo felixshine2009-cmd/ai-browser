@@ -1,7 +1,7 @@
 {
   "name": "ai-browser",
   "productName": "AI浏览器",
-  "version": "5.1.0",
+  "version": "5.2.0",
   "description": "AI 浏览器 — Electron (Chromium) + AI 搜索/词典/GeoGebra",
   "main": "src/main/main.js",
   "author": "Felix",

@@ -64,6 +64,8 @@
           <button type="button" id="solveGo">求解</button>
         </div>
         <input id="solveFile" type="file" accept="image/*" hidden>
+        <input id="solveCamera" type="file" accept="image/*" capture="environment" hidden>
+        <div id="solvePreview" class="hint"></div>
         <div id="solveQr" class="hint"></div>
         <input id="refTitle" placeholder="参考资料标题">
         <textarea id="refBody" rows="2" placeholder="参考资料"></textarea>
@@ -110,6 +112,7 @@
       </div>
       <div id="tools" class="status"></div>
       <div id="status" class="status"></div>
+      <div id="thinking" class="thinking-box" hidden></div>
       <div id="answer" class="answer"></div>
       <h3 data-i18n="kb">KB</h3>
       <textarea id="kbText" rows="2" placeholder="Paste text…"></textarea>

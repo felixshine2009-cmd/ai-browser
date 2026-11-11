@@ -104,7 +104,8 @@ async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, sig
   const body = { model: cfg.model, messages, stream: true, temperature: temperature ?? cfg.temperature };
   try {
     const level = thinkingLevel || require('../store').getSettings().thinkingLevel;
-    if (level) Object.assign(body, require('../v36/v36').reasoningFields(level));
+    const v36 = require('../v36/v36');
+    if (level) Object.assign(body, v36.reasoningFields(level, { provider: cfg.preset, preset: cfg.preset, model: cfg.model, baseUrl: cfg.baseUrl, format: cfg.format }));
   } catch {}
   if (jsonSchema && cfg._structured !== false) body.response_format = { type: 'json_schema', json_schema: { name: 'action', schema: jsonSchema } };
   if (maxTokens) body.max_tokens = maxTokens;
@@ -132,7 +133,8 @@ async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, sig
     let j; try { j = JSON.parse(data); } catch { continue; }
     const d = j.choices?.[0]?.delta;
     if (!d) continue;
-    const thinkBit = d.reasoning_content || (typeof d.reasoning === 'string' ? d.reasoning : '');
+    let thinkBit = '';
+    try { thinkBit = require('../v36/v36').extractThinkingDelta(d) || require('../v36/v36').extractThinkingDelta(j); } catch { thinkBit = d.reasoning_content || (typeof d.reasoning === 'string' ? d.reasoning : ''); }
     if (thinkBit) onThinking && onThinking(thinkBit);
     if (d.content) { content += d.content; onDelta && onDelta(d.content); }
     for (const tc of d.tool_calls || []) {
@@ -166,9 +168,23 @@ function toAnthropic(messages) {
   }
   return { system, messages: out };
 }
-async function chatAnthropic(cfg, key, { messages, tools, temperature, onDelta, signal, maxTokens }) {
+async function chatAnthropic(cfg, key, { messages, tools, temperature, onDelta, signal, maxTokens, onThinking, thinkingLevel }) {
   const { system, messages: ms } = toAnthropic(messages);
-  const body = { model: cfg.model, max_tokens: maxTokens || 4096, stream: true, temperature: temperature ?? cfg.temperature, messages: ms };
+  const body = { model: cfg.model, max_tokens: maxTokens || 4096, stream: true, messages: ms };
+  let think = {};
+  try {
+    const level = thinkingLevel || require('../store').getSettings().thinkingLevel;
+    think = require('../v36/v36').reasoningFields(level, { provider: 'anthropic', model: cfg.model, baseUrl: cfg.baseUrl, format: 'anthropic' }) || {};
+  } catch {}
+  if (think && Object.keys(think).length) {
+    Object.assign(body, think);
+    // Extended thinking rejects non-default sampling; adaptive thinking does likewise on current models.
+    if (think.thinking) {
+      if (think.thinking.type === 'enabled') body.temperature = 1;
+    }
+  } else {
+    body.temperature = temperature ?? cfg.temperature;
+  }
   if (system) body.system = system;
   if (tools?.length) body.tools = tools.map(t => ({ name: t.name, description: t.description, input_schema: t.parameters }));
   const base = cfg.baseUrl.replace(/\/+$/, '').replace(/\/v1$/, '');
@@ -184,7 +200,10 @@ async function chatAnthropic(cfg, key, { messages, tools, temperature, onDelta, 
     let j; try { j = JSON.parse(line.slice(5)); } catch { continue; }
     if (j.type === 'content_block_start' && j.content_block?.type === 'tool_use') calls[j.index] = { id: j.content_block.id, name: j.content_block.name, arguments: '' };
     else if (j.type === 'content_block_delta') {
-      if (j.delta.type === 'text_delta') { content += j.delta.text; onDelta && onDelta(j.delta.text); }
+      if (j.delta.type === 'thinking_delta') {
+        const bit = j.delta.thinking || j.delta.text || '';
+        if (bit) onThinking && onThinking(bit);
+      } else if (j.delta.type === 'text_delta') { content += j.delta.text; onDelta && onDelta(j.delta.text); }
       else if (j.delta.type === 'input_json_delta' && calls[j.index]) calls[j.index].arguments += j.delta.partial_json;
     }
   }

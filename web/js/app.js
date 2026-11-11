@@ -296,6 +296,7 @@ function wire(){
       status:document.getElementById('status'),
       answer:document.getElementById('answer'),
       tools:document.getElementById('tools'),
+      thinking:document.getElementById('thinking'),
     }});
   });
   const qEl = document.getElementById('q');
@@ -345,18 +346,38 @@ function wire(){
     if (bodyEl) bodyEl.value = '';
     document.getElementById('refList').textContent = '参考资料 ' + refs.length + ' 条';
   };
+  let solveImage = null;
+  function showSolvePreview(file) {
+    const preview = document.getElementById('solvePreview');
+    if (!file) { solveImage = null; if (preview) preview.textContent = ''; return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      solveImage = { name: file.name, dataUrl: reader.result };
+      if (preview) preview.textContent = '已选择图片：' + file.name;
+    };
+    reader.readAsDataURL(file);
+  }
+  const solveFile = document.getElementById('solveFile');
+  const solveCam = document.getElementById('solveCamera');
+  const solveImg = document.getElementById('solveImg');
+  if (solveImg && solveFile) solveImg.onclick = () => solveFile.click();
+  if (solveFile) solveFile.onchange = () => showSolvePreview(solveFile.files && solveFile.files[0]);
+  if (solveCam) solveCam.onchange = () => showSolvePreview(solveCam.files && solveCam.files[0]);
   const solvePhone = document.getElementById('solvePhone');
   if (solvePhone) solvePhone.onclick = () => {
+    const native = typeof window !== 'undefined' && (!!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) || /iPad|iPhone|iPod|Android/i.test(navigator.userAgent));
+    if (native && solveCam) { solveCam.click(); return; }
     const url = A.PUBLIC_SOLVER;
     document.getElementById('solveQr').innerHTML = A.qrSvg(url) + `<p>${esc(url)}</p><p>在手机上打开后可以直接拍照解题。网页版不能把照片回传到这台电脑。</p>`;
   };
   const solveGo = document.getElementById('solveGo');
   if (solveGo) solveGo.onclick = async () => {
     const q = document.getElementById('solveText').value.trim();
-    if (!q) return;
+    if (!q && !solveImage) return;
     const ctx = A.solverContext({ refs, turns: [] });
+    const imgNote = solveImage ? '\n[已附加题目图片 ' + solveImage.name + ']' : '';
     if (abort) abort.abort(); abort = new AbortController();
-    await handleAsk({ q: (ctx ? ctx + '\n' : '') + q, settings, signal: abort.signal, els: { status: document.getElementById('status'), answer: document.getElementById('answer'), tools: document.getElementById('tools') } });
+    await handleAsk({ q: (ctx ? ctx + '\n' : '') + q + imgNote, settings, signal: abort.signal, els: { status: document.getElementById('status'), answer: document.getElementById('answer'), tools: document.getElementById('tools'), thinking: document.getElementById('thinking') } });
   };
   const wikiForm = document.getElementById('wikiForm');
   const wikiQ = document.getElementById('wikiQ');

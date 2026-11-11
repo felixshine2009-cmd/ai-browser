@@ -8,12 +8,13 @@ function looksMath(q){ return /画|绘|函数|图像|图形|几何|作图|graph|
 function looksPhys(q){ return /物理|抛体|单摆|弹簧|受力|电路|折射|磁场|平抛|physics|projectile|pendulum/i.test(q); }
 function looksWord(q){ return /^[a-zA-Z][a-zA-Z\-']{1,24}$/.test(q.trim()); }
 
-async function complete(settings, messages, signal){
+async function complete(settings, messages, signal, extra){
+  extra = extra || {};
   if (settings.engine === 'local') {
     if (!localReady()) throw new Error(t('localNotLoaded'));
     return localChat({ messages, signal });
   }
-  return chatComplete({ ...settings.api, messages, signal, thinkingLevel: settings.thinkingLevel });
+  return chatComplete({ ...settings.api, messages, signal, thinkingLevel: settings.thinkingLevel, onThinking: extra.onThinking, onDelta: extra.onDelta });
 }
 
 export async function handleAsk({q, settings, els, signal, prior, asDict}){
@@ -22,7 +23,15 @@ export async function handleAsk({q, settings, els, signal, prior, asDict}){
   const intent = asDict ? { kind: 'dict' } : (A ? A.route(text) : { kind: looksMath(text) ? 'draw' : looksPhys(text) ? 'physics' : 'search' });
   els.status.textContent = A ? A.statusLabel('thinking', { solve: intent.kind === 'solve' }) : t('thinking');
   els.answer.textContent = '';
-  els.tools.innerHTML = '';
+  if (els.tools) els.tools.innerHTML = '';
+  if (els.thinking) { els.thinking.hidden = false; els.thinking.textContent = ''; }
+  const thinkHooks = {
+    onThinking(bit) {
+      if (!els.thinking) return;
+      els.thinking.hidden = false;
+      els.thinking.textContent = (els.thinking.textContent || '') + bit;
+    }
+  };
   const chips = [];
   try {
     if (!asDict && (intent.kind === 'physics' || looksPhys(text))) {
@@ -53,13 +62,13 @@ export async function handleAsk({q, settings, els, signal, prior, asDict}){
       const entry = await complete(settings, [
         {role:'system', content:'Explain the English word: IPA, POS, Chinese gloss, 2 example sentences with translation. Markdown.'},
         {role:'user', content:text}
-      ], signal);
+      ], signal, thinkHooks);
       els.answer.textContent = entry; els.status.textContent = t('dict'); return;
     }
     const out = await complete(settings, [
       {role:'system', content:sys},
       {role:'user', content:text}
-    ], signal);
+    ], signal, thinkHooks);
     els.answer.textContent = A ? A.redactToolTalk(out) : out;
     els.status.textContent = '';
     if (A && settings) {

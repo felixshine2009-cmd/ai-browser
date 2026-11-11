@@ -64,6 +64,14 @@
 
 **网页版（PWA）**：https://felixshine2009-cmd.github.io/ai-browser/ ——用你自己的 API Key 或 WebGPU 本地模型；仅桌面功能显示为灰色。iPhone Safari 可「添加到主屏幕」。桌面版面向 **Apple 芯片（M1/M2/M3）macOS 12+**。
 
+## iPad
+
+iPad 版以未签名的 `AI-Browser-iPad-unsigned.ipa` 发布。它使用 Capacitor（MIT）封装同一套网页应用，支持 iPad（亦可在 iPhone 上使用）及全部方向。桌面专属功能仍显示为灰色，并提示「仅桌面版可用」。可打开 ZIM 格式离线百科（系统允许时会保存到应用目录，否则在本次会话中保留于内存）、选择文件，并在解题时使用相机或相册。若设备不支持 WebGPU，本地模型会平稳降级。
+
+该 IPA **未经签名**。请使用 AltStore 或 Sideloadly 等侧载工具，以你自己的 Apple ID 安装。免费的 Apple 开发者账户须每 7 天重新签名一次。
+
+见 [iPad 发行版](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v1.0.0)。
+
 ## 安装（推荐）
 
 | 文件 | 说明 |
