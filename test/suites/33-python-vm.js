@@ -89,6 +89,11 @@ module.exports = async ({ test, group, assert, eq }) => {
     execFileSync('python3', ['-m', 'py_compile', path.join(ROOT, 'src/main/python/kernel.py')]);
   });
 
+  await test('渲染进程脚本语法正确', () => {
+    const dir = path.join(ROOT, 'src/renderer/static');
+    for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.js'))) execFileSync(process.execPath, ['--check', path.join(dir, f)]);
+  });
+
   await test('设置页包含“Python 与虚拟机”', () => {
     const s = JSON.parse(read('src/renderer/static/strings.json'));
     const flat = JSON.stringify(s); assert(flat.includes('Python 与虚拟机'));
