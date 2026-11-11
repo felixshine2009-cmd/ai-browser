@@ -45,7 +45,7 @@ function zipDir(dir, out, keepParent) {
   const tmpRoot = fs.mkdtempSync(path.join(require('os').tmpdir(), 'aib-src-'));
   const srcStage = path.join(tmpRoot, 'ai-browser');
   fs.mkdirSync(srcStage, { recursive: true });
-  const skip = new Set(['node_modules', 'dist', '.git', '.DS_Store', 'models', 'shots']);
+  const skip = new Set(['node_modules', 'dist', '.git', '.DS_Store', 'models', 'shots', 'vendor-cache']);
   fs.cpSync(ROOT, srcStage, { recursive: true, filter: (s) => !skip.has(path.basename(s)) });
   const sz = path.join(DIST, 'AI-Browser-source.zip');
   zipDir(srcStage, sz, true);

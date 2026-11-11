@@ -220,7 +220,7 @@
   "area": "Chat 页",
   "control": "GeoGebra 工具",
   "action": "问题“画出 sin”：工具调用成功，面板出现",
-  "status": "PASS",
+  "status": "FAIL",
   "note": ""
  },
  {

@@ -751,7 +751,7 @@
       let txt = PH[s.phase] || s.phase;
       if (s.phase === 'downloading' && s.progress && s.progress.total) txt += ` ${Math.round(100 * s.progress.got / s.progress.total)}%（${fmtVmB(s.progress.got)} / ${fmtVmB(s.progress.total)}）`;
       if (s.phase === 'running' && s.info) txt += ` · Linux ${s.info.kernel} · Python ${s.info.python}` + (s.info.ip ? ` · IP ${s.info.ip}` : '');
-      txt += ' · ' + T('磁盘占用 ', 'Disk used ') + (s.diskBytes ? fmtVmB(s.diskBytes) : T('尚未下载镜像（首次启动约需下载 220 MB）', 'image not downloaded yet (about 220 MB on first start)'));
+      txt += ' · ' + T('磁盘占用 ', 'Disk used ') + (s.diskBytes ? fmtVmB(s.diskBytes) : T('尚未下载镜像（首次启动约需下载 228 MB）', 'image not downloaded yet (about 228 MB on first start)'));
       if (s.error) txt += '\n' + T('原因：', 'Reason: ') + s.error;
       $('vmstat').textContent = txt; $('vmstat').style.whiteSpace = 'pre-wrap';
       const busy = ['preparing', 'downloading', 'booting', 'stopping'].includes(s.phase);
