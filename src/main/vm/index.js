@@ -173,6 +173,9 @@ async function start({ signal } = {}) {
       const client = new AgentClient(sockPath());
       const ready = await client.connect({ timeoutMs: backend() === 'qemu' ? 240000 : 90000, isAlive: () => st.proc === proc });
       st.client = client; st.info = ready.info || null; st.startedAt = Date.now();
+      // DHCP runs in the background during boot; wait briefly so the first command already has internet.
+      setPhase('booting', '正在连接网络…');
+      try { await Promise.race([client.request('exec', { cmd: 'for i in $(seq 1 40); do ip route 2>/dev/null | grep -q "^default" && break; sleep 0.25; done', timeout: 15 }), new Promise(r => setTimeout(r, 12000))]); } catch {}
       client.on('close', () => { if (st.client === client && st.phase === 'running') setPhase('stopped', '与虚拟机的连接已断开'); });
       setPhase('running', 'Linux 虚拟机已就绪');
       return status();

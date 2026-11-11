@@ -47,7 +47,7 @@ sudo tee "$RFS/etc/inittab" >/dev/null <<IT
 ::shutdown:/bin/sync
 ::shutdown:/bin/umount -a -r
 IT
-echo "virtio_net vmw_vsock_virtio_transport virtio_console virtiofs fuse 9pnet_virtio 9p" | sudo tee "$RFS/etc/aib/modules" >/dev/null
+echo "af_packet virtio_net vmw_vsock_virtio_transport virtio_console virtiofs fuse 9pnet_virtio 9p" | sudo tee "$RFS/etc/aib/modules" >/dev/null
 echo aib-vm | sudo tee "$RFS/etc/hostname" >/dev/null
 echo "nameserver 1.1.1.1" | sudo tee "$RFS/etc/resolv.conf" >/dev/null
 sudo mkdir -p "$RFS/etc/pip"; printf '[global]\nbreak-system-packages = true\nroot-user-action = ignore\ndisable-pip-version-check = true\n' | sudo tee "$RFS/etc/pip.conf" >/dev/null

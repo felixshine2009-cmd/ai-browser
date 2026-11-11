@@ -31,6 +31,13 @@
 * 聊天标题由 AI 生成，聊天记录与浏览历史分开保存。追问（尤其是解题）会接着上文
 * 清除历史、删除模型等敏感操作一律先确认；密码永远不会暴露给 AI
 
+**Python 与虚拟机**
+* 内置 Python 3，用于计算与编程：遇到较复杂的数学、统计、模拟或数据处理时，AI 会编写并运行代码，并对结果进行验证。预装 numpy、scipy、sympy、mpmath、pandas、matplotlib，绘制的图像直接显示在回答中
+* 代码、输出与运行状态显示在回答上方的可折叠面板中，并提供“停止”按钮；每个对话拥有独立的 Python 会话
+* 其他库可按需从 PyPI 安装，也可在“设置 → Python 与虚拟机”中查看、安装和卸载（可选镜像源）
+* 桌面版：内置 Linux 虚拟机（Apple Virtualization 框架），AI 可以像 Bot 一样在其中工作——执行命令并实时输出、读写文件、上传与下载、访问互联网，并提供共享文件夹与持久磁盘。可在设置中启动、关闭、重置虚拟机并调整内存与 CPU。虚拟机运行时 Python 在虚拟机内执行，否则使用内置解释器
+* 网页版：通过 Pyodide 在浏览器内运行 Python，首次下载后可离线使用。iPad：内嵌 Alpine Linux 虚拟机，在设备上运行 Python 与命令，并在启动之间保存已安装的库和文件
+
 **本地模型**
 * 桌面版 MLX / llama.cpp（含可启用 MTP 的 MLX LM），网页版 WebGPU；自动探测 LM Studio、Ollama、oMLX 及其他 OpenAI 兼容服务
 * 可恢复下载（暂停 / 继续、镜像回退、sha256 校验）、Hugging Face 搜索、按模型显示磁盘占用并分别清理缓存 / 文件
@@ -62,15 +69,15 @@
 **AI 自修改代码**
 * AI 可在沙箱中为应用提出补丁：diff 预览 → 你批准 → 一键回滚；永不覆盖安装包
 
-**网页版（PWA）**：https://felixshine2009-cmd.github.io/ai-browser/ ——用你自己的 API Key 或 WebGPU 本地模型；仅桌面功能显示为灰色。iPhone Safari 可「添加到主屏幕」。桌面版面向 **Apple 芯片（M1/M2/M3）macOS 12+**。
+**网页版（PWA）**：https://felixshine2009-cmd.github.io/ai-browser/ ——用你自己的 API Key 或 WebGPU 本地模型，并支持 Python（Pyodide）；仅桌面功能显示为灰色。iPhone Safari 可「添加到主屏幕」。桌面版面向 **Apple 芯片（M1/M2/M3）macOS 12+**。
 
 ## iPad
 
-iPad 版以未签名的 `AI-Browser-iPad-unsigned.ipa` 发布。它使用 Capacitor（MIT）封装同一套网页应用，支持 iPad（亦可在 iPhone 上使用）及全部方向。桌面专属功能仍显示为灰色，并提示「仅桌面版可用」。可打开 ZIM 格式离线百科（系统允许时会保存到应用目录，否则在本次会话中保留于内存）、选择文件，并在解题时使用相机或相册。若设备不支持 WebGPU，本地模型会平稳降级。
+iPad 版以未签名的 `AI-Browser-iPad-unsigned.ipa` 发布。它使用 Capacitor（MIT）封装同一套网页应用，支持 iPad（亦可在 iPhone 上使用）及全部方向。桌面专属功能仍显示为灰色，并提示「仅桌面版可用」。可打开 ZIM 格式离线百科（系统允许时会保存到应用目录，否则在本次会话中保留于内存）、选择文件，并在解题时使用相机或相册。若设备不支持 WebGPU，本地模型会平稳降级。IPA 内嵌 Linux 虚拟机（基于 v86 模拟器的 Alpine Linux），预装 Python、numpy、scipy、sympy、pandas 与 matplotlib，AI 可在其中离线运行 Python 与命令。虚拟机内部无法联网：其他纯 Python 库由应用下载后装入虚拟机，含原生代码的库则安装到 Pyodide。
 
 该 IPA **未经签名**。请使用 AltStore 或 Sideloadly 等侧载工具，以你自己的 Apple ID 安装。免费的 Apple 开发者账户须每 7 天重新签名一次。
 
-见 [iPad 发行版](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v1.0.0)。
+见 [iPad 发行版](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v1.1.0)。
 
 ## 安装（推荐）
 

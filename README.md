@@ -31,6 +31,13 @@
 * Chat titles and a chat history kept apart from browsing history. Follow-ups, especially problem solving, keep the earlier turns
 * Sensitive actions (clearing history, deleting models) always ask for confirmation; passwords are never exposed to the AI
 
+**Python & Linux VM**
+* Built-in Python 3 for calculations and programming: the AI runs code for non-trivial math, statistics, simulations and data work, then verifies the result. numpy, scipy, sympy, mpmath, pandas and matplotlib are preinstalled; figures appear in the answer
+* Code, output and running state are shown in a collapsible panel above the answer, with a Stop button; each conversation keeps its own Python session
+* More libraries install from PyPI on request or under Settings → Python & VM (view, install, uninstall; optional mirror)
+* Desktop: a Linux virtual machine (Apple Virtualization framework) the AI can work in like a bot — shell commands with live output, file read/write, upload and download, internet access, a shared folder and a persistent disk. Start, stop, reset, memory and CPU settings are in Settings. Python runs inside the VM when it is running, otherwise with the bundled interpreter
+* Web: Python runs in the browser with Pyodide and keeps working offline after the first download. iPad: an embedded Alpine Linux VM runs Python and shell commands on the device, and saves installed libraries and files between launches
+
 **Local models**
 * MLX and llama.cpp on desktop, including an MTP-capable MLX LM path, plus WebGPU in the web version; auto-detects LM Studio, Ollama, oMLX and other OpenAI-compatible servers
 * Resumable downloads (pause / resume, mirror fallback, sha256 check), Hugging Face search, per-model disk usage with separate cache / file cleaning
@@ -62,15 +69,15 @@
 **Self-modifying code**
 * The AI can propose patches to the app in a sandbox: diff preview → your approval → one-click rollback; the app bundle is never overwritten
 
-The **web version (PWA)** at https://felixshine2009-cmd.github.io/ai-browser/ works with your own API key or WebGPU local models; desktop-only features are grayed out. Add it to the Home Screen on iPhone Safari. The desktop app targets **Apple Silicon (M1/M2/M3) macOS 12+**.
+The **web version (PWA)** at https://felixshine2009-cmd.github.io/ai-browser/ works with your own API key or WebGPU local models, and includes Python (Pyodide); desktop-only features are grayed out. Add it to the Home Screen on iPhone Safari. The desktop app targets **Apple Silicon (M1/M2/M3) macOS 12+**.
 
 ## iPad
 
-An unsigned iPad build is available as `AI-Browser-iPad-unsigned.ipa`. It wraps the same web app with Capacitor (MIT), supports iPad (and iPhone) with all orientations, and uses the same interface: desktop-only features stay grayed out with “Desktop only”. You can open a ZIM encyclopedia (stored in the app directory when the system allows, otherwise kept in memory for the session), pick files, and use the camera or photo library when solving a problem. Local WebGPU models degrade gracefully if the device does not support WebGPU.
+An unsigned iPad build is available as `AI-Browser-iPad-unsigned.ipa`. It wraps the same web app with Capacitor (MIT), supports iPad (and iPhone) with all orientations, and uses the same interface: desktop-only features stay grayed out with “Desktop only”. You can open a ZIM encyclopedia (stored in the app directory when the system allows, otherwise kept in memory for the session), pick files, and use the camera or photo library when solving a problem. Local WebGPU models degrade gracefully if the device does not support WebGPU. The IPA embeds a Linux virtual machine (Alpine Linux in the v86 emulator) with Python, numpy, scipy, sympy, pandas and matplotlib; the AI can run Python and shell commands in it offline. The VM has no internet access: extra pure-Python libraries are downloaded by the app and installed into the VM, and libraries with native code are installed into Pyodide.
 
 The IPA is **unsigned**. Install it by sideloading with a tool such as AltStore or Sideloadly and your own Apple ID. Free Apple Developer accounts must re-sign the app every 7 days.
 
-See the [iPad release](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v1.0.0).
+See the [iPad release](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v1.1.0).
 
 ## Install (recommended)
 
