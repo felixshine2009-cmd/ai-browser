@@ -1,4 +1,5 @@
 import { chatComplete, chatTurn } from './api.js';
+const capsFor = (st) => { try { return window.AIBModels ? window.AIBModels.capsOf((st.api && st.api.preset) || 'custom', st.api && st.api.model, st.providers || {}) : null; } catch { return null; } };
 import * as Compute from './compute-tools.js';
 import { chat as localChat, isReady as localReady } from './local-model.js';
 import { t } from './i18n.js';
@@ -15,7 +16,7 @@ async function complete(settings, messages, signal, extra){
     if (!localReady()) throw new Error(t('localNotLoaded'));
     return localChat({ messages, signal });
   }
-  return chatComplete({ ...settings.api, messages, signal, thinkingLevel: settings.thinkingLevel, onThinking: extra.onThinking, onDelta: extra.onDelta });
+  return chatComplete({ ...settings.api, caps: capsFor(settings), messages, signal, thinkingLevel: settings.thinkingLevel, onThinking: extra.onThinking, onDelta: extra.onDelta });
 }
 
 const COMPUTE_GUIDE = `
@@ -48,7 +49,7 @@ async function agentAnswer(settings, messages, els, signal, hooks, session){
     streamed = '';
     const onDelta = (d) => { streamed += d; els.answer.textContent = A ? A.redactToolTalk(streamed) : streamed; };
     let r;
-    try { r = await chatTurn({ ...settings.api, messages, tools, signal, thinkingLevel: settings.thinkingLevel, onThinking: hooks.onThinking, onDelta }); }
+    try { r = await chatTurn({ ...settings.api, caps: capsFor(settings), messages, tools, signal, thinkingLevel: settings.thinkingLevel, onThinking: hooks.onThinking, onDelta }); }
     catch (e) {
       // Some models / gateways reject tool definitions: answer without tools instead of failing.
       if (round === 0 && (e.status === 400 || e.status === 422)) { messages[0].content = messages[0].content.replace(COMPUTE_GUIDE, '').replace(VM_GUIDE, ''); return complete(settings, messages, signal, Object.assign({}, hooks, { onDelta })); }

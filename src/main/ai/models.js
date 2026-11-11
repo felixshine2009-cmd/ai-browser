@@ -21,7 +21,8 @@ async function refresh(pid, override) {
   const s = store.getSettings().ai;
   const cur = providers()[pid] || {};
   const def = PRESETS[pid] || PRESETS.custom;
-  const cfg = { baseUrl: override.baseUrl || cur.baseUrl || def.baseUrl || '', format: override.format || cur.format || def.format || 'openai' };
+  const act = s.api.preset === pid ? s.api : {};
+  const cfg = { baseUrl: override.baseUrl || cur.baseUrl || act.baseUrl || def.baseUrl || '', format: override.format || cur.format || act.format || def.format || 'openai' };
   const key = override.apiKey || store.getProviderKey(pid) || (s.api.preset === pid ? store.getApiKey() : '');
   const r = await catalog.fetchModelList(pid, cfg, key, fetchImpl, { lang: lang(), timeoutMs: TIMEOUT(), mask: (t) => llm.maskSecrets(t, key) });
   const current = s.api.preset === pid ? s.api.model : '';

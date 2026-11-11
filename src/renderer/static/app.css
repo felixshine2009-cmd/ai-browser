@@ -513,3 +513,6 @@ body.incog-active .address { box-shadow: 0 0 0 1px var(--incog); }
 .pm-empty { padding: 16px; color: var(--text-tertiary); font-size: 13px; }
 .pm-add { display: flex; gap: 8px; margin: 10px 0 6px; }
 .pm-add input { flex: 1; height: 32px; }
+.pm-tools input, .pm-add input { height: 32px; padding: 0 10px; border-radius: var(--radius-sm); border: 1px solid var(--separator); background: var(--bg-input); font: inherit; font-size: 13px; color: var(--text-primary); outline: none; -webkit-appearance: none; appearance: none; }
+.pm-tools input:focus, .pm-add input:focus { border-color: rgba(95,185,154,0.6); }
+.pm-tools input::placeholder, .pm-add input::placeholder { color: var(--text-tertiary); }

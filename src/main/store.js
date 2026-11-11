@@ -90,10 +90,11 @@ function init() {
   if (fresh) settingsFile.data.onboarding = { completed: false, skipped: false, completedAt: 0 };
   else if (!Object.prototype.hasOwnProperty.call(raw, 'onboarding')) settingsFile.data.onboarding = { completed: true, skipped: false, completedAt: 0 };
   // v5.4.0: per-provider model lists. Existing single-provider config becomes one provider entry, its model enabled.
-  if (!raw || !raw.ai || !raw.ai.providers || !Object.keys(raw.ai.providers).length) {
+  {
     const a = settingsFile.data.ai;
+    const before = JSON.stringify(a.providers || {});
     a.providers = require('./ai/model-catalog').migrate(a, Object.keys(require('./v36/v36').API_PROVIDERS));
-    if (raw) settingsFile.save();
+    if (raw && JSON.stringify(a.providers) !== before) settingsFile.save();
   }
   historyFile = new JsonFile('history.json', []);
   bookmarksFile = new JsonFile('bookmarks.json', []);

@@ -78,7 +78,7 @@
     const pv = presets[pidNow] || presets.custom || {};
     const f = isActive ? a : { baseUrl: (saved && saved.baseUrl) || pv.baseUrl || '', format: (saved && saved.format) || pv.format || 'openai', model: ((saved && (saved.models || []).find(m => m.enabled)) || {}).id || pv.model || '', temperature: a.temperature, hasKey: !!(saved && saved.hasKey) };
     const modelField = `<div class="combo" id="combo"><input id="model" value="${esc(f.model)}" spellcheck="false" autocomplete="off" placeholder="${esc(t('ai.api.modelPh'))}"/><button type="button" class="combo-btn" id="modelbtn" title="${esc(t('ai.api.models'))}" tabindex="-1">▾</button><div class="combo-pop" id="modelpop" hidden></div></div><div class="hint" id="modelhint">${esc(t('ai.api.modelHint'))}</div>`;
-    const configured = Object.keys(provs).filter(k => presets[k] && (provs[k].hasKey || (provs[k].models || []).some(m => m.enabled)));
+    const configured = Object.keys(provs).filter(k => presets[k] && (provs[k].hasKey || k === (a.preset || 'custom')));
     const chips = configured.length ? `<div class="prov-chips" id="provchips" role="list" aria-label="${esc(T('已配置的服务商', 'Configured providers'))}"><span class="prov-chips-l">${esc(T('已配置', 'Configured'))}</span>${configured.map(k => { const ms = provs[k].models || []; return `<button type="button" role="listitem" class="prov-chip${k === pidNow ? ' on' : ''}" data-prov="${esc(k)}">${k === (a.preset || 'custom') && S.ai.source === 'api' ? '<i class="dot" aria-hidden="true"></i>' : ''}${esc(presets[k].name)}<small>${ms.filter(m => m.enabled).length}/${ms.length}</small></button>`; }).join('')}<button type="button" class="prov-chip" data-prov="local">${esc(T('本地模型', 'Local models'))}</button></div>` : '';
     const opts = Object.entries(presets).map(([k, v]) => `<option value="${k}" ${pidNow === k ? 'selected' : ''}>${esc(v.name)}</option>`).join('') + `<optgroup label="${esc(T('本地', 'Local'))}"><option value="local" ${pidNow === 'local' ? 'selected' : ''}>${esc(T('本地模型（已下载 / 本地框架）', 'Local models (downloaded / frameworks)'))}</option></optgroup>`;
     document.getElementById('aibody').innerHTML = chips +
@@ -180,7 +180,7 @@
       p = (S.ai.providers || {})[pid] || {};
       const stale = !p.fetchedAt || (Date.now() - p.fetchedAt > 24 * 3600e3);
       const canFetch = p.hasKey || ['ollama', 'openrouter', 'custom'].includes(pid) || (pid === (S.ai.api.preset || 'custom') && S.ai.api.hasKey);
-      if (o.fetch || (o.auto && stale && canFetch && !o._fetched)) {
+      if (o.fetch || (o.auto && !o._fetched && ((stale && canFetch) || !(p.models || []).length))) {
         box.innerHTML = `<div class="pm-head"><h3>${esc(T('模型列表', 'Models'))} · ${esc(name)}</h3></div><div class="pm-status">${esc(T('正在从服务商获取模型列表…', 'Fetching the model list from the provider…'))}</div>`;
         let r; try { r = await window.aib.invoke('models:refresh', pid); } catch (e) { r = { ok: false, error: e.message }; }
         await refresh();

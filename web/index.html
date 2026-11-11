@@ -50,6 +50,7 @@
         <textarea id="q" rows="3" data-i18n-ph="askPlaceholder" placeholder="Ask…"></textarea>
         <div id="vkhost"></div>
         <div class="row-actions">
+          <div class="model-host" id="askModel"></div>
           <button type="button" class="primary" id="btnSend" data-i18n="send">Send</button>
           <button type="button" id="btnLocal" data-i18n="localModels">Local models</button>
         </div>
@@ -59,6 +60,7 @@
         <h3 data-i18n="solve">解题</h3>
         <textarea id="solveText" rows="3" placeholder="输入或粘贴题目"></textarea>
         <div class="row-actions">
+          <div class="model-host" id="solveModel"></div>
           <button type="button" id="solveImg">上传图片</button>
           <button type="button" id="solvePhone" data-i18n="phone">拍照上传</button>
           <button type="button" id="solveGo">求解</button>
@@ -154,6 +156,7 @@
     <div class="form-row"><label data-i18n="apiBase">API Base</label><input id="apiBase" placeholder="https://api.deepseek.com/v1" type="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url"></div>
     <div class="form-row"><label data-i18n="apiKey">API Key</label><div class="keyrow"><input id="apiKey" name="aib-api-secret" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"><button type="button" id="btnShowKey" aria-label="Show / hide key" data-i18n="show">Show</button></div></div>
     <div class="form-row"><label data-i18n="apiModel">Model</label><input id="apiModel" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="form-row"><label>模型列表</label><div id="provModels" class="prov-models"></div></div>
     <p class="hint" data-i18n="corsHint"></p>
     <div class="form-row"><label data-i18n="engineKind">Chat engine</label>
       <select id="engKind"><option value="api" data-i18n="engineApi">Custom API</option><option value="local" data-i18n="engineLocal">Local WebGPU</option></select>
@@ -192,6 +195,8 @@
   </div>
 </div>
 <script src="js/v36.js"></script>
+<script src="js/model-catalog.js"></script>
+<script src="js/model-picker.js"></script>
 <script src="js/runpanel.js"></script>
 <script src="js/vkeyboard.js"></script>
 <script src="js/fzstd.js"></script>

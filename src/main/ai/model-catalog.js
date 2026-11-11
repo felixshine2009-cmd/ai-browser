@@ -66,7 +66,8 @@
   function sup(o) { return !!(o && (o === true || o.supported === true)); }
 
   // The first request for a provider (pure; exported for tests).
-  function listRequest(pid, cfg, key) {
+  function listRequest(pid, cfg, key, opts) {
+    opts = opts || {};
     const spec = specOf(pid);
     const base = trimBase(cfg && cfg.baseUrl);
     const fmt = (cfg && cfg.format) || '';
@@ -74,6 +75,7 @@
     if (kind === 'builtin') return null;
     if (kind === 'anthropic') {
       const h = { 'x-api-key': key || '', 'anthropic-version': '2023-06-01' };
+      if (opts.browser) h['anthropic-dangerous-direct-browser-access'] = 'true'; // required for direct browser (CORS) access
       return { kind, url: base.replace(/\/v1$/, '') + '/v1/models?limit=1000', headers: h };
     }
     if (kind === 'gemini') {
@@ -202,7 +204,7 @@
   async function fetchModelList(pid, cfg, key, fetchImpl, opts) {
     opts = opts || {};
     const spec = specOf(pid);
-    const req = listRequest(pid, cfg || {}, key);
+    const req = listRequest(pid, cfg || {}, key, opts);
     const fallback = (error, code) => ({ source: 'builtin', models: builtinOf(pid).map(id => ({ id })), filtered: 0, url: req ? redact(req.url) : '', docs: spec.docs, error: error || '', errorCode: code || (req ? 'failed' : 'nolist') });
     if (!req) return fallback(L(opts.lang, '该服务商未提供适用于对话接口的模型列表接口', 'This provider has no model list endpoint for its chat API'), 'nolist');
     if (!trimBase(cfg && cfg.baseUrl) && pid !== 'gemini' && pid !== 'ollama') return fallback(L(opts.lang, '请先填写 Base URL', 'Fill in the Base URL first'), 'nobase');
@@ -273,12 +275,13 @@
       const enabled = p ? !!p.enabled : (first ? (f.id === opts.current || rec.has(f.id)) : false);
       const e = Object.assign({}, f, { enabled });
       if (p && p.manual) e.manual = true;
-      if (opts.source === 'builtin') e.builtin = true;
+      if (opts.source === 'builtin') e.builtin = true; else delete e.builtin;
       out.push(e);
     }
     for (const p of prev) {
       if (seen.has(p.id)) continue;
       if (p.manual) { out.push(Object.assign({}, p)); seen.add(p.id); continue; }
+      if (p.builtin && opts.source === 'api') continue; // a built-in placeholder the provider does not offer
       if (p.enabled) { out.push(Object.assign({}, p, { stale: opts.source === 'api' ? true : p.stale })); seen.add(p.id); }
     }
     if (opts.current && !seen.has(opts.current)) out.push({ id: opts.current, enabled: true, manual: true });
