@@ -122,7 +122,12 @@ async function start() {
         for (let i = 0; i < buf.length; i += n) await js(`window.vmhost.putRestoreChunk(${JSON.stringify(buf.subarray(i, i + n).toString('base64'))})`);
       }
       const gui = st.image === 'alpine-gui';
-      const r = await js(`window.vmhost.start(${JSON.stringify({ memoryMB: gui ? Math.max(GUI_IMAGE.memoryMB, Number(settings().memoryMB) || 0) : settings().memoryMB, basefs: gui ? 'aibres://data/vm-gui/fs.json' : '' })})`);
+      await js(`window.vmhost.beginStart(${JSON.stringify({ memoryMB: gui ? Math.max(GUI_IMAGE.memoryMB, Number(settings().memoryMB) || 0) : settings().memoryMB, basefs: gui ? 'aibres://data/vm-gui/fs.json' : '' })})`);
+      let r = null; const t0 = Date.now();
+      while (!(r && r.done)) {
+        if (Date.now() - t0 > 900000) throw new Error('Linux 虚拟机启动超时');
+        await new Promise((res) => setTimeout(res, 1000)); r = await js('window.vmhost.startResult()');
+      }
       if (!r || !r.ok) throw new Error((r && r.error) || 'Linux 虚拟机启动失败');
       st.info = Object.assign({}, r.info || {}, { network: false }); st.startedAt = Date.now();
       try { await afterBoot(); } catch (e) { console.error('vm afterBoot', e.message); }

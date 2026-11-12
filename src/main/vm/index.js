@@ -28,6 +28,7 @@ const IMAGES = {
   alpine: IMAGE,
   'debian-xfce': {
     version: 'debian-13-xfce-1',
+    downloadMB: 990,
     base: 'https://github.com/felixshine2009-cmd/ai-browser/releases/download/v5.7.0/',
     mirrors: IMAGE.mirrors,
     gui: true,
@@ -65,7 +66,7 @@ function status() {
   const d = D(); let diskBytes = 0, imageReady = false; const im = cur();
   try { const s = fs.statSync(path.join(d.img, diskOf(im))); diskBytes = s.blocks ? s.blocks * 512 : s.size; imageReady = im.files.every(f => fs.existsSync(path.join(d.img, f.out))) && fs.existsSync(path.join(d.img, okOf(im))); } catch {}
   const cfg = settings();
-  const images = Object.keys(IMAGES).map(id => ({ id, gui: !!IMAGES[id].gui, version: IMAGES[id].version, ready: fs.existsSync(path.join(d.img, okOf(IMAGES[id]))) }));
+  const images = Object.keys(IMAGES).map(id => ({ id, gui: !!IMAGES[id].gui, version: IMAGES[id].version, downloadMB: IMAGES[id].downloadMB || 0, ready: fs.existsSync(path.join(d.img, okOf(IMAGES[id]))) }));
   return { supported: supported(), backend: backend(), phase: st.phase, detail: st.detail, progress: st.progress, error: st.error, imageReady, imageVersion: im.version, image: imageId(), gui: !!im.gui, images, runningImage: st.image || null, diskBytes, diskGB: cfg.diskGB, memoryMB: cfg.memoryMB, cpus: cfg.cpus, info: st.info, share: d.share, startedAt: st.startedAt };
 }
 

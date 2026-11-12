@@ -45,7 +45,7 @@
         filesystem: { basefs: opts.basefs || (BASE + 'fs.json'), baseurl: BASE + 'fs/' }, autostart: true, disable_keyboard: true, disable_mouse: true, disable_speaker: true
       });
       emu.add_listener('serial0-output-byte', onByte);
-      const to = new Promise((_, rej) => setTimeout(() => rej(new Error('Linux 虚拟机启动超时')), 300000));
+      const to = new Promise((_, rej) => setTimeout(() => rej(new Error('Linux 虚拟机启动超时')), 600000));
       await Promise.race([ready, to]);
       phase = 'running';
       if (restoreChunks.length) {
@@ -104,8 +104,13 @@
   function saveChunk(i) { const n = 4 * 1024 * 1024; return saveBuf ? b64of(saveBuf.subarray(i * n, (i + 1) * n)) : ''; }
   function putRestoreChunk(b64) { restoreChunks.push(u8of(b64)); return restoreChunks.length; }
   function stop() { try { emu && emu.stop(); emu && emu.destroy(); } catch {} emu = null; phase = 'stopped'; for (const p of pending.values()) p.reject(new Error('虚拟机已关闭')); pending.clear(); return true; }
+  // the native layer caps one evaluateJavaScript call at 120 s; a cold boot of the graphical image can take longer,
+  // so the host starts the boot and then polls for its result
+  let startP = null, startR = null;
+  function beginStart(opts) { if (!startP) { startR = null; startP = start(opts).then((r) => { startR = r; startP = null; return r; }); } return true; }
+  function startResult() { return startR ? Object.assign({ done: true }, startR) : { done: false, phase }; }
   window.vmhost = {
-    start, stop, poll, readFile, writeFile, save, saveChunk, putRestoreChunk,
+    start, beginStart, startResult, stop, poll, readFile, writeFile, save, saveChunk, putRestoreChunk,
     exec: (cmd, cwd, timeoutSec, stdin) => job('exec', { cmd, cwd: cwd || '/root/work', timeout: timeoutSec || 600, stdin }),
     py: (code, session) => job('py', { code, session, workdir: '/root/work/' + session, figdir: '/tmp/aibfig-' + session, inlineImages: false }),
     kill: (id) => { send('kill', { target: id }).catch(() => {}); return true; },
