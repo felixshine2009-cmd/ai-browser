@@ -1,0 +1,12 @@
+[Unit]
+Description=AI Browser graphical desktop (Xvfb :0 + XFCE)
+After=aib-setup.service dbus.service
+
+[Service]
+Environment=HOME=/root DISPLAY=:0 XDG_RUNTIME_DIR=/run/aib-xdg LANG=en_US.UTF-8
+ExecStart=/usr/local/sbin/aib-desktop
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

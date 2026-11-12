@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<JWM>
+  <RootMenu onroot="123">
+    <Program icon="utilities-terminal" label="Terminal">xterm</Program>
+    <Program label="Web browser (Dillo)">dillo</Program>
+    <Program label="Files (xfe)">xfe</Program>
+    <Separator/>
+    <Restart label="Restart JWM"/>
+  </RootMenu>
+  <Tray x="0" y="-1" height="30" autohide="off">
+    <TrayButton label="Menu">root:1</TrayButton>
+    <TrayButton label="Terminal">exec:xterm</TrayButton>
+    <TrayButton label="Browser">exec:dillo</TrayButton>
+    <Pager/>
+    <TaskList maxwidth="220"/>
+    <Clock format="%H:%M"/>
+  </Tray>
+  <WindowStyle><Font>DejaVu Sans-10</Font><Width>3</Width><Height>22</Height>
+    <Foreground>#ffffff</Foreground><Background>#3c6e9f</Background><Outline>#203040</Outline><Opacity>1.0</Opacity>
+    <Active><Foreground>#ffffff</Foreground><Background>#4a86c5</Background></Active></WindowStyle>
+  <TrayStyle><Font>DejaVu Sans-10</Font><Background>#22303e</Background><Foreground>#ffffff</Foreground></TrayStyle>
+  <MenuStyle><Font>DejaVu Sans-11</Font><Foreground>#000000</Foreground><Background>#f0f0f0</Background><Active><Foreground>#ffffff</Foreground><Background>#4a86c5</Background></Active></MenuStyle>
+  <Desktops width="1" height="1"/>
+  <FocusModel>click</FocusModel>
+  <StartupCommand>xterm -geometry 90x26+40+40</StartupCommand>
+  <Key mask="A" key="Tab">nextstacked</Key>
+  <Key mask="A" key="F4">close</Key>
+</JWM>

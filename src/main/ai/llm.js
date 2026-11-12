@@ -148,6 +148,37 @@ async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, sig
   return { content, toolCalls: calls.filter(Boolean).map((c, i) => ({ ...c, id: c.id || 'call_' + i, arguments: c.arguments || '{}' })) };
 }
 
+// ---------- images in tool results (computer-use screenshots)
+// A tool message may carry `images: [dataUrl]` (internal field). Only the newest KEEP_IMAGES are sent; older ones and
+// models without vision get a short text note. OpenAI-style APIs cannot put images in tool messages, so they follow the
+// block of tool results as one user message.
+const KEEP_IMAGES = 2;
+function anthropicImage(url) {
+  const m = /^data:(image\/[a-z+.-]+);base64,(.+)$/i.exec(String(url || ''));
+  return m ? { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } } : null;
+}
+function prepImages(messages, { vision, format }) {
+  if (!messages.some(m => m && m.role === 'tool' && m.images && m.images.length)) return messages;
+  let left = vision ? KEEP_IMAGES : 0;
+  const keep = new Set();
+  for (let i = messages.length - 1; i >= 0; i--) { const m = messages[i]; if (m && m.role === 'tool' && m.images && m.images.length && left > 0) { keep.add(i); left--; } }
+  const note = vision ? '\n(an older screenshot was omitted)' : '\n(screenshot not shown: the current model cannot see images; rely on the text results)';
+  const out = [];
+  let pending = [];
+  const flush = () => { if (pending.length) { out.push({ role: 'user', content: [{ type: 'text', text: 'Screenshot from the tool result above (pixel coordinates match the screen):' }].concat(pending.map(u => ({ type: 'image_url', image_url: { url: u } }))) }); pending = []; } };
+  messages.forEach((m, i) => {
+    if (!m || m.role !== 'tool' || !m.images) { if (!(m && m.role === 'tool')) flush(); out.push(m); return; }
+    const { images, ...rest } = m;
+    if (!images.length) { out.push(rest); return; }
+    if (!keep.has(i)) { out.push({ ...rest, content: String(rest.content) + note }); return; }
+    if (format === 'anthropic') out.push({ ...rest, images });
+    else { out.push(rest); pending.push(...images); }
+  });
+  flush();
+  return out;
+}
+const stripImages = (messages) => prepImages(messages, { vision: false });
+
 // ---------- Anthropic
 function toAnthropic(messages) {
   let system = '';
@@ -155,7 +186,8 @@ function toAnthropic(messages) {
   for (const m of messages) {
     if (m.role === 'system') { system += (system ? '\n' : '') + m.content; continue; }
     if (m.role === 'tool') {
-      out.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: m.tool_call_id, content: String(m.content) }] });
+      const imgs = (m.images || []).map(anthropicImage).filter(Boolean);
+      out.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: m.tool_call_id, content: imgs.length ? [{ type: 'text', text: String(m.content) }].concat(imgs) : String(m.content) }] });
     } else if (m.role === 'assistant' && m.tool_calls?.length) {
       const blocks = [];
       if (m.content) blocks.push({ type: 'text', text: m.content });
@@ -164,6 +196,8 @@ function toAnthropic(messages) {
         blocks.push({ type: 'tool_use', id: tc.id, name: tc.function.name, input });
       }
       out.push({ role: 'assistant', content: blocks });
+    } else if (Array.isArray(m.content)) {
+      out.push({ role: m.role, content: m.content.map(p => (p && p.type === 'image_url' ? anthropicImage(p.image_url && p.image_url.url) : p)).filter(Boolean) });
     } else out.push({ role: m.role, content: m.content });
   }
   return { system, messages: out };
@@ -304,7 +338,11 @@ async function chatLocalRouted(c, opts) {
 
 async function chat(opts) {
   const c = currentConfig();
-  if (c.source === 'local') return chatLocalRouted(c, opts);
+  if (c.source === 'local') return chatLocalRouted(c, opts.messages ? { ...opts, messages: stripImages(opts.messages) } : opts);
+  if (opts.messages) {
+    const caps = modelCaps(c.api.preset, c.api.model);
+    opts = { ...opts, messages: prepImages(opts.messages, { vision: !(caps && caps.vision === false), format: c.api.format }) };
+  }
   if (!c.api.baseUrl || !c.api.model) throw Object.assign(new Error('API 未配置：请在 设置 → AI 模型 中填写 Base URL 与模型'), { code: 'NO_CONFIG' });
   const key = c.override ? c.key : store.getApiKey();
   const fn = c.api.format === 'anthropic' ? chatAnthropic : chatOpenAI;
@@ -410,4 +448,4 @@ async function testConnection(override) {
   }
 }
 
-module.exports = { withModel, activeSource, activeModel, modelCaps, localLabel, chat, complete, completeJson, events, hasRole, roleOf, extractJson, testConnection, fetchModels, friendly, maskSecrets, PRESETS };
+module.exports = { prepImages, toAnthropic, withModel, activeSource, activeModel, modelCaps, localLabel, chat, complete, completeJson, events, hasRole, roleOf, extractJson, testConnection, fetchModels, friendly, maskSecrets, PRESETS };

@@ -24,7 +24,7 @@ const selfmod = require('./selfmod');
 const appearance = require('./appearance');
 
 const RENDERER = path.join(__dirname, '..', 'renderer');
-const PAGES = new Set(['chrome', 'home', 'chat', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'menu', 'find', 'lookup', 'onboarding', 'selfmod', 'tool', 'siri']);
+const PAGES = new Set(['chrome', 'home', 'chat', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'menu', 'find', 'lookup', 'onboarding', 'selfmod', 'tool', 'siri', 'vmdesktop']);
 const MIME = { html: 'text/html; charset=utf-8', js: 'application/javascript', css: 'text/css', json: 'application/json', svg: 'image/svg+xml', png: 'image/png', woff2: 'font/woff2', wasm: 'application/wasm', mjs: 'application/javascript', gif: 'image/gif', jpg: 'image/jpeg', jpeg: 'image/jpeg', ico: 'image/x-icon', ttf: 'font/ttf', woff: 'font/woff', txt: 'text/plain', map: 'application/json', xml: 'text/xml', mp3: 'audio/mpeg', ogg: 'audio/ogg' };
 const mimeOf = f => MIME[path.extname(f).slice(1).toLowerCase()] || 'application/octet-stream';
 const fileResponse = (f) => new Response(fs.readFileSync(f), { headers: { 'Content-Type': mimeOf(f), 'Access-Control-Allow-Origin': '*' } });
@@ -313,6 +313,12 @@ function registerIpc() {
     return { ok: true, status: await vmMod().reset() };
   });
   handle('vm:openShare', () => { const d = vmMod().dirs().share; require('fs').mkdirSync(d, { recursive: true }); require('electron').shell.openPath(d); return { ok: true, path: d }; });
+  handle('vm:setImage', async (e, id) => { try { return { ok: true, status: await vmMod().setImage(id) }; } catch (err) { return { ok: false, error: String(err.message || err), status: vmMod().status() }; } });
+  handle('vm:removeImage', async (e, id) => { try { return { ok: true, status: await vmMod().removeImage(id) }; } catch (err) { return { ok: false, error: String(err.message || err), status: vmMod().status() }; } });
+  handle('vm:openDesktop', () => { tabsMod.openInternal('vmdesktop'); return { ok: true }; });
+  // in-app viewer of the graphical VM desktop (polls screenshots, forwards clicks / keys)
+  handle('vm:gui:shot', async () => { try { const s = vmMod().status(); if (!s.gui) return { ok: false, needGui: true }; await vmMod().ensure(); return Object.assign({ ok: true }, await require('./ai/compute-tools').gui().viewerShot()); } catch (err) { return { ok: false, error: String(err.message || err) }; } });
+  handle('vm:gui:input', async (e, ev) => { try { return await require('./ai/compute-tools').gui().viewerInput(ev || {}); } catch (err) { return { ok: false, error: String(err.message || err) }; } });
   handle('vm:ping', async () => { try { return { ok: true, info: await vmMod().ping() }; } catch (err) { return { ok: false, error: String(err.message || err) }; } });
   try { vmMod().events.on('state', (s) => broadcast('vm:state', s)); } catch (err) { console.error('vm events', err.message); }
   handle('chat:rerun', (e, sid, queries) => chat.rerun(sid, queries));

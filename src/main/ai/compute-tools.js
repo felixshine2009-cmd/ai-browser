@@ -7,6 +7,7 @@ const os = require('os');
 const py = require('../python');
 const vm = require('../vm');
 const CODEX = require('../vm/codex-tools');
+const GUI = require('../vm/gui-tools');
 
 const str = (d) => ({ type: 'string', description: d });
 const obj = (properties, required = []) => ({ type: 'object', properties, required });
@@ -129,4 +130,22 @@ for (const d of CODEX.DEFS) TOOLS.push({ name: d.name, group: 'vm', description:
     finally { if (vm.save) vm.save().catch(() => {}); } // iPad: snapshot /root and /persist
   } });
 
-module.exports = { TOOLS, engineFor, codex };
+// Computer use on the graphical image (screenshot / click / type / keys / scroll / drag)
+let guiInst = null;
+function gui() {
+  if (guiInst) return guiInst;
+  guiInst = GUI.create({
+    sh: (cmd, o) => vm.shell(cmd, o || {}),
+    read: (p, max) => vm.readFile(p, max),
+    write: (p, bytes) => vm.writeFile(p, Buffer.from(bytes))
+  }, { maxWidth: vm.guiMaxWidth || 0 });
+  return guiInst;
+}
+for (const d of GUI.DEFS) TOOLS.push({ name: d.name, group: 'vm', description: d.description, parameters: d.parameters,
+  run: async (a, ctx) => {
+    await vmUp(ctx);
+    const k = GUI.LABELS[d.name]; status(ctx, `Linux 桌面：${k ? k[0] : d.name}…`);
+    return gui().call(d.name, a, { status: (t) => status(ctx, t), signal: ctx && ctx.signal });
+  } });
+
+module.exports = { TOOLS, engineFor, codex, gui };

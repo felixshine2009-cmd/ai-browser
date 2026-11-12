@@ -18,6 +18,9 @@ sudo mkdir -p "$RFS"; sudo tar -xzf "$WORK/mini.tgz" -C "$RFS"
 echo -e "https://dl-cdn.alpinelinux.org/alpine/$ALP/main\nhttps://dl-cdn.alpinelinux.org/alpine/$ALP/community" | sudo tee "$RFS/etc/apk/repositories" >/dev/null
 COMMON="python3 py3-pip py3-numpy py3-scipy py3-sympy py3-mpmath py3-matplotlib py3-pandas py3-pillow linux-virt busybox-static e2fsprogs ca-certificates-bundle curl bash tzdata"
 if [ "$ARCH" = aarch64 ]; then PKGS="$COMMON git ripgrep patch build-base python3-dev e2fsprogs-extra openssh-client wget file less"; else PKGS="$COMMON blas cblas lapack git ripgrep patch"; fi
+# GUI=1 (x86 only): light graphical image for iPad computer use — Xvfb + JWM + xterm + xdotool (+ Dillo, Xfe)
+GUI="${GUI:-0}"
+if [ "$GUI" = 1 ]; then PKGS="$PKGS xvfb xdotool xsetroot jwm xterm dillo xfe font-dejavu"; fi
 sudo "$APK" --arch "$ARCH" --root "$RFS" --keys-dir "$RFS/etc/apk/keys" --no-scripts --no-cache --update-cache add $PKGS
 # busybox applet links (package post-install script was skipped)
 if [ -f "$RFS/etc/busybox-paths.d/busybox" ]; then
@@ -39,6 +42,13 @@ sudo /sbin/depmod -a -b "$RFS" "$KVER"
 sudo mkdir -p "$RFS/opt/aib" "$RFS/etc/aib" "$RFS/root/work" "$RFS/persist/site" "$RFS/mnt/share"
 sudo cp "$HERE/guest/agent.py" "$ROOT/src/main/python/kernel.py" "$RFS/opt/aib/"
 sudo cp "$HERE/guest/aib-setup" "$RFS/sbin/aib-setup"; sudo chmod 755 "$RFS/sbin/aib-setup"
+if [ "$GUI" = 1 ]; then
+  sudo mkdir -p "$RFS/usr/local/sbin" "$RFS/etc"; sudo cp "$HERE/guest/gui/aib-desktop" "$RFS/usr/local/sbin/aib-desktop"; sudo chmod 755 "$RFS/usr/local/sbin/aib-desktop"
+  sudo cp "$HERE/guest/gui/system.jwmrc" "$RFS/etc/system.jwmrc"
+  # fontconfig cache: built natively (i686 binaries run on the x86_64 build host)
+  sudo chroot "$RFS" /usr/bin/fc-cache -f >/dev/null 2>&1 || echo "warning: fc-cache failed"
+  bash "$HERE/guest/gui/slim-mesa.sh" "$RFS" "$WORK"
+fi
 if [ "$ARCH" = x86 ]; then AGENT_ARGS="--tty /dev/ttyS0"; else AGENT_ARGS=""; fi
 sudo tee "$RFS/etc/inittab" >/dev/null <<IT
 ::sysinit:/sbin/aib-setup

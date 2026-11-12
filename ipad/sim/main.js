@@ -94,6 +94,12 @@ async function resHandler(req) {
   const u = new URL(req.url); const rel = decodeURIComponent(u.pathname).replace(/^\/+/, '');
   const root = u.host === 'data' ? UD : BUNDLE;
   const f = u.host === 'data' ? path.join(UD, rel) : /^(pyodide|vm)\//.test(rel) ? path.join(BUNDLE, rel) : path.join(BUNDLE, 'web', rel);
+  let f2 = f, root2 = root;
+  // graphical VM image: blobs that are not in the bundled base image were downloaded to userData/vm-gui/fs/ (SchemeHandler.swift)
+  if (u.host !== 'data' && /^vm\/fs\//.test(rel) && !fs.existsSync(f)) { f2 = path.join(UD, 'vm-gui', 'fs', path.basename(rel)); root2 = UD; }
+  return serveFile(f2, root2);
+}
+function serveFile(f, root) {
   if (!f.startsWith(root) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return new Response('not found', { status: 404 });
   const ext = path.extname(f).toLowerCase();
   const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm', '.png': 'image/png', '.svg': 'image/svg+xml' }[ext] || 'application/octet-stream';

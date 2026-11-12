@@ -1,0 +1,13 @@
+[Unit]
+Description=AI Browser guest agent
+After=aib-setup.service systemd-modules-load.service
+Wants=aib-setup.service
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/aib/agent.py
+Restart=always
+RestartSec=1
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

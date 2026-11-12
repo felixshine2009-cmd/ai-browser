@@ -51,8 +51,13 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             let first = rel.split(separator: "/").first.map(String.init) ?? ""
             if ["pyodide", "vm"].contains(first) { file = Paths.payload.appendingPathComponent(String(rel.drop(while: { $0 == "/" }))) }
         }
-        let std = file.standardizedFileURL.path
-        let okRoot = url.host == "data" ? Paths.userData.standardizedFileURL.path : Paths.payload.standardizedFileURL.path
+        var std = file.standardizedFileURL.path
+        var okRoot = url.host == "data" ? Paths.userData.standardizedFileURL.path : Paths.payload.standardizedFileURL.path
+        // graphical VM image: blobs that are not in the bundled base image were downloaded to userData/vm-gui/fs/
+        if url.host == "app", rel.hasPrefix("/vm/fs/"), !FileManager.default.fileExists(atPath: std) {
+            let alt = Paths.userData.appendingPathComponent("vm-gui/fs").appendingPathComponent(file.lastPathComponent).standardizedFileURL.path
+            if FileManager.default.fileExists(atPath: alt) { std = alt; okRoot = Paths.userData.standardizedFileURL.path }
+        }
         DispatchQueue.global(qos: .userInitiated).async {
             let data = std.hasPrefix(okRoot) ? (try? Data(contentsOf: URL(fileURLWithPath: std), options: .alwaysMapped)) : nil
             DispatchQueue.main.async {

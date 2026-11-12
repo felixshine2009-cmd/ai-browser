@@ -22,6 +22,23 @@ const IMAGE = {
     { asset: 'linux-vm-arm64-rootfs.img.gz', out: 'disk.img', gunzip: true, disk: true }
   ]
 };
+// Optional graphical image (Settings → Linux VM): Debian 13 arm64 + XFCE on Xvfb, same kernel / initramfs, its own disk.
+// Downloaded on first use; the Alpine disk is kept, so switching back and forth loses nothing.
+const IMAGES = {
+  alpine: IMAGE,
+  'debian-xfce': {
+    version: 'debian-13-xfce-1',
+    base: 'https://github.com/felixshine2009-cmd/ai-browser/releases/download/v5.7.0/',
+    mirrors: IMAGE.mirrors,
+    gui: true,
+    files: [IMAGE.files[0], IMAGE.files[1], { asset: 'linux-vm-arm64-debian-xfce.img.gz', out: 'disk-debian-xfce.img', gunzip: true, disk: true, base: 'https://github.com/felixshine2009-cmd/ai-browser/releases/download/v5.7.0/', local: 'rootfs-debian-xfce.img' }]
+  }
+};
+let imageOverride = null; // tests / when settings cannot be saved
+function imageId() { const id = imageOverride || settings().image; return IMAGES[id] ? id : 'alpine'; }
+function cur() { return IMAGES[imageId()]; }
+const diskOf = (im) => im.files.find(f => f.disk).out;
+const okOf = (im) => (im === IMAGE ? '.ok' : '.ok-' + Object.keys(IMAGES).find(k => IMAGES[k] === im));
 const events = new EventEmitter();
 let userDataOverride = null;
 function userData() {
@@ -45,10 +62,11 @@ function setPhase(phase, detail, extra) {
   events.emit('state', status());
 }
 function status() {
-  const d = D(); let diskBytes = 0, imageReady = false;
-  try { const s = fs.statSync(path.join(d.img, 'disk.img')); diskBytes = s.blocks ? s.blocks * 512 : s.size; imageReady = IMAGE.files.every(f => fs.existsSync(path.join(d.img, f.out))) && fs.existsSync(path.join(d.img, '.ok')); } catch {}
+  const d = D(); let diskBytes = 0, imageReady = false; const im = cur();
+  try { const s = fs.statSync(path.join(d.img, diskOf(im))); diskBytes = s.blocks ? s.blocks * 512 : s.size; imageReady = im.files.every(f => fs.existsSync(path.join(d.img, f.out))) && fs.existsSync(path.join(d.img, okOf(im))); } catch {}
   const cfg = settings();
-  return { supported: supported(), backend: backend(), phase: st.phase, detail: st.detail, progress: st.progress, error: st.error, imageReady, imageVersion: IMAGE.version, diskBytes, diskGB: cfg.diskGB, memoryMB: cfg.memoryMB, cpus: cfg.cpus, info: st.info, share: d.share, startedAt: st.startedAt };
+  const images = Object.keys(IMAGES).map(id => ({ id, gui: !!IMAGES[id].gui, version: IMAGES[id].version, ready: fs.existsSync(path.join(d.img, okOf(IMAGES[id]))) }));
+  return { supported: supported(), backend: backend(), phase: st.phase, detail: st.detail, progress: st.progress, error: st.error, imageReady, imageVersion: im.version, image: imageId(), gui: !!im.gui, images, runningImage: st.image || null, diskBytes, diskGB: cfg.diskGB, memoryMB: cfg.memoryMB, cpus: cfg.cpus, info: st.info, share: d.share, startedAt: st.startedAt };
 }
 
 // ---------------------------------------------------------------- image download (first use)
@@ -60,30 +78,35 @@ async function fetchStream(url) {
 }
 async function downloadImage(signal) {
   const d = D(); fs.mkdirSync(d.img, { recursive: true });
-  if (fs.existsSync(path.join(d.img, '.ok'))) return;
+  const im = cur();
+  if (fs.existsSync(path.join(d.img, okOf(im)))) return;
   const local = process.env.AIB_VM_IMAGE_DIR; // tests / offline: a directory with the built files
-  for (const f of IMAGE.files) {
+  for (const f of im.files) {
     const out = path.join(d.img, f.out);
     if (fs.existsSync(out) && !f.disk) continue;
     if (local) {
-      const plain = path.join(local, f.out === 'disk.img' ? 'rootfs.img' : f.out);
-      setPhase('preparing', '正在准备 Linux 虚拟机…', { progress: null });
-      await fs.promises.copyFile(plain, out + '.part'); fs.renameSync(out + '.part', out); continue;
+      const plain = path.join(local, f.local || (f.out === 'disk.img' ? 'rootfs.img' : f.out));
+      if (fs.existsSync(plain)) {
+        setPhase('preparing', '正在准备 Linux 虚拟机…', { progress: null });
+        await fs.promises.copyFile(plain, out + '.part'); fs.renameSync(out + '.part', out); continue;
+      }
+      if (!fs.existsSync(plain + '.gz')) throw new Error('缺少镜像文件：' + plain);
+      await downloadOne('file://' + plain + '.gz', out, f, signal); continue;
     }
     let lastErr;
-    for (const m of IMAGE.mirrors) {
-      try { await downloadOne(m + IMAGE.base + f.asset, out, f, signal); lastErr = null; break; }
+    for (const m of im.mirrors) {
+      try { await downloadOne(m + (f.base || im.base) + f.asset, out, f, signal); lastErr = null; break; }
       catch (e) { lastErr = e; if (signal && signal.aborted) throw new Error('已取消下载'); }
     }
     if (lastErr) throw new Error('下载虚拟机镜像失败：' + (lastErr.message || lastErr));
   }
-  fs.writeFileSync(path.join(d.img, '.ok'), IMAGE.version);
+  fs.writeFileSync(path.join(d.img, okOf(im)), im.version);
 }
 async function downloadOne(url, out, f, signal) {
-  const r = await fetchStream(url);
-  const total = Number(r.headers.get('content-length')) || 0; let got = 0;
   const { Readable } = require('stream'); const { pipeline } = require('stream/promises');
-  const src = Readable.fromWeb(r.body);
+  let total = 0, got = 0, src;
+  if (url.startsWith('file://')) { const p = url.slice(7); total = fs.statSync(p).size; src = fs.createReadStream(p); }
+  else { const r = await fetchStream(url); total = Number(r.headers.get('content-length')) || 0; src = Readable.fromWeb(r.body); }
   src.on('data', (c) => { got += c.length; setPhase('downloading', `正在下载 Linux 虚拟机镜像（${f.out}）…`, { progress: { file: f.out, got, total } }); });
   if (signal) signal.addEventListener('abort', () => src.destroy(new Error('aborted')));
   const tmp = out + '.part';
@@ -91,7 +114,7 @@ async function downloadOne(url, out, f, signal) {
   fs.renameSync(tmp, out);
 }
 function growDisk() {
-  const p = path.join(D().img, 'disk.img'); const want = Math.max(4, Number(settings().diskGB) || 16) * 1024 ** 3;
+  const p = path.join(D().img, diskOf(cur())); const want = Math.max(4, Number(settings().diskGB) || 16) * 1024 ** 3;
   try { const s = fs.statSync(p); if (s.size < want) fs.truncateSync(p, want); } catch {}
 }
 
@@ -125,7 +148,7 @@ function launchArgs(kind) {
   if (kind === 'vfkit') return { cmd: vfkitPath(), args: [
     '--cpus', String(cpus), '--memory', String(mem),
     '--kernel', img('vmlinux'), '--initrd', img('initramfs.gz'), '--kernel-cmdline', 'console=hvc0 aibroot=/dev/vda rw quiet',
-    '--device', `virtio-blk,path=${img('disk.img')}`,
+    '--device', `virtio-blk,path=${img(diskOf(cur()))}`,
     '--device', 'virtio-net,nat',
     '--device', 'virtio-rng',
     '--device', `virtio-serial,logFilePath=${d.log}`,
@@ -133,9 +156,9 @@ function launchArgs(kind) {
     '--device', `virtio-fs,sharedDir=${d.share},mountTag=share`
   ] };
   if (kind === 'qemu') return { cmd: process.env.AIB_QEMU || 'qemu-system-aarch64', args: [
-    '-M', 'virt', '-cpu', process.env.AIB_QEMU_CPU || 'cortex-a72', '-m', String(Math.min(mem, 2048)), '-smp', String(cpus), '-nographic', '-monitor', 'none',
+    '-M', 'virt', '-cpu', process.env.AIB_QEMU_CPU || 'cortex-a72', '-m', String(Math.min(mem, cur().gui ? 3072 : 2048)), '-smp', String(cpus), '-nographic', '-monitor', 'none',
     '-kernel', img('vmlinux'), '-initrd', img('initramfs.gz'), '-append', 'console=ttyAMA0 aibroot=/dev/vda rw quiet',
-    '-drive', `file=${img('disk.img')},if=none,format=raw,id=hd`, '-device', 'virtio-blk-pci,drive=hd',
+    '-drive', `file=${img(diskOf(cur()))},if=none,format=raw,id=hd`, '-device', 'virtio-blk-pci,drive=hd',
     '-netdev', 'user,id=n', '-device', 'virtio-net-pci,netdev=n',
     '-device', 'virtio-serial-pci', '-chardev', `socket,path=${sockPath()},server=on,wait=off,id=ag`, '-device', 'virtserialport,chardev=ag,name=aib.agent'
   ] };
@@ -170,8 +193,9 @@ async function start({ signal } = {}) {
         setPhase('stopped', wasStopping ? '' : `虚拟机已退出（${sig || code}）`, { error: wasStopping ? null : (errTail.trim().split('\n').slice(-3).join(' ') || null), info: null });
       });
       proc.on('error', (e) => { errTail += String(e.message || e); });
+      st.image = imageId();
       const client = new AgentClient(sockPath());
-      const ready = await client.connect({ timeoutMs: backend() === 'qemu' ? 240000 : 90000, isAlive: () => st.proc === proc });
+      const ready = await client.connect({ timeoutMs: backend() === 'qemu' ? (cur().gui ? 600000 : 240000) : (cur().gui ? 180000 : 90000), isAlive: () => st.proc === proc });
       st.client = client; st.info = ready.info || null; st.startedAt = Date.now();
       // DHCP runs in the background during boot; wait briefly so the first command already has internet.
       setPhase('booting', '正在连接网络…');
@@ -202,11 +226,28 @@ async function stop() {
 }
 async function reset() {
   await stop();
-  const d = D(); for (const f of ['disk.img', '.ok']) try { fs.unlinkSync(path.join(d.img, f)); } catch {}
+  const d = D(); for (const f of [diskOf(cur()), okOf(cur())]) try { fs.unlinkSync(path.join(d.img, f)); } catch {}
   setPhase('stopped', '虚拟机磁盘已重置，下次启动时会重新准备');
   return status();
 }
-async function ensure(opts) { if (!running()) await start(opts); return st.client; }
+async function ensure(opts) { if (running() && st.image && st.image !== imageId()) await stop(); if (!running()) await start(opts); return st.client; }
+// switch between the command-line image and the graphical image (restarts a running VM)
+async function setImage(id) {
+  if (!IMAGES[id]) throw new Error('unknown image: ' + id);
+  const was = running();
+  imageOverride = null; try { require('../store').patchSettings({ vm: { image: id } }); } catch { imageOverride = id; }
+  if (imageId() !== id) imageOverride = id;
+  if (st.proc && st.image !== id) await stop();
+  if (was) await start();
+  return status();
+}
+// remove a downloaded image that is not in use (frees disk space)
+async function removeImage(id) {
+  const im = IMAGES[id]; if (!im || im === IMAGE) throw new Error('cannot remove this image');
+  if (st.proc && st.image === id) await stop();
+  const d = D(); for (const f of [diskOf(im), okOf(im), diskOf(im) + '.part']) try { fs.unlinkSync(path.join(d.img, f)); } catch {}
+  return status();
+}
 
 // ---------------------------------------------------------------- operations used by agent tools / IPC
 async function shell(command, { cwd, timeoutSec, signal, onOutput, stdin } = {}) {
@@ -242,4 +283,4 @@ async function ping() { const c = await ensure(); const r = await c.request('pin
 function diskUsage() { const s = status(); return { diskBytes: s.diskBytes, diskGB: s.diskGB, imageReady: s.imageReady }; }
 function shutdownSync() { if (st.proc) { try { st.proc.kill('SIGTERM'); } catch {} } }
 
-module.exports = { IMAGE, events, status, supported, backend, start, stop, reset, ensure, running, shell, readFile, writeFile, python, ping, diskUsage, shutdownSync, dirs: D, launchArgs, sockPath, _setUserData: (p) => { userDataOverride = p; } };
+module.exports = { IMAGE, IMAGES, setImage, removeImage, imageId, events, status, supported, backend, start, stop, reset, ensure, running, shell, readFile, writeFile, python, ping, diskUsage, shutdownSync, dirs: D, launchArgs, sockPath, _setUserData: (p) => { userDataOverride = p; } };

@@ -22,12 +22,86 @@ function settings() { try { return Object.assign({ memoryMB: 512, cpus: 1, diskG
 function backend() { return 'v86'; }
 function supported() { return true; }
 
+// Optional light graphical image (Settings → Linux VM): the base image plus Xvfb / JWM / xterm / xdotool / Dillo / Xfe.
+// Only the files that differ from the bundled image are downloaded on first use (userData/vm-gui: fs.json + fs/ blobs);
+// SchemeHandler.swift serves aibres://app/vm/fs/<blob> from there when the blob is not in the app bundle.
+const GUI_IMAGE = { id: 'alpine-gui', version: 'alpine-3.22-x86-gui-1', asset: 'linux-vm-x86-gui.tar', base: 'https://github.com/felixshine2009-cmd/ai-browser/releases/download/v5.7.0/', mirrors: ['', 'https://ghfast.top/'], downloadMB: 0, memoryMB: 1024 };
+const guiDir = () => path.join(userData(), 'vm-gui');
+const guiReady = () => { try { return fs.readFileSync(path.join(guiDir(), '.ok'), 'utf8').trim() === GUI_IMAGE.version; } catch { return false; } };
+let imageOverride = null;
+function imageId() { if (imageOverride) return imageOverride; try { return (require('../store').getSettings().vm || {}).image === 'alpine-gui' ? 'alpine-gui' : 'alpine'; } catch { return 'alpine'; } }
+// stream a plain tar (fs.json + fs/<blob>) to disk without holding it in memory
+async function extractTarFile(file, dest) {
+  const fd = fs.openSync(file, 'r'); const hdr = Buffer.alloc(512); let o = 0, n = 0;
+  try {
+    const size = fs.fstatSync(fd).size;
+    while (o + 512 <= size) {
+      fs.readSync(fd, hdr, 0, 512, o);
+      const name = hdr.toString('utf8', 0, 100).replace(/\0.*$/, ''); if (!name) break;
+      const prefix = hdr.toString('utf8', 345, 500).replace(/\0.*$/, '');
+      const len = parseInt(hdr.toString('utf8', 124, 136).replace(/\0.*$/, '').trim() || '0', 8); const type = String.fromCharCode(hdr[156] || 48);
+      const rel = (prefix ? prefix + '/' : '') + name; const out = path.join(dest, rel);
+      if (!out.startsWith(dest + path.sep)) throw new Error('bad path in image: ' + rel);
+      if (type === '5') fs.mkdirSync(out, { recursive: true });
+      else if (type === '0' || type === '\0') {
+        fs.mkdirSync(path.dirname(out), { recursive: true });
+        const buf = Buffer.alloc(len); if (len) fs.readSync(fd, buf, 0, len, o + 512); fs.writeFileSync(out, buf); n++;
+      }
+      o += 512 + Math.ceil(len / 512) * 512;
+    }
+  } finally { fs.closeSync(fd); }
+  return n;
+}
+async function downloadGui(signal) {
+  if (guiReady()) return;
+  const dir = guiDir(); fs.mkdirSync(dir, { recursive: true });
+  const tmp = path.join(dir, 'download.tar.part');
+  const local = process.env.AIB_VM_GUI_TAR; // tests: a local copy of the release asset
+  if (local) { setPhase('preparing', '正在准备图形镜像…'); fs.copyFileSync(local, tmp); }
+  else {
+    let lastErr = null;
+    for (const m of GUI_IMAGE.mirrors) {
+      try {
+        const r = await fetch(m + GUI_IMAGE.base + GUI_IMAGE.asset, { signal }); if (!r.ok) throw new Error('HTTP ' + r.status);
+        const total = Number(r.headers.get('content-length')) || 0; let got = 0;
+        const out = fs.openSync(tmp, 'w');
+        try { const rd = r.body.getReader(); for (;;) { const { done, value } = await rd.read(); if (done) break; fs.writeSync(out, value); got += value.length; setPhase('downloading', `正在下载图形镜像…`, { progress: { file: GUI_IMAGE.asset, got, total } }); } }
+        finally { fs.closeSync(out); }
+        if (total && got !== total) throw new Error('下载不完整');
+        lastErr = null; break;
+      } catch (e) { lastErr = e; if (signal && signal.aborted) throw new Error('已取消下载'); }
+    }
+    if (lastErr) throw new Error('下载图形镜像失败：' + (lastErr.message || lastErr));
+  }
+  setPhase('preparing', '正在解压图形镜像…', { progress: null });
+  await extractTarFile(tmp, dir); fs.unlinkSync(tmp);
+  if (!fs.existsSync(path.join(dir, 'fs.json'))) throw new Error('图形镜像不完整（缺少 fs.json）');
+  fs.writeFileSync(path.join(dir, '.ok'), GUI_IMAGE.version);
+}
+async function setImage(id) {
+  if (id !== 'alpine' && id !== 'alpine-gui') throw new Error('unknown image: ' + id);
+  imageOverride = null; try { require('../store').patchSettings({ vm: { image: id } }); } catch { imageOverride = id; }
+  if (imageId() !== id) imageOverride = id;
+  const was = !!st.win; if (st.win && st.image !== id) await stop();
+  if (was) await start();
+  return status();
+}
+async function removeImage(id) {
+  if (id !== 'alpine-gui') throw new Error('cannot remove this image');
+  if (st.win && st.image === 'alpine-gui') await stop();
+  fs.rmSync(guiDir(), { recursive: true, force: true });
+  return status();
+}
+const guiMaxWidth = 0;
+
 const st = { phase: 'stopped', detail: '', progress: null, info: null, error: null, startedAt: 0, starting: null, win: null };
 function setPhase(phase, detail, extra) { st.phase = phase; st.detail = detail || ''; Object.assign(st, extra || {}); events.emit('state', status()); }
 function status() {
   const d = D(); let diskBytes = 0; try { diskBytes = fs.statSync(d.persist).size; } catch {}
   const cfg = settings();
-  return { supported: true, backend: 'v86', phase: st.phase, detail: st.detail, progress: st.progress, error: st.error, imageReady: true, imageVersion: IMAGE.version, diskBytes, diskGB: cfg.diskGB, memoryMB: Math.min(1536, Number(cfg.memoryMB) || 512), cpus: 1, info: st.info, share: d.share, startedAt: st.startedAt, network: false };
+  const img = imageId(), gui = img === 'alpine-gui';
+  const images = [{ id: 'alpine', gui: false, ready: true, version: IMAGE.version }, { id: 'alpine-gui', gui: true, ready: guiReady(), version: GUI_IMAGE.version, downloadMB: GUI_IMAGE.downloadMB }];
+  return { supported: true, backend: 'v86', phase: st.phase, detail: st.detail, progress: st.progress, error: st.error, imageReady: gui ? guiReady() : true, imageVersion: gui ? GUI_IMAGE.version : IMAGE.version, image: img, gui, images, runningImage: st.image || null, diskBytes, diskGB: cfg.diskGB, memoryMB: Math.min(1536, Number(cfg.memoryMB) || 512), cpus: 1, info: st.info, share: d.share, startedAt: st.startedAt, network: false };
 }
 const js = (code) => st.win.webContents.executeJavaScript(code);
 function running() { return st.phase === 'running' && st.win && !st.win.isDestroyed(); }
@@ -38,6 +112,8 @@ async function start() {
   st.starting = (async () => {
     try {
       st.error = null; const d = D(); fs.mkdirSync(d.base, { recursive: true }); fs.mkdirSync(d.share, { recursive: true });
+      const img = imageId(); st.image = img;
+      if (img === 'alpine-gui') await downloadGui();
       setPhase('booting', 'Linux 虚拟机正在启动…');
       st.win = new BrowserWindow({ show: false, width: 640, height: 480, webPreferences: { sandbox: true } });
       await st.win.loadURL(HOST_URL);
@@ -45,7 +121,8 @@ async function start() {
         const buf = fs.readFileSync(d.persist); const n = 4 * 1024 * 1024;
         for (let i = 0; i < buf.length; i += n) await js(`window.vmhost.putRestoreChunk(${JSON.stringify(buf.subarray(i, i + n).toString('base64'))})`);
       }
-      const r = await js(`window.vmhost.start(${JSON.stringify({ memoryMB: settings().memoryMB })})`);
+      const gui = st.image === 'alpine-gui';
+      const r = await js(`window.vmhost.start(${JSON.stringify({ memoryMB: gui ? Math.max(GUI_IMAGE.memoryMB, Number(settings().memoryMB) || 0) : settings().memoryMB, basefs: gui ? 'aibres://data/vm-gui/fs.json' : '' })})`);
       if (!r || !r.ok) throw new Error((r && r.error) || 'Linux 虚拟机启动失败');
       st.info = Object.assign({}, r.info || {}, { network: false }); st.startedAt = Date.now();
       try { await afterBoot(); } catch (e) { console.error('vm afterBoot', e.message); }
@@ -82,7 +159,7 @@ async function reset() {
   setPhase('stopped', '虚拟机磁盘已重置，下次启动时会重新准备');
   return status();
 }
-async function ensure() { if (!running()) await start(); return true; }
+async function ensure() { if (running() && st.image && st.image !== imageId()) await stop(); if (!running()) await start(); return true; }
 
 // ---- shared folder mirror (Documents/Linux 共享 <-> /mnt/share)
 let shareStamp = 0;
@@ -294,4 +371,4 @@ function shutdownSync() { try { st.win && st.win.destroy(); } catch {} }
 function launchArgs() { throw new Error('iPad 使用 v86 虚拟机'); }
 function sockPath() { return ''; }
 
-module.exports = { IMAGE, events, status, supported, backend, start, stop, reset, ensure, running, shell, readFile, writeFile, python, ping, diskUsage, shutdownSync, pipInstall, offlineInstall, apkInstall, save, dirs: D, launchArgs, sockPath, _setUserData: (p) => { userDataOverride = p; } };
+module.exports = { IMAGE, GUI_IMAGE, setImage, removeImage, imageId, guiMaxWidth, events, status, supported, backend, start, stop, reset, ensure, running, shell, readFile, writeFile, python, ping, diskUsage, shutdownSync, pipInstall, offlineInstall, apkInstall, save, dirs: D, launchArgs, sockPath, _setUserData: (p) => { userDataOverride = p; } };

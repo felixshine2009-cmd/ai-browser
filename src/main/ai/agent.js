@@ -166,6 +166,7 @@ async function runTool(s, emit, name, args, ctx) {
 }
 // big base64 blobs (png exports) must not be replayed through every chat event
 function slimForUi(r) {
+  if (r && r.modelImages) { r = Object.assign({}, r); delete r.modelImages; }
   try {
     const j = JSON.stringify(r); if (j.length < 60000) return r;
     // figures / images are the point of python_run & vm_read_file: keep them (bounded), clip the rest
@@ -181,6 +182,12 @@ function forModel(r) {
   return j && j.length > cap ? j.slice(0, cap) + '…' : j;
 }
 
+// computer-use screenshots (result.modelImages) travel with the tool message; llm.js decides what the model may see
+function toolMsg(id, result) {
+  const m = { role: 'tool', tool_call_id: id, content: forModel(result && result.modelImages ? Object.assign({}, result, { modelImages: undefined, images: undefined, screenshot: 'attached' }) : result) };
+  if (result && Array.isArray(result.modelImages) && result.modelImages.length) m.images = result.modelImages.slice(0, 2);
+  return m;
+}
 // chat <-> tool loop shared by both paths. `extra(name,args)` may handle additional tools; returns undefined if not its tool.
 async function answerLoop(s, ctx, D, messages, tools, extra, maxRounds = 5) {
   const { emit } = D;
@@ -194,7 +201,7 @@ async function answerLoop(s, ctx, D, messages, tools, extra, maxRounds = 5) {
       let result;
       const x = await extra(tc.name, args).catch(e => ({ error: String(e.message || e) }));
       if (x !== undefined && x !== null) result = x; else result = await runTool(s, emit, tc.name, args, ctx);
-      messages.push({ role: 'tool', tool_call_id: tc.id, content: forModel(result) });
+      messages.push(toolMsg(tc.id, result));
     }
   }
 }
@@ -275,7 +282,7 @@ async function runAgent(s, ctx, D) {
         return await runTool(s, emit, tc.name, args, ctx);
       } catch (e) { return { error: String(e.message || e) }; }
     }));
-    r.toolCalls.forEach((tc, i) => messages.push({ role: 'tool', tool_call_id: tc.id, content: forModel(results[i]) }));
+    r.toolCalls.forEach((tc, i) => messages.push(toolMsg(tc.id, results[i])));
     emit(s, { type: 'sources', sources: board.pages.filter(p => p.status === 'ok').map(p => ({ n: p.n, url: p.url, title: p.title, site: p.site })) });
     emit(s, { type: 'status', text: L('正在整理回答…', 'Writing the answer…') });
   }
@@ -336,4 +343,4 @@ async function run(s, ctx, D) {
   }
 }
 
-module.exports = { stopStep, forModel, slimForUi, run, runAgent, runPipeline, runLocalTools, runTool, planQueries, WEB_TOOLS, LIMITS };
+module.exports = { stopStep, forModel, toolMsg, slimForUi, run, runAgent, runPipeline, runLocalTools, runTool, planQueries, WEB_TOOLS, LIMITS };

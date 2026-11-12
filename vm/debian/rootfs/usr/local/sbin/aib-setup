@@ -1,0 +1,8 @@
+#!/bin/sh
+# AI Browser (Debian image): grow the root file system to the disk size, mount the shared folder.
+resize2fs /dev/vda >/dev/null 2>&1 &
+mkdir -p /mnt/share /root/work /persist/site /persist/aib
+grep -q virtiofs /proc/filesystems 2>/dev/null && mount -t virtiofs share /mnt/share 2>/dev/null
+[ -L /root/share ] || ln -s /mnt/share /root/share 2>/dev/null
+[ -x /persist/aib/aib-svc ] && /persist/aib/aib-svc boot >/dev/null 2>&1 &
+exit 0

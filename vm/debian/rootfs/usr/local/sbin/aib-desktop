@@ -1,0 +1,11 @@
+#!/bin/sh
+# Xvfb (framebuffer readable at /run/aib-x/Xvfb_screen0 for screenshots) + an XFCE session on :0.
+GEOM=$(cat /persist/aib/screen 2>/dev/null || echo 1280x800)
+mkdir -p /run/aib-x "$XDG_RUNTIME_DIR"; chmod 700 "$XDG_RUNTIME_DIR"
+rm -f /tmp/.X0-lock /tmp/.X11-unix/X0
+Xvfb :0 -screen 0 "${GEOM}x24" -fbdir /run/aib-x -noreset -nolisten tcp -dpi 96 &
+XPID=$!
+i=0; while [ ! -e /tmp/.X11-unix/X0 ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
+xsetroot -solid '#2e3440' 2>/dev/null
+dbus-launch --exit-with-session startxfce4 &
+wait $XPID

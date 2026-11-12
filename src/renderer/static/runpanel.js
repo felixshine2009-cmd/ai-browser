@@ -6,7 +6,8 @@
     vm_read_file: ['读取文件', 'Read file'], vm_write_file: ['写入文件', 'Write file'], vm_upload: ['上传到虚拟机', 'Upload to VM'],
     vm_download: ['从虚拟机下载', 'Download from VM'], vm_status: ['虚拟机状态', 'VM status'], vm_control: ['虚拟机控制', 'VM control'],
     vm_view: ['查看文件', 'View file'], vm_edit: ['编辑文件', 'Edit file'], vm_apply_patch: ['应用补丁', 'Apply patch'], vm_search: ['搜索代码', 'Search'],
-    vm_list: ['列出目录', 'List files'], vm_bg: ['后台进程', 'Background job'], vm_pkg: ['软件包', 'Packages'], vm_service: ['服务', 'Service'], vm_git: ['Git', 'Git']
+    vm_list: ['列出目录', 'List files'], vm_bg: ['后台进程', 'Background job'], vm_pkg: ['软件包', 'Packages'], vm_service: ['服务', 'Service'], vm_git: ['Git', 'Git'],
+    vm_desktop: ['Linux 桌面', 'Linux desktop'], vm_screenshot: ['桌面截图', 'Screenshot'], vm_click: ['点击', 'Click'], vm_type: ['输入文字', 'Type'], vm_key: ['按键', 'Keys'], vm_scroll: ['滚动', 'Scroll'], vm_drag: ['拖动', 'Drag']
   };
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function create(host, figs, opts) {
@@ -31,6 +32,12 @@
       if (name === 'vm_pkg') return { lang: 'shell', text: `${a.manager && a.manager !== 'auto' ? a.manager : 'pkg'} ${a.action} ${(a.packages || []).join(' ')}` };
       if (name === 'vm_service') return { lang: 'shell', text: `service ${a.action} ${a.name || ''}` + (a.command ? `\n${a.command}` : '') };
       if (name === 'vm_git') return { lang: 'shell', text: (a.repo ? `cd ${a.repo}\n` : '') + 'git ' + (a.args || []).join(' ') };
+      if (name === 'vm_click') return { lang: 'text', text: `${a.double ? 'double-' : ''}${a.button || 'left'} click (${a.x}, ${a.y})` };
+      if (name === 'vm_type') return { lang: 'text', text: String(a.text || '').slice(0, 4000) };
+      if (name === 'vm_key') return { lang: 'text', text: a.keys || '' };
+      if (name === 'vm_scroll') return { lang: 'text', text: `scroll ${a.direction || 'down'} ×${a.amount || 5} at (${a.x}, ${a.y})` };
+      if (name === 'vm_drag') return { lang: 'text', text: `drag (${a.x1}, ${a.y1}) → (${a.x2}, ${a.y2})` };
+      if (name === 'vm_desktop') return { lang: 'text', text: a.action + (a.width ? ` ${a.width}×${a.height}` : '') };
       return null;
     }
     function ensure(ev) {
@@ -103,6 +110,9 @@
         const tail = [r.more, r.note, r.truncated ? L('（结果已截断）', '(truncated)') : ''].filter(Boolean).join('\n');
         if (tail) append(p, (p.text && !p.text.endsWith('\n') ? '\n' : '') + tail, 'run-res');
         if (!p.text) append(p, JSON.stringify(r, null, 2).slice(0, 8000));
+      } else if (/^vm_(desktop|screenshot|click|type|key|scroll|drag)$/.test(ev.name)) {
+        if (r.screen) append(p, L('屏幕 ', 'Screen ') + r.screen.width + '×' + r.screen.height + (r.stopped ? '' : ''));
+        else if (!r.error) append(p, JSON.stringify(Object.assign({}, r, { images: undefined }), null, 2).slice(0, 4000));
       } else {
         const show = Object.assign({}, r); delete show.images; append(p, JSON.stringify(show, null, 2));
       }

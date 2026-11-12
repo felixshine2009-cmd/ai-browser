@@ -1,0 +1,13 @@
+[Unit]
+Description=AI Browser guest setup (disk size, shared folder)
+DefaultDependencies=no
+After=systemd-modules-load.service local-fs.target
+Before=aib-agent.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/aib-setup
+
+[Install]
+WantedBy=multi-user.target

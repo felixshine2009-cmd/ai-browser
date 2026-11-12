@@ -1,0 +1,14 @@
+#!/bin/sh
+# Light graphical session for the iPad VM image (v86): Xvfb :0 (framebuffer at /run/aib-x/Xvfb_screen0 for
+# screenshots) + the JWM window manager + a terminal. Started on demand by the computer-use tools.
+GEOM=$(cat /persist/aib/screen 2>/dev/null || echo 1024x768)
+export HOME=/root DISPLAY=:0
+mkdir -p /run/aib-x /tmp/.X11-unix
+mountpoint -q /run/aib-x || mount -t tmpfs -o size=16m tmpfs /run/aib-x
+rm -f /tmp/.X0-lock /tmp/.X11-unix/X0
+Xvfb :0 -screen 0 "${GEOM}x24" -fbdir /run/aib-x -noreset -nolisten tcp -dpi 96 &
+XPID=$!
+i=0; while [ ! -e /tmp/.X11-unix/X0 ] && [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done
+xsetroot -solid '#2d4a6b' 2>/dev/null
+jwm &
+wait $XPID

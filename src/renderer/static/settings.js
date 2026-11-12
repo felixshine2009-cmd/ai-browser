@@ -829,6 +829,7 @@
       <div class="form-row"><label>${esc(T('已安装的库', 'Installed packages'))}</label><div id="pylist" class="hint">…</div></div>
       <h3 class="sec-h">${esc(T('Linux 虚拟机', 'Linux VM'))}</h3>
       <div class="form-row"><label>${esc(T('状态', 'Status'))}</label><div id="vmstat" class="hint">…</div></div>
+      <div class="form-row" id="vmimgrow" hidden><label>${esc(T('系统镜像', 'System image'))}</label><div class="inline"><select id="vmimg" style="flex:1"></select><button class="btn-secondary" id="vmdesk">${esc(T('打开桌面', 'Open desktop'))}</button><button class="btn-secondary" id="vmimgrm">${esc(T('删除图形镜像', 'Remove graphical image'))}</button></div><div class="hint" id="vmimghint"></div></div>
       <div class="inline" id="vmbtns"><button class="btn-primary" id="vmstart">${esc(T('启动', 'Start'))}</button><button class="btn-secondary" id="vmstop">${esc(T('关闭', 'Stop'))}</button><button class="btn-secondary" id="vmshare">${esc(T('打开共享文件夹', 'Open shared folder'))}</button><button class="btn-danger" id="vmreset">${esc(T('重置虚拟机', 'Reset VM'))}</button></div><div id="vmres"></div>
       <div class="form-row"><label>${esc(T('内存', 'Memory'))}：<b id="vmmemv">${vmS.memoryMB} MB</b></label><input type="range" id="vmmem" min="1024" max="8192" step="256" value="${vmS.memoryMB}"/></div>
       <div class="form-row"><label>${esc(T('处理器核心', 'CPU cores'))}：<b id="vmcpuv">${vmS.cpus}</b></label><input type="range" id="vmcpu" min="1" max="8" step="1" value="${vmS.cpus}"/></div>
@@ -873,6 +874,15 @@
       $('vmstat').textContent = txt; $('vmstat').style.whiteSpace = 'pre-wrap';
       const busy = ['preparing', 'downloading', 'booting', 'stopping'].includes(s.phase);
       $('vmstart').disabled = busy || s.phase === 'running'; $('vmstop').disabled = busy || s.phase !== 'running'; $('vmreset').disabled = busy;
+      if (Array.isArray(s.images) && s.images.length > 1) {
+        $('vmimgrow').hidden = false;
+        const IMN = { alpine: T('命令行（Alpine Linux）', 'Command line (Alpine Linux)'), 'debian-xfce': T('图形桌面（Debian 13 + XFCE）', 'Graphical desktop (Debian 13 + XFCE)'), 'alpine-gui': T('图形桌面（轻量 Alpine + JWM）', 'Graphical desktop (light Alpine + JWM)') };
+        const sel = $('vmimg');
+        if (document.activeElement !== sel) sel.innerHTML = s.images.map(im => `<option value="${esc(im.id)}" ${im.id === s.image ? 'selected' : ''}>${esc((IMN[im.id] || im.id) + (im.gui && !im.ready ? T(`（首次使用时下载${im.downloadMB ? '约 ' + im.downloadMB + ' MB' : ''}）`, ` (downloaded on first use${im.downloadMB ? ', about ' + im.downloadMB + ' MB' : ''})`) : ''))}</option>`).join('');
+        sel.disabled = busy;
+        $('vmdesk').hidden = !s.gui; $('vmimgrm').hidden = !s.images.some(im => im.gui && im.ready); $('vmimgrm').disabled = busy;
+        $('vmimghint').textContent = s.gui ? T('图形镜像带有完整桌面，AI 可以截图、点击和输入来操作其中的程序（vm_screenshot / vm_click / vm_type …）。切换镜像会重启虚拟机，两个镜像的磁盘互相独立。', 'The graphical image has a full desktop the AI can operate with screenshots, clicks and typing (vm_screenshot / vm_click / vm_type …). Switching restarts the VM; each image keeps its own disk.') : T('需要让 AI 操作图形界面程序时，可切换到图形桌面镜像。两个镜像的磁盘互相独立。', 'Switch to the graphical image when the AI should use GUI programs. Each image keeps its own disk.');
+      }
     };
     showVm(await window.aib.invoke('vm:status'));
     if (vmOff) vmOff(); vmOff = window.aib.on('vm:state', (s) => { if (cur === 'python') showVm(s); });
@@ -880,6 +890,13 @@
     $('vmstop').onclick = async () => { const r = await window.aib.invoke('vm:stop'); showVm(r.status); notice($('vmres'), 'ok', T('Linux 虚拟机已关闭', 'The Linux VM has stopped')); };
     $('vmreset').onclick = async () => { const r = await window.aib.invoke('vm:reset'); if (r.declined) return; showVm(r.status); notice($('vmres'), 'ok', T('虚拟机已重置', 'The VM has been reset')); };
     $('vmshare').onclick = () => window.aib.invoke('vm:openShare');
+    $('vmimg').onchange = async (e) => { e.target.disabled = true; notice($('vmres'), 'ok', T('正在切换镜像…', 'Switching image…'), { sticky: true }); const r = await window.aib.invoke('vm:setImage', e.target.value); e.target.disabled = false; showVm(r.status); notice($('vmres'), r.ok ? 'ok' : 'bad', r.ok ? T('已切换系统镜像', 'System image switched') : (r.error || T('切换失败', 'Switch failed'))); };
+    $('vmdesk').onclick = () => window.aib.invoke('vm:openDesktop');
+    $('vmimgrm').onclick = async () => {
+      const st0 = await window.aib.invoke('vm:status'); const g = (st0.images || []).find(im => im.gui && im.ready); if (!g) return;
+      const ok = await window.AIBConfirm.ask({ danger: true, title: T('删除图形镜像？', 'Remove the graphical image?'), message: T('图形镜像的磁盘（包括其中的文件和软件）会被删除，需要时会重新下载。', 'The graphical image disk (with its files and software) is deleted; it is downloaded again when needed.'), confirmText: T('删除', 'Remove') });
+      if (!ok) return; const r = await window.aib.invoke('vm:removeImage', g.id); showVm(r.status); notice($('vmres'), r.ok ? 'ok' : 'bad', r.ok ? T('已删除图形镜像', 'Graphical image removed') : (r.error || ''));
+    };
     const slider = (id, lab, key, unit) => { const el = $(id); el.oninput = () => { $(lab).textContent = el.value + (unit || ''); }; el.onchange = async () => { await window.aib.invoke('settings:patch', { vm: { [key]: Number(el.value) } }); toast(); }; };
     slider('vmmem', 'vmmemv', 'memoryMB', ' MB'); slider('vmcpu', 'vmcpuv', 'cpus'); slider('vmdisk', 'vmdiskv', 'diskGB');
     loadPy();
