@@ -3,11 +3,17 @@ import Foundation
 /// Runs the embedded Node.js (nodejs-mobile) on its own thread. node_start() never returns while Node is alive.
 enum NodeRuntime {
     private static var started = false
+    /// false once node_start() has returned (Node can not be started twice in one process)
+    static private(set) var alive = false
 
     static func start(port: Int, token: String) {
         guard !started else { return }
         started = true
+        alive = true
         let script = Paths.nodeProject.appendingPathComponent("main-ipad.js").path
+        StartupLog.log("资源目录：\(Paths.payload.path)")
+        StartupLog.log("main-ipad.js \(FileManager.default.fileExists(atPath: script) ? "存在" : "缺失！")；userData：\(Paths.userData.path)")
+        StartupLog.log("启动 Node.js（端口 \(port)）")
         let args = ["node", script,
                     "--port", String(port), "--token", token,
                     "--userdata", Paths.userData.path, "--documents", Paths.documents.path,
@@ -26,8 +32,9 @@ enum NodeRuntime {
             }
             argv.append(nil)
             let code = argv.withUnsafeMutableBufferPointer { ptr in node_start(Int32(args.count), ptr.baseAddress) }
-            NSLog("[aib] node exited with code \(code)")
-            DispatchQueue.main.async { NotificationCenter.default.post(name: .aibNodeExited, object: nil) }
+            NodeRuntime.alive = false
+            StartupLog.log("Node.js 已退出，退出码 \(code)")
+            DispatchQueue.main.async { NotificationCenter.default.post(name: .aibNodeExited, object: nil, userInfo: ["code": Int(code)]) }
         }
         t.name = "nodejs"
         t.stackSize = 8 * 1024 * 1024

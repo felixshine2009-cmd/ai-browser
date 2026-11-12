@@ -23,6 +23,13 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
     var activeDownloads = [String: WKDownload]()
     private var pickerReply: ((Bool, [String]) -> Void)?
     private var docController: UIDocumentInteractionController?
+    // startup: overlay until the first window has loaded, diagnostics when that fails or takes too long
+    private let overlay = StartupOverlay()
+    private var stage = "启动运行时"
+    private var windowShown = false
+    private var startupTimer: Timer?
+    private var nodeExitCode: Int?
+    private static let startupTimeout: TimeInterval = 25
 
     override var keyCommands: [UIKeyCommand]? { commands }
     override var canBecomeFirstResponder: Bool { true }
@@ -35,16 +42,80 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
         view.addSubview(parking)
         container.backgroundColor = .clear
         view.addSubview(container)
+        overlay.frame = view.bounds
+        overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        overlay.onRetry = { [weak self] in self?.retryStartup() }
+        view.addSubview(overlay)
+        StartupLog.begin()
+        setStage("启动运行时", "正在启动内部运行时……")
         Host.shared.onCommand = { [weak self] m in self?.handle(m) }
-        Host.shared.onConnected = { [weak self] in self?.sendInit() }
+        Host.shared.onConnected = { [weak self] in
+            self?.setStage("连接", "已连接内部运行时，正在初始化……")
+            self?.sendInit()
+        }
         Host.shared.start()
+        armStartupTimer()
         let nc = NotificationCenter.default
         nc.addObserver(self, selector: #selector(keyboard(_:)), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
         nc.addObserver(self, selector: #selector(keyboard(_:)), name: UIResponder.keyboardWillHideNotification, object: nil)
         nc.addObserver(self, selector: #selector(foreground), name: UIApplication.willEnterForegroundNotification, object: nil)
-        nc.addObserver(forName: .aibNodeExited, object: nil, queue: .main) { [weak self] _ in
-            self?.alert(title: "AI 浏览器", message: "内部运行时意外退出，请重新打开应用。", buttons: ["好"]) { _ in }
+        nc.addObserver(forName: .aibNodeExited, object: nil, queue: .main) { [weak self] n in
+            guard let self = self else { return }
+            let code = n.userInfo?["code"] as? Int ?? -1
+            self.nodeExitCode = code
+            if self.windowShown {
+                self.alert(title: "AI 浏览器", message: "内部运行时意外退出（退出码 \(code)），请重新打开应用。", buttons: ["好"]) { _ in }
+            } else {
+                self.showDiagnostics("内部运行时已退出（退出码 \(code)）")
+            }
         }
+    }
+
+    // ------------------------------------------------------------------ startup overlay / diagnostics
+    private func setStage(_ name: String, _ text: String) {
+        stage = name
+        StartupLog.log("阶段：\(name)")
+        if !overlay.showingDiagnostics { overlay.setStage(text) }
+    }
+    private func armStartupTimer() {
+        startupTimer?.invalidate()
+        startupTimer = Timer.scheduledTimer(withTimeInterval: BrowserViewController.startupTimeout, repeats: false) { [weak self] _ in
+            guard let self = self, !self.windowShown else { return }
+            self.showDiagnostics("\(Int(BrowserViewController.startupTimeout)) 秒内未能显示界面")
+        }
+    }
+    private func showDiagnostics(_ reason: String) {
+        guard !windowShown else { return }
+        StartupLog.log("显示诊断面板：阶段 \(stage)，\(reason)")
+        startupTimer?.invalidate()
+        view.bringSubviewToFront(overlay)
+        overlay.isHidden = false
+        // give the log writers a moment so that the panel includes the latest lines
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self = self, !self.windowShown else { return }
+            self.overlay.showDiagnostics(stage: self.stage, reason: reason)
+        }
+    }
+    private func retryStartup() {
+        StartupLog.log("用户点击“重试”")
+        if !NodeRuntime.alive {
+            // nodejs-mobile can only start once per process: the app has to be opened again
+            alert(title: "AI 浏览器", message: "内部运行时已退出，无法在本次运行中重新启动。应用将关闭，请从主屏幕重新打开。", buttons: ["关闭应用"]) { _ in exit(0) }
+            return
+        }
+        overlay.showProgress()
+        setStage(stage, "正在重试……")
+        if let w = hosts[windowHostId] { w.webView.reload() }
+        armStartupTimer()
+    }
+    /// The first load of the window page finished: the interface is visible.
+    func windowDidLoad(_ h: WebHost) {
+        guard !windowShown else { return }
+        windowShown = true
+        startupTimer?.invalidate()
+        StartupLog.log("主窗口已显示：\(h.webView.url?.absoluteString ?? "")")
+        Host.shared.event(["type": "app", "name": "windowShown"])
+        UIView.animate(withDuration: 0.25, animations: { self.overlay.alpha = 0 }) { _ in self.overlay.removeFromSuperview() }
     }
 
     override func viewDidLayoutSubviews() {
@@ -80,6 +151,7 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
         lastSystemDark = systemDark
         let ctx = LAContext(); var e: NSError?
         let bio = ctx.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &e)
+        setStage("加载界面", "正在加载界面……")
         Host.shared.event(["type": "init", "w": Double(size.width), "h": Double(size.height), "dark": systemDark, "biometry": bio,
                            "safeKey": Keychain.safeStorageKey().base64EncodedString(), "locale": Locale.preferredLanguages.first ?? "zh-CN",
                            "os": UIDevice.current.systemVersion, "model": UIDevice.current.model])
@@ -116,11 +188,16 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
             hosts[id] = w
             if w.kind == "hidden" { w.webView.frame = parking.bounds; parking.addSubview(w.webView) }
         case "view.create": break
+        case "app.diag":
+            let st = m["stage"] as? String ?? "", err = m["error"] as? String ?? ""
+            StartupLog.log("Node 报告（\(st)）：\(err)")
+            if (m["fatal"] as? Bool) == true { showDiagnostics(st == "main" ? "主程序（main.js）加载失败：\(err.split(separator: "\n").first.map(String.init) ?? err)" : err) }
         case "window.attach":
             guard let w = h else { break }
             windowHostId = id
             w.webView.frame = container.bounds
             container.insertSubview(w.webView, at: 0)
+            StartupLog.log("主窗口已创建（web contents \(id)）")
         case "view.attach":
             guard let v = h else { break }
             v.attached = true

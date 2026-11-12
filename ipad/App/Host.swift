@@ -19,13 +19,17 @@ final class Host: NSObject, URLSessionDataDelegate {
     private var connected = false
     var onCommand: (([String: Any]) -> Void)?
     var onConnected: (() -> Void)?
+    private var attempts = 0
+    private var startedAt = Date()
 
     func start() {
         port = NodeRuntime.freePort()
         var bytes = [UInt8](repeating: 0, count: 24)
         _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         token = bytes.map { String(format: "%02x", $0) }.joined()
+        startedAt = Date()
         NodeRuntime.start(port: port, token: token)
+        StartupLog.log("连接 http://127.0.0.1:\(port)/host/events")
         connectStream()
     }
 
@@ -39,11 +43,18 @@ final class Host: NSObject, URLSessionDataDelegate {
         var r = URLRequest(url: base.appendingPathComponent("host/events"))
         r.setValue(token, forHTTPHeaderField: "X-AIB-Token")
         streamBuf = Data()
+        attempts += 1
         streamSession!.dataTask(with: r).resume()
     }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-        let ok = (response as? HTTPURLResponse)?.statusCode == 200
-        if ok && !connected { connected = true; DispatchQueue.main.async { self.onConnected?() } }
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let ok = code == 200
+        if !ok { StartupLog.log("事件流响应异常：HTTP \(code)") }
+        if ok && !connected {
+            connected = true
+            StartupLog.log("已连接 Node.js（第 \(attempts) 次尝试，\(String(format: "%.1f", Date().timeIntervalSince(startedAt))) 秒）")
+            DispatchQueue.main.async { self.onConnected?() }
+        }
         completionHandler(ok ? .allow : .cancel)
     }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
@@ -64,6 +75,10 @@ final class Host: NSObject, URLSessionDataDelegate {
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         // Node not listening yet (startup) or connection dropped: retry
         session.invalidateAndCancel()
+        if let e = error as NSError? {
+            // log the first failures, then every 50th, and every drop of an established stream
+            if connected || attempts <= 3 || attempts % 50 == 0 { StartupLog.log("事件流\(connected ? "断开" : "连接失败")（第 \(attempts) 次）：\(e.domain) \(e.code) \(e.localizedDescription)") }
+        } else if connected { StartupLog.log("事件流已结束，重新连接") }
         DispatchQueue.main.asyncAfter(deadline: .now() + (connected ? 0.5 : 0.15)) { self.connectStream() }
     }
 
@@ -103,7 +118,10 @@ final class Host: NSObject, URLSessionDataDelegate {
         let meta = (try? JSONSerialization.data(withJSONObject: ["url": url, "method": method, "headers": headers])).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         let r = request("scheme", json: nil, body: body ?? Data(), headers: ["X-AIB-Meta": meta])
         let t = session.dataTask(with: r) { data, resp, err in
-            guard let h = resp as? HTTPURLResponse, err == nil else { completion(502, ["Content-Type": "text/plain"], Data("bridge error".utf8)); return }
+            guard let h = resp as? HTTPURLResponse, err == nil else {
+                if (err as NSError?)?.code != NSURLErrorCancelled { StartupLog.log("页面请求失败 \(url)：\(err.map { String(describing: $0) } ?? "无响应")") }
+                completion(502, ["Content-Type": "text/plain"], Data("bridge error".utf8)); return
+            }
             var hdrs = [String: String]()
             for (k, v) in h.allHeaderFields { if let ks = k as? String, let vs = v as? String, ks.lowercased() != "x-aib-status", ks.lowercased() != "content-length", ks.lowercased() != "connection", ks.lowercased() != "keep-alive", ks.lowercased() != "transfer-encoding" { hdrs[ks] = vs } }
             let st = Int(h.value(forHTTPHeaderField: "X-AIB-Status") ?? "200") ?? 200

@@ -49,7 +49,10 @@ final class WebHost: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessa
         cfg.preferences.javaScriptCanOpenWindowsAutomatically = true
         cfg.defaultWebpagePreferences.preferredContentMode = .desktop
         if #available(iOS 15.4, *) { cfg.preferences.isElementFullscreenEnabled = true }
-        cfg.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        // private WKPreferences key: only set it when this WebKit still has it (an unknown key would raise and crash)
+        if cfg.preferences.responds(to: NSSelectorFromString("_setAllowFileAccessFromFileURLs:")) || cfg.preferences.responds(to: NSSelectorFromString("setAllowFileAccessFromFileURLs:")) {
+            cfg.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        }
         for s in SchemeHandler.nodeSchemes + ["aibres"] { cfg.setURLSchemeHandler(SchemeHandler.shared, forURLScheme: s) }
         let ucc = cfg.userContentController
         // preload: page world for internal pages, isolated world for web pages (the page itself never sees the bridge)
@@ -177,12 +180,14 @@ final class WebHost: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessa
     func load(_ s: String, ua: String) {
         guard let u = URL(string: s) else { return }
         if !ua.isEmpty { webView.customUserAgent = ua }
+        if kind == "window" { StartupLog.log("主窗口加载 \(s)") }
         lastURL = ""
         webView.load(URLRequest(url: u))
     }
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) { lastURL = webView.url?.absoluteString ?? ""; emit("navigate", ["url": lastURL, "inPage": false]); navState() }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         emit("domready"); emit("finish"); navState()
+        if kind == "window" { controller?.windowDidLoad(self) }
         if isWebPage {
             webView.evaluateJavaScript("(function(){var l=document.querySelector('link[rel~=\"icon\"]');return l?l.href:(location.origin+'/favicon.ico')})()", in: nil, in: .defaultClient) { [weak self] r in
                 if case .success(let v) = r, let s = v as? String { self?.emit("favicon", ["url": s]) }
@@ -193,10 +198,11 @@ final class WebHost: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessa
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { fail(error) }
     private func fail(_ error: Error) {
         let e = error as NSError
+        if kind == "window" { StartupLog.log("主窗口加载失败：\(e.domain) \(e.code) \(e.localizedDescription)") }
         if e.code == NSURLErrorCancelled || (e.domain == "WebKitErrorDomain" && e.code == 102) { emit("fail", ["code": -3, "desc": "ERR_ABORTED", "url": webView.url?.absoluteString ?? ""]); return }
         emit("fail", ["code": -(abs(e.code)), "desc": e.localizedDescription, "url": (e.userInfo[NSURLErrorFailingURLStringErrorKey] as? String) ?? webView.url?.absoluteString ?? ""])
     }
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { emit("gone"); webView.reload() }
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { StartupLog.log("网页进程已终止（\(kind) \(id)），重新加载"); emit("gone"); webView.reload() }
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         let u = action.request.url
