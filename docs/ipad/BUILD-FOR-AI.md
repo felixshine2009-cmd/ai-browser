@@ -67,3 +67,12 @@ AIB_IPAD_BUNDLE=/tmp/ipad-bundle AIB_NODE=/path/to/node18/bin/node node scripts/
 | `ipad/web/` | runtime injected into every page (preload equivalent), iPad touch CSS, find-in-page, Python kernel host, VM host |
 | `ipad/sim/` | host simulator used by `test/suites/36-ipad-sim.js` |
 | `ipad/project.yml` | XcodeGen spec (version = MARKETING_VERSION) |
+
+## Startup problems on a device
+- nodejs-mobile runs V8 without a JIT on iOS, so Node has no native WebAssembly. `ipad/node/wasm-shim.js` installs
+  polywasm before anything else; without it Node's fetch / Headers / Response (undici) throw and no `aibrowser:` page
+  loads. The simulator runs Node with `--jitless` (set `AIB_SIM_JIT=1` to turn the JIT back on) so tests see the same.
+- The app writes `Documents/日志/startup.log` (native stages, bridge errors, Node exit code, first window shown) and
+  `Documents/日志/node.log` (Node console). In the Files app: On My iPad › AI 浏览器 › 日志.
+- If no window is shown within 25 s, Node exits, or main.js fails to load (Node sends `app.diag`), the startup overlay
+  turns into a diagnostics panel with both log tails and 复制日志 / 重试.

@@ -1,21 +1,61 @@
 # 测试结果
 
-运行时间: 2026-11-12T09:35:13.582Z
+运行时间: 2026-11-12T16:06:13.523Z
 
-通过 407 / 失败 6 / 跳过 14 / 共 427
+通过 420 / 失败 4 / 跳过 14 / 共 438
 
 | 分组 | 测试项 | 结果 | 耗时 |
 |---|---|---|---|
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 切换镜像：首次使用时下载（与内置镜像的差量）并启动 | PASS | 14493ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 启动图形桌面并截图（首次启动计时） | PASS | 19215ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_screenshot：画面不是纯色（桌面已绘制） | PASS | 36301ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_click：鼠标移动到指定坐标并点击 | PASS | 22200ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_type + vm_key：在终端里输入命令并回车，命令真的执行了 | PASS | 31756ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_scroll / vm_drag / vm_key 组合键返回新截图 | PASS | 18297ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 无效按键被拒绝（不会拼进 shell 命令） | PASS | 518ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 应用内“Linux 桌面”页面显示画面并可点击 | FAIL — Error: timeout waiting for viewer picture {"empty":"bad channel","hidden":false,"src":""} /     at test.timeout (/worksp | 121286ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 设置页：系统镜像选择（命令行 / 图形桌面）与“打开桌面”按钮 | PASS | 1211ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 切回命令行镜像 | PASS | 13446ms |
+| v3.6 主题 / 风格 / 思考 / 路由 | 四个主题都列出全部颜色，界面名不含来源品牌 | PASS | 0ms |
+| v3.6 主题 / 风格 / 思考 / 路由 | 简洁只去掉装饰，提示仍要求详细结构 | PASS | 0ms |
+| v3.6 主题 / 风格 / 思考 / 路由 | 思考等级可映射且从不自动打断 | PASS | 1ms |
+| v3.6 主题 / 风格 / 思考 / 路由 | 没有专门请求时默认网页搜索；作图走工具 | PASS | 0ms |
+| v3.6 计算 / 百科 / 解题上下文 | 高中计算：牛顿、求根、欧姆 | PASS | 1ms |
+| v3.6 计算 / 百科 / 解题上下文 | 离线百科检索与 JSONL 导入 | PASS | 0ms |
+| v3.6 计算 / 百科 / 解题上下文 | 解题保留参考资料和上一轮 | PASS | 0ms |
+| v3.6 下载 / MTP / 手机拍照 / 任务 | 不支持 Range 时取消多线程并保留普通下载 | PASS | 1ms |
+| v3.6 下载 / MTP / 手机拍照 / 任务 | 支持 Range 时分块拼回原文 | PASS | 0ms |
+| v3.6 下载 / MTP / 手机拍照 / 任务 | MTP 只读配置，不启动推理 | PASS | 1ms |
+| v3.6 下载 / MTP / 手机拍照 / 任务 | 手机页使用系统相机输入，页面可收照片 | PASS | 54ms |
+| v3.6 下载 / MTP / 手机拍照 / 任务 | 任务循环用假模型完成目标，状态不含真实推理 | PASS | 0ms |
+| v3.6 聊天记录 / 插件 / 内核 / 版本 | 聊天记录与浏览历史不是同一份列表 | PASS | 0ms |
+| v3.6 聊天记录 / 插件 / 内核 / 版本 | 插件可以改主题和布局，不能写入密钥 | PASS | 0ms |
+| v3.6 聊天记录 / 插件 / 内核 / 版本 | 内核版本比较 | PASS | 0ms |
+| v3.6 聊天记录 / 插件 / 内核 / 版本 | 添加模型时可选择常见服务商，而不是只有空白地址 | PASS | 2ms |
+| v3.6 聊天记录 / 插件 / 内核 / 版本 | 版本号与网页缓存名匹配，网页把桌面功能标灰 | PASS | 1ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 启动：Node 18 主进程 + 原生视图；chrome / 首页是桌面版页面（aib 桥、触控样式） | PASS | 823ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 首页布局与桌面版相同（同一 home.html：问候语、输入框、模型选择、Chat/Task、工具图标、数学键盘） | PASS | 46ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 标签页：网页加载、标题、后退/前进、新建/切换/关闭（原生视图按桌面布局摆放） | PASS | 1019ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | Chat：提问 → 流式回答（与桌面版同一 chat 页面与 AI 后端） | PASS | 1397ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | Python（内置 Pyodide，隐藏 web 视图内核）：AI 调用 python_run → sympy / numpy 结果 | PASS | 6377ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | Linux 虚拟机（内置 v86 + Alpine，隐藏 web 视图）：AI 调用 vm_shell → root shell 输出 | PASS | 14327ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | iPad 虚拟机 · vm_edit create + vm_view 行号 / offset / limit | PASS | 2326ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | iPad 虚拟机 · vm_edit：唯一字符串替换 / 重复时报错并给出行号 / replace_all / 行范围 / 插入 / 尾随空格容错 | PASS | 3683ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | iPad 虚拟机 · vm_apply_patch：Codex 格式（新增 / 修改 / 移动 / 删除，失败时不写入任何文件）+ 统一 diff | PASS | 5514ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | iPad 虚拟机 · vm_search（ripgrep 或 grep）+ vm_list 目录树 | PASS | 3345ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | iPad 虚拟机 · vm_bg：后台启动 → 增量输出 → wait → list → kill | PASS | 13148ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | iPad 虚拟机 · vm_service：create → start → 崩溃后自动重启 → enable → logs → stop → remove | PASS | 14584ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | iPad 虚拟机 · vm_git：init / add / commit / log / diff（非交互，默认作者） | PASS | 7898ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | iPad 虚拟机 · vm_pkg：list / search / info | PASS | 1794ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | iPad 虚拟机 · vm_pkg install：应用代为下载 Alpine 软件包（虚拟机内无网络）并在重启后恢复 | PASS | 21900ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 工具页（解题 / 词典 / 维基 / 物理 / GeoGebra）、历史、下载、书签、拓展、设置都能打开 | PASS | 8527ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 外观：浅色 / 深色 / 跟随系统 → 原生 overrideUserInterfaceStyle（theme.set）+ 所有页面立即切换 + 对比度 | PASS | 6065ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 旋转 / 分屏：窗口尺寸变化后 chrome 与标签视图重新布局 | PASS | 1937ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 下载：网页附件保存到“文件”App 的 AI浏览器/Downloads，下载页列出 | PASS | 297ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 本地模型：llama.cpp 保留（原生 Metal），只有 MLX 被移除 | PASS | 578ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 原生对话框 / 菜单走宿主（dialog.message、menu.popup、快捷键 menu.app） | PASS | 3ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 启动诊断：Node 无 JIT 运行（与 iPad 相同），日志写入 Documents/日志，主窗口显示后通知原生层 | PASS | 1ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 启动诊断：main.js 加载失败时立即报告原生层（诊断面板），日志可在“文件”App 中查看 | PASS | 1023ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 切换镜像：首次使用时下载（与内置镜像的差量）并启动 | PASS | 14356ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 启动图形桌面并截图（首次启动计时） | PASS | 17758ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_screenshot：画面不是纯色（桌面已绘制） | PASS | 35520ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_click：鼠标移动到指定坐标并点击 | PASS | 22424ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_type + vm_key：在终端里输入命令并回车，命令真的执行了 | PASS | 31276ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_scroll / vm_drag / vm_key 组合键返回新截图 | PASS | 17778ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 无效按键被拒绝（不会拼进 shell 命令） | PASS | 768ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 应用内“Linux 桌面”页面显示画面并可点击 | PASS | 5941ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 设置页：系统镜像选择（命令行 / 图形桌面）与“打开桌面”按钮 | PASS | 1149ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 切回命令行镜像 | PASS | 12402ms |
 | Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 工具定义与注册：7 个电脑操作工具 | PASS | 30ms |
 | Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 截图脚本：解析 Xvfb 帧缓冲（XWD）为 PNG，像素颜色正确 | PASS | 868ms |
 | Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 截图送给视觉模型：OpenAI 格式追加图片消息，Anthropic 放进 tool_result；旧截图与不支持视觉的模型只给文字 | PASS | 40ms |
@@ -360,23 +400,6 @@
 | 物理元件库：桌面端编辑器 UI 冒烟 | UI：调色板点击添加；画布点选；检查器修改质量实时生效；越界值被拒；撤销/重做；Delete 删除 | PASS | 1673ms |
 | 物理元件库：桌面端编辑器 UI 冒烟 | 示例：el_conveyor_horizontal / el_atwood 载入并运行，时间推进 | PASS | 3656ms |
 | 物理元件库：桌面端编辑器 UI 冒烟 | 自定义元件：phys_define_custom_element → 添加；列表包含「我的元件」 | PASS | 15ms |
-| v3.6 主题 / 风格 / 思考 / 路由 | 四个主题都列出全部颜色，界面名不含来源品牌 | PASS | 0ms |
-| v3.6 主题 / 风格 / 思考 / 路由 | 简洁只去掉装饰，提示仍要求详细结构 | PASS | 0ms |
-| v3.6 主题 / 风格 / 思考 / 路由 | 思考等级可映射且从不自动打断 | PASS | 1ms |
-| v3.6 主题 / 风格 / 思考 / 路由 | 没有专门请求时默认网页搜索；作图走工具 | PASS | 0ms |
-| v3.6 计算 / 百科 / 解题上下文 | 高中计算：牛顿、求根、欧姆 | PASS | 0ms |
-| v3.6 计算 / 百科 / 解题上下文 | 离线百科检索与 JSONL 导入 | PASS | 1ms |
-| v3.6 计算 / 百科 / 解题上下文 | 解题保留参考资料和上一轮 | PASS | 0ms |
-| v3.6 下载 / MTP / 手机拍照 / 任务 | 不支持 Range 时取消多线程并保留普通下载 | PASS | 0ms |
-| v3.6 下载 / MTP / 手机拍照 / 任务 | 支持 Range 时分块拼回原文 | PASS | 1ms |
-| v3.6 下载 / MTP / 手机拍照 / 任务 | MTP 只读配置，不启动推理 | PASS | 1ms |
-| v3.6 下载 / MTP / 手机拍照 / 任务 | 手机页使用系统相机输入，页面可收照片 | PASS | 8ms |
-| v3.6 下载 / MTP / 手机拍照 / 任务 | 任务循环用假模型完成目标，状态不含真实推理 | PASS | 0ms |
-| v3.6 聊天记录 / 插件 / 内核 / 版本 | 聊天记录与浏览历史不是同一份列表 | PASS | 1ms |
-| v3.6 聊天记录 / 插件 / 内核 / 版本 | 插件可以改主题和布局，不能写入密钥 | PASS | 0ms |
-| v3.6 聊天记录 / 插件 / 内核 / 版本 | 内核版本比较 | PASS | 0ms |
-| v3.6 聊天记录 / 插件 / 内核 / 版本 | 添加模型时可选择常见服务商，而不是只有空白地址 | PASS | 0ms |
-| v3.6 聊天记录 / 插件 / 内核 / 版本 | 版本号与网页缓存名匹配，网页把桌面功能标灰 | PASS | 1ms |
 | 各服务商思考参数映射 | 从不自动打断，也不把 interrupt 写进请求体 | PASS | 0ms |
 | 各服务商思考参数映射 | OpenAI：仅推理模型发送 reasoning_effort；o 系列 max→high | PASS | 1ms |
 | 各服务商思考参数映射 | Anthropic：3.5 省略；3.7/4.5 用 budget_tokens；4.6+ 用 adaptive | PASS | 0ms |
@@ -418,18 +441,6 @@
 | 外观：浅色 / 深色 / 跟随系统（桌面 + 网页） | 对比度 ≥ 4.5:1：paper（所有页面、覆盖层、设置各面板、物理面板） | PASS | 36816ms |
 | 外观：浅色 / 深色 / 跟随系统（桌面 + 网页） | 重启后保持：首帧即为所选外观（HTML 内联主题，无闪烁） | PASS | 1711ms |
 | 外观：浅色 / 深色 / 跟随系统（桌面 + 网页） | 网页版：外观切换立即生效 + 刷新后保持 + 跟随系统 + 对比度 | PASS | 3120ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 启动：Node 18 主进程 + 原生视图；chrome / 首页是桌面版页面（aib 桥、触控样式） | FAIL — Error: assertion failed: Node 18 runtime /     at assert (/workspace/ipadport/repo/test/lib/runner.js:20:41) /     at /w | 13ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 首页布局与桌面版相同（同一 home.html：问候语、输入框、模型选择、Chat/Task、工具图标、数学键盘） | PASS | 33ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 标签页：网页加载、标题、后退/前进、新建/切换/关闭（原生视图按桌面布局摆放） | PASS | 1007ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | Chat：提问 → 流式回答（与桌面版同一 chat 页面与 AI 后端） | PASS | 1350ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | Python（内置 Pyodide，隐藏 web 视图内核）：AI 调用 python_run → sympy / numpy 结果 | PASS | 0ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | Linux 虚拟机（内置 v86 + Alpine，隐藏 web 视图）：AI 调用 vm_shell → root shell 输出 | PASS | 0ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 工具页（解题 / 词典 / 维基 / 物理 / GeoGebra）、历史、下载、书签、拓展、设置都能打开 | PASS | 8460ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 外观：浅色 / 深色 / 跟随系统 → 原生 overrideUserInterfaceStyle（theme.set）+ 所有页面立即切换 + 对比度 | PASS | 6031ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 旋转 / 分屏：窗口尺寸变化后 chrome 与标签视图重新布局 | PASS | 1880ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 下载：网页附件保存到“文件”App 的 AI浏览器/Downloads，下载页列出 | PASS | 290ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 本地模型：llama.cpp 保留（原生 Metal），只有 MLX 被移除 | PASS | 583ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 原生对话框 / 菜单走宿主（dialog.message、menu.popup、快捷键 menu.app） | PASS | 2ms |
 | Linux 虚拟机：Codex 风格工具（查看 / 编辑 / 补丁 / 搜索 / 列表 / 后台 / 软件包 / 服务 / git） | 工具定义：9 个工具，web 副本一致，补丁解析器 | PASS | 1ms |
 | Linux 虚拟机：Codex 风格工具（查看 / 编辑 / 补丁 / 搜索 / 列表 / 后台 / 软件包 / 服务 / git） | VM 工具实机测试 | SKIP — 需要 AIB_VM_IMAGE_DIR 与 qemu-system-aarch64 | 0ms |
 | 35-theme.js | suite crashed | FAIL — Error: page not found: u => u === url // u.startsWith(url + (url.includes('?') ? '&' : '?')) // (url.includes('?') ? u = | 0ms |
