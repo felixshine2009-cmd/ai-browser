@@ -37,7 +37,7 @@
       manifest = await (await fetch(BASE + 'manifest.json')).json();
       await loadScript(BASE + 'libv86.js');
       const ready = new Promise((res) => { bootWait = res; });
-      const mem = Math.max(256, Math.min(2048, Number(opts.memoryMB) || manifest.memoryMB || 512));
+      const mem = Math.max(256, Math.min(1536, Number(opts.memoryMB) || manifest.memoryMB || 512));
       emu = new window.V86({
         wasm_path: BASE + 'v86.wasm', memory_size: mem * 1024 * 1024, vga_memory_size: 2 * 1024 * 1024,
         bios: { url: BASE + 'seabios.bin' }, vga_bios: { url: BASE + 'vgabios.bin' }, bzimage: { url: BASE + 'bzImage' }, initrd: { url: BASE + 'initramfs.gz' },
