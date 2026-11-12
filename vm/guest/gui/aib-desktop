@@ -10,5 +10,6 @@ Xvfb :0 -screen 0 "${GEOM}x24" -fbdir /run/aib-x -noreset -extension GLX -nolist
 XPID=$!
 i=0; while [ ! -e /tmp/.X11-unix/X0 ] && [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done
 xsetroot -solid '#2d4a6b' 2>/dev/null
+command -v xrdb >/dev/null && xrdb -merge /etc/X11/Xresources/aib 2>/dev/null
 jwm &
 wait $XPID

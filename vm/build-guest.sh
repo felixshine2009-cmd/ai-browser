@@ -20,7 +20,7 @@ COMMON="python3 py3-pip py3-numpy py3-scipy py3-sympy py3-mpmath py3-matplotlib 
 if [ "$ARCH" = aarch64 ]; then PKGS="$COMMON git ripgrep patch build-base python3-dev e2fsprogs-extra openssh-client wget file less"; else PKGS="$COMMON blas cblas lapack git ripgrep patch"; fi
 # GUI=1 (x86 only): light graphical image for iPad computer use — Xvfb + JWM + xterm + xdotool (+ Dillo, Xfe)
 GUI="${GUI:-0}"
-if [ "$GUI" = 1 ]; then PKGS="$PKGS xvfb xdotool xsetroot jwm xterm dillo xfe font-dejavu font-misc-misc"; fi
+if [ "$GUI" = 1 ]; then PKGS="$PKGS xvfb xdotool xsetroot jwm xterm dillo xfe font-dejavu font-misc-misc xrdb"; fi
 sudo "$APK" --arch "$ARCH" --root "$RFS" --keys-dir "$RFS/etc/apk/keys" --no-scripts --no-cache --update-cache add $PKGS
 # busybox applet links (package post-install script was skipped)
 if [ -f "$RFS/etc/busybox-paths.d/busybox" ]; then
@@ -47,6 +47,9 @@ if [ "$GUI" = 1 ]; then
   sudo cp "$HERE/guest/gui/system.jwmrc" "$RFS/etc/system.jwmrc"
   # fontconfig cache: built natively (i686 binaries run on the x86_64 build host)
   sudo chroot "$RFS" /usr/bin/fc-cache -f >/dev/null 2>&1 || echo "warning: fc-cache failed"
+  # font package triggers were skipped (--no-scripts): index the core X fonts; xterm uses DejaVu Sans Mono via Xft
+  for d in "$RFS"/usr/share/fonts/*/; do sudo chroot "$RFS" sh -c "mkfontscale /usr/share/fonts/$(basename "$d") && mkfontdir /usr/share/fonts/$(basename "$d")" 2>/dev/null || true; done
+  sudo mkdir -p "$RFS/etc/X11/Xresources"; printf 'XTerm*faceName: DejaVu Sans Mono\nXTerm*faceSize: 11\nXTerm*background: #101418\nXTerm*foreground: #e6e6e6\nXTerm*scrollBar: false\n' | sudo tee "$RFS/etc/X11/Xresources/aib" >/dev/null
   bash "$HERE/guest/gui/slim-mesa.sh" "$RFS" "$WORK"
 fi
 if [ "$ARCH" = x86 ]; then AGENT_ARGS="--tty /dev/ttyS0"; else AGENT_ARGS=""; fi
