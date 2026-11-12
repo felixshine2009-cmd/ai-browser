@@ -103,7 +103,8 @@ function status() {
   const images = [{ id: 'alpine', gui: false, ready: true, version: IMAGE.version }, { id: 'alpine-gui', gui: true, ready: guiReady(), version: GUI_IMAGE.version, downloadMB: GUI_IMAGE.downloadMB }];
   return { supported: true, backend: 'v86', phase: st.phase, detail: st.detail, progress: st.progress, error: st.error, imageReady: gui ? guiReady() : true, imageVersion: gui ? GUI_IMAGE.version : IMAGE.version, image: img, gui, images, runningImage: st.image || null, diskBytes, diskGB: cfg.diskGB, memoryMB: Math.min(1536, Number(cfg.memoryMB) || 512), cpus: 1, info: st.info, share: d.share, startedAt: st.startedAt, network: false };
 }
-const js = (code) => st.win.webContents.executeJavaScript(code);
+// VM host calls (save / restore / package installs) can take minutes on a slow device or a loaded CI machine
+const js = (code, timeoutMs = 900000) => st.win.webContents.executeJavaScript(code, false, { timeoutMs });
 function running() { return st.phase === 'running' && st.win && !st.win.isDestroyed(); }
 
 async function start() {

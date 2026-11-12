@@ -129,9 +129,11 @@ class WebContents extends EventEmitter {
   goBack() { this.navigationHistory.goBack(); }
   goForward() { this.navigationHistory.goForward(); }
   send(channel, ...args) { if (this._st.destroyed) return; host.cmd('wc.send', { id: this.id, channel: String(channel), args: host.clone(args) }); }
-  executeJavaScript(code, userGesture) {
+  // iPad extension: executeJavaScript(code, userGesture, { timeoutMs }) for long-running helper pages (the VM host)
+  executeJavaScript(code, userGesture, opts) {
     if (this._st.destroyed) return Promise.reject(new Error('Object has been destroyed'));
-    return host.call('wc.exec', { id: this.id, code: String(code) }, 120000);
+    const ms = opts && Number(opts.timeoutMs) > 0 ? Number(opts.timeoutMs) : 120000;
+    return host.call('wc.exec', { id: this.id, code: String(code) }, ms);
   }
   executeJavaScriptInIsolatedWorld(worldId, scripts) { return this.executeJavaScript((scripts || []).map(s => s.code).join(';\n')); }
   insertCSS(css) { return host.call('wc.css', { id: this.id, css: String(css) }, 30000).then(() => 'css' + Date.now()); }

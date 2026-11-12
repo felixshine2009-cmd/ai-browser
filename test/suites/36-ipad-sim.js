@@ -199,5 +199,25 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     for (const c of ['wc.create', 'window.attach', 'view.attach', 'view.bounds', 'view.visible', 'wc.load', 'wc.send', 'theme.set', 'menu.app']) assert(names.has(c), 'host received ' + c);
   });
 
+  await test('启动诊断：Node 无 JIT 运行（与 iPad 相同），日志写入 Documents/日志，主窗口显示后通知原生层', async () => {
+    const st = await app.state();
+    assert(st.windowShown > 0, 'window shown reported');
+    eq(st.diag.filter(d => d.fatal).length, 0, 'no fatal startup report: ' + JSON.stringify(st.diag).slice(0, 400));
+    const log = fs.readFileSync(path.join(app.documents, '日志', 'node.log'), 'utf8');
+    assert(/webassembly: polywasm \(no JIT\)/.test(log), 'Node runs jitless with the WebAssembly polyfill');
+    assert(/main loaded in \d+ ms/.test(log) && /window shown/.test(log), log.slice(-600));
+  });
+
   await app.close(); llm.close && llm.close(); web.close && web.close();
+
+  await test('启动诊断：main.js 加载失败时立即报告原生层（诊断面板），日志可在“文件”App 中查看', async () => {
+    const bad = await launchIpad({ waitHome: false, env: { AIB_SIM_FAIL_MAIN: '1' } });
+    try {
+      const d = await until(async () => { const s = await bad.state().catch(() => null); return s && s.diag.find(x => x.stage === 'main' && x.fatal); }, 30000, 'diagnostics event', 300);
+      assert(/forced main\.js failure/.test(d.error), d.error.slice(0, 300));
+      eq((await bad.state()).windowShown, 0, 'no window');
+      const log = fs.readFileSync(path.join(bad.documents, '日志', 'node.log'), 'utf8');
+      assert(/main failed to load/.test(log), log.slice(-600));
+    } finally { await bad.close(); }
+  }, { timeout: 60000 });
 };

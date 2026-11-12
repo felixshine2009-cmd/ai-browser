@@ -36,7 +36,7 @@ async function launchIpad(opts = {}) {
   const [w, h] = opts.size || [1180, 820];
   const logs = [];
   const proc = spawn(electronPath, [path.join(ROOT, 'ipad', 'sim'), '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', `--remote-debugging-port=${port}`], {
-    cwd: ROOT, env: { ...process.env, AIB_BUNDLE: bundleDir(), AIB_NODE: node18(), AIB_SIM_UD: userData, AIB_SIM_SIZE: `${w}x${h}`, AIB_SIM_CTL: String(ctl), AIB_SIM_DARK: opts.systemDark === false ? '0' : '1', AIB_SIM_TOOLS_PORT: String(toolsPort) }
+    cwd: ROOT, env: Object.assign({ ...process.env, AIB_BUNDLE: bundleDir(), AIB_NODE: node18(), AIB_SIM_UD: userData, AIB_SIM_SIZE: `${w}x${h}`, AIB_SIM_CTL: String(ctl), AIB_SIM_DARK: opts.systemDark === false ? '0' : '1', AIB_SIM_TOOLS_PORT: String(toolsPort) }, opts.env || {})
   });
   proc.stdout.on('data', d => logs.push(String(d))); proc.stderr.on('data', d => logs.push(String(d)));
   let exited = false; proc.on('exit', () => { exited = true; });
@@ -69,7 +69,7 @@ async function launchIpad(opts = {}) {
     },
     async close() { try { await browser.close(); } catch {} try { proc.kill(); } catch {} await sleep(500); }
   };
-  await app.waitPage(u => u.startsWith('aibrowser://home'), 30000);
+  if (opts.waitHome !== false) await app.waitPage(u => u.startsWith('aibrowser://home'), 30000);
   return app;
 }
 module.exports = { launchIpad };
