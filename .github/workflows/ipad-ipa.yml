@@ -114,6 +114,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" archive | tee build.log | grep -E "error:|warning: .*(Swift|swift)|BUILD|ARCHIVE" || true
           test -d build/AIBrowser.xcarchive/Products/Applications/AIBrowser.app || { grep -E "error" -A3 build.log | head -80; exit 1; }
       - name: Package unsigned IPA
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
           APP=build/AIBrowser.xcarchive/Products/Applications/AIBrowser.app
@@ -121,7 +123,10 @@ jobs:
           VER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Payload/AIBrowser.app/Info.plist)
           echo "CFBundleShortVersionString=$VER"
           if [[ "${GITHUB_REF_NAME:-}" == ipad-v* ]] && [[ "$VER" != "${GITHUB_REF_NAME#ipad-v}" ]]; then echo "version $VER does not match tag $GITHUB_REF_NAME"; exit 1; fi
+          if [[ -n "${RELEASE_TAG:-}" ]] && [[ "$VER" != "${RELEASE_TAG#ipad-v}" ]]; then echo "version $VER does not match release $RELEASE_TAG"; exit 1; fi
           test -f Payload/AIBrowser.app/aibapp/nodejs-project/main-ipad.js
+          test -f Payload/AIBrowser.app/aibapp/nodejs-project/wasm-shim.js
+          test -f Payload/AIBrowser.app/aibapp/nodejs-project/polywasm.js
           test -d Payload/AIBrowser.app/Frameworks/NodeMobile.framework
           test -d Payload/AIBrowser.app/Frameworks/llama.framework
           # normalise permissions: only Mach-O binaries are executable (re-signers and installd verify these)
