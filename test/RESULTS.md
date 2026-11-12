@@ -1,23 +1,23 @@
 # 测试结果
 
-运行时间: 2026-11-12T06:28:39.428Z
+运行时间: 2026-11-12T06:36:58.644Z
 
 通过 385 / 失败 5 / 跳过 13 / 共 403
 
 | 分组 | 测试项 | 结果 | 耗时 |
 |---|---|---|---|
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 启动：Node 18 主进程 + 原生视图；chrome / 首页是桌面版页面（aib 桥、触控样式） | PASS | 256ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 首页布局与桌面版相同（同一 home.html：问候语、输入框、模型选择、Chat/Task、工具图标、数学键盘） | PASS | 45ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 标签页：网页加载、标题、后退/前进、新建/切换/关闭（原生视图按桌面布局摆放） | PASS | 764ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | Chat：提问 → 流式回答（与桌面版同一 chat 页面与 AI 后端） | PASS | 1384ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | Python（内置 Pyodide，隐藏 web 视图内核）：AI 调用 python_run → sympy / numpy 结果 | PASS | 6752ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | Linux 虚拟机（内置 v86 + Alpine，隐藏 web 视图）：AI 调用 vm_shell → root shell 输出 | PASS | 13354ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 工具页（解题 / 词典 / 维基 / 物理 / GeoGebra）、历史、下载、书签、拓展、设置都能打开 | PASS | 8626ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 外观：浅色 / 深色 / 跟随系统 → 原生 overrideUserInterfaceStyle（theme.set）+ 所有页面立即切换 + 对比度 | PASS | 6079ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 旋转 / 分屏：窗口尺寸变化后 chrome 与标签视图重新布局 | PASS | 1933ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 下载：网页附件保存到“文件”App 的 AI浏览器/Downloads，下载页列出 | PASS | 297ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 本地模型：llama.cpp 保留（原生 Metal），只有 MLX 被移除 | PASS | 589ms |
-| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 原生对话框 / 菜单走宿主（dialog.message、menu.popup、快捷键 menu.app） | PASS | 4ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 启动：Node 18 主进程 + 原生视图；chrome / 首页是桌面版页面（aib 桥、触控样式） | PASS | 231ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 首页布局与桌面版相同（同一 home.html：问候语、输入框、模型选择、Chat/Task、工具图标、数学键盘） | PASS | 43ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 标签页：网页加载、标题、后退/前进、新建/切换/关闭（原生视图按桌面布局摆放） | PASS | 703ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | Chat：提问 → 流式回答（与桌面版同一 chat 页面与 AI 后端） | PASS | 1382ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | Python（内置 Pyodide，隐藏 web 视图内核）：AI 调用 python_run → sympy / numpy 结果 | PASS | 6418ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | Linux 虚拟机（内置 v86 + Alpine，隐藏 web 视图）：AI 调用 vm_shell → root shell 输出 | PASS | 13331ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 工具页（解题 / 词典 / 维基 / 物理 / GeoGebra）、历史、下载、书签、拓展、设置都能打开 | PASS | 8584ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 外观：浅色 / 深色 / 跟随系统 → 原生 overrideUserInterfaceStyle（theme.set）+ 所有页面立即切换 + 对比度 | PASS | 6078ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 旋转 / 分屏：窗口尺寸变化后 chrome 与标签视图重新布局 | PASS | 1919ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 下载：网页附件保存到“文件”App 的 AI浏览器/Downloads，下载页列出 | PASS | 308ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 本地模型：llama.cpp 保留（原生 Metal），只有 MLX 被移除 | PASS | 591ms |
+| iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 原生对话框 / 菜单走宿主（dialog.message、menu.popup、快捷键 menu.app） | PASS | 3ms |
 | 截图：首页 / 设置 / 菜单 | 首页（中文）：只有问候语与输入框 | PASS | 897ms |
 | 截图：首页 / 设置 / 菜单 | 首页（English）语言切换 | PASS | 2625ms |
 | 截图：首页 / 设置 / 菜单 | 设置页：AI 后端 / 搜索 / 通用 截图 | PASS | 4254ms |

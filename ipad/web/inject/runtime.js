@@ -52,6 +52,8 @@
     try { if (window.aib) window.aib.ipad = true; } catch {}
     const mark = () => { if (document.documentElement) document.documentElement.classList.add('aib-ipad'); };
     mark(); document.addEventListener('DOMContentLoaded', mark);
+    // at document start the <html> element may not exist yet: mark it as soon as the parser creates it (no unstyled flash)
+    if (!document.documentElement) { try { new MutationObserver((_, o) => { if (document.documentElement) { mark(); o.disconnect(); } }).observe(document, { childList: true }); } catch {} }
     // touch: long-press opens the same context menus that right-click opens on the desktop
     let lp = null, sx = 0, sy = 0, fired = false;
     document.addEventListener('touchstart', (e) => {

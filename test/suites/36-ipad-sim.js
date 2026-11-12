@@ -33,6 +33,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     const win = st.views.filter(v => v.kind === 'window'); eq(win.length, 1, 'one window web view');
     assert(st.views.some(v => v.kind === 'view' && v.attached && v.visible && norm(v.url) === 'aibrowser://home'), 'home tab view attached: ' + JSON.stringify(st.views));
     const home = await app.waitPage(u => u.startsWith('aibrowser://home'));
+    await home.waitForLoadState('domcontentloaded').catch(() => {});
     const info = await home.evaluate(() => ({ ipad: document.documentElement.classList.contains('aib-ipad'), aib: !!(window.aib && window.aib.ipad), css: !!document.getElementById('aib-ipad-css'), vp: (document.querySelector('meta[name=viewport]') || {}).content || '' }));
     assert(info.ipad && info.aib && info.css && /device-width/.test(info.vp), JSON.stringify(info));
     const about = await app.invoke('app:info').catch(() => null);

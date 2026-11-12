@@ -103,7 +103,7 @@ module.exports = async ({ test, group, assert, eq }) => {
   group('网页版 / iPad：Pyodide 与虚拟机');
   await test('Service Worker 版本与缓存清单', () => {
     const sw = read('web/sw.js');
-    assert(sw.includes("'aib-web-v2.4.0'"));
+    assert(sw.includes("'aib-web-v2.5.0'"));
     for (const f of ['runpanel.js', 'python.js', 'python-worker.js', 'compute-tools.js', 'linux-vm.js', 'py-settings.js']) { assert(sw.includes('./js/' + f), f); assert(fs.existsSync(path.join(ROOT, 'web/js', f)), f); }
     assert(/cdn\.jsdelivr\.net/.test(sw) && /pyodide/.test(sw));
     const html = read('web/index.html');
