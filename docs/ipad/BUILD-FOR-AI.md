@@ -21,6 +21,11 @@ gh release download v5.6.0 -R felixshine2009-cmd/ai-browser -p linux-vm-x86-v86.
 tar -C ipad/build/payload -xzf linux-vm-x86-v86.tar.gz         # vm/ : v86 + Alpine image with the guest agent
 ```
 
+The optional graphical image is not part of the payload. The app downloads `linux-vm-x86-gui.tar` from the v5.7.0
+release on first use (only the files that differ from the built-in image, ~28 MB). To rebuild it:
+`GUI=1 vm/build-guest.sh x86 <gui-out>` and `scripts/package-v86-gui.sh <built-in-image-dir> <gui-out> linux-vm-x86-gui.tar`
+(the built-in image dir must be the exact image in the payload, because the delta refers to its files).
+
 ## 2. Native frameworks
 ```bash
 mkdir -p ipad/Frameworks
