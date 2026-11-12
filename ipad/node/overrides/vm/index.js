@@ -25,7 +25,7 @@ function supported() { return true; }
 // Optional light graphical image (Settings → Linux VM): the base image plus Xvfb / JWM / xterm / xdotool / Dillo / Xfe.
 // Only the files that differ from the bundled image are downloaded on first use (userData/vm-gui: fs.json + fs/ blobs);
 // SchemeHandler.swift serves aibres://app/vm/fs/<blob> from there when the blob is not in the app bundle.
-const GUI_IMAGE = { id: 'alpine-gui', version: 'alpine-3.22-x86-gui-1', asset: 'linux-vm-x86-gui.tar', base: 'https://github.com/felixshine2009-cmd/ai-browser/releases/download/v5.7.0/', mirrors: ['', 'https://ghfast.top/'], downloadMB: 0, memoryMB: 1024 };
+const GUI_IMAGE = { id: 'alpine-gui', version: 'alpine-3.22-x86-gui-1', asset: 'linux-vm-x86-gui.tar', base: 'https://github.com/felixshine2009-cmd/ai-browser/releases/download/v5.7.0/', mirrors: ['', 'https://ghfast.top/'], downloadMB: 28, memoryMB: 1024 };
 const guiDir = () => path.join(userData(), 'vm-gui');
 const guiReady = () => { try { return fs.readFileSync(path.join(guiDir(), '.ok'), 'utf8').trim() === GUI_IMAGE.version; } catch { return false; } };
 let imageOverride = null;
