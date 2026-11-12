@@ -27,7 +27,7 @@ module.exports = async ({ test, group, assert, eq, until, skip }) => {
       await app.tool('__vm', { fn: 'setImage', args: ['alpine-gui'] });
       const t0 = Date.now(); const s = await app.tool('__vm', { fn: 'start' }); bootMs = Date.now() - t0;
       eq(s.phase, 'running'); eq(s.image, 'alpine-gui'); assert(s.images.find(i => i.id === 'alpine-gui').ready, 'downloaded');
-      const r = await app.tool('vm_shell', { command: 'command -v Xvfb xdotool jwm xterm dillo | wc -l' }); eq(r.stdout.trim(), '5');
+      const r = await app.tool('vm_shell', { command: 'for b in Xvfb xdotool jwm xterm dillo; do command -v $b; done | wc -l' }); eq(r.stdout.trim(), '5');
     }, { timeout: 900000 });
     const times = await require('../lib/vm-gui-check')({ test, assert, eq }, (n, a) => app.tool(n, a), { tag: 'iPad 图形镜像 · ', terminal: 'xterm -geometry 80x20+60+60', termClass: 'xterm', shots: SHOTS, prefix: '15-ipad-gui-', timeout: 600000, settleMs: 3000 });
     await test('iPad 图形镜像 · 应用内“Linux 桌面”页面显示画面并可点击', async () => {

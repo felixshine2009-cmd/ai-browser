@@ -20,7 +20,7 @@ COMMON="python3 py3-pip py3-numpy py3-scipy py3-sympy py3-mpmath py3-matplotlib 
 if [ "$ARCH" = aarch64 ]; then PKGS="$COMMON git ripgrep patch build-base python3-dev e2fsprogs-extra openssh-client wget file less"; else PKGS="$COMMON blas cblas lapack git ripgrep patch"; fi
 # GUI=1 (x86 only): light graphical image for iPad computer use — Xvfb + JWM + xterm + xdotool (+ Dillo, Xfe)
 GUI="${GUI:-0}"
-if [ "$GUI" = 1 ]; then PKGS="$PKGS xvfb xdotool xsetroot jwm xterm dillo xfe font-dejavu"; fi
+if [ "$GUI" = 1 ]; then PKGS="$PKGS xvfb xdotool xsetroot jwm xterm dillo xfe font-dejavu font-misc-misc"; fi
 sudo "$APK" --arch "$ARCH" --root "$RFS" --keys-dir "$RFS/etc/apk/keys" --no-scripts --no-cache --update-cache add $PKGS
 # busybox applet links (package post-install script was skipped)
 if [ -f "$RFS/etc/busybox-paths.d/busybox" ]; then

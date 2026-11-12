@@ -71,7 +71,7 @@ print(w, h, img.size[0], img.size[1])
       if (!/ok/.test(v.out)) await io.write(SHOT_PY, enc(SHOT_SCRIPT));
       if (!/up/.test(v.out)) {
         ctx && ctx.status && ctx.status('正在启动图形桌面…');
-        await sh('if command -v systemctl >/dev/null && [ -d /run/systemd/system ]; then systemctl start aib-desktop; else pgrep -f aib-desktop >/dev/null || (setsid /usr/local/sbin/aib-desktop </dev/null >/var/log/aib-desktop.log 2>&1 &); fi; i=0; while { [ ! -e /tmp/.X11-unix/X0 ] || [ ! -e /run/aib-x/Xvfb_screen0 ]; } && [ $i -lt 600 ]; do sleep 0.2; i=$((i+1)); done; [ -e /run/aib-x/Xvfb_screen0 ] && echo up', { timeoutSec: 180 });
+        await sh('if command -v systemctl >/dev/null && [ -d /run/systemd/system ]; then systemctl start aib-desktop; else pgrep -x Xvfb >/dev/null || (setsid /usr/local/sbin/aib-desktop </dev/null >/var/log/aib-desktop.log 2>&1 &); fi; i=0; while { [ ! -e /tmp/.X11-unix/X0 ] || [ ! -e /run/aib-x/Xvfb_screen0 ]; } && [ $i -lt 600 ]; do sleep 0.2; i=$((i+1)); done; [ -e /run/aib-x/Xvfb_screen0 ] && echo up', { timeoutSec: 180 });
         const c = await sh('[ -e /run/aib-x/Xvfb_screen0 ] && echo up'); if (c.out.trim() !== 'up') throw new Error('图形桌面启动失败（见 /var/log/aib-desktop.log）');
         await new Promise(r => setTimeout(r, opts.settleMs || 3000)); // let the session draw its panels
       }
@@ -98,7 +98,7 @@ print(w, h, img.size[0], img.size[1])
     const BTN = { left: 1, middle: 2, right: 3 };
     const run = {
       async vm_desktop(a, ctx) {
-        if (a.action === 'stop') { await sh('if command -v systemctl >/dev/null && [ -d /run/systemd/system ]; then systemctl stop aib-desktop; else pkill -f aib-desktop; pkill Xvfb; fi; true'); ready = false; return { stopped: true }; }
+        if (a.action === 'stop') { await sh('if command -v systemctl >/dev/null && [ -d /run/systemd/system ]; then systemctl stop aib-desktop; else pkill -x jwm; pkill -x Xvfb; pkill -f /usr/local/sbin/aib-desktop; fi; true'); ready = false; return { stopped: true }; }
         if (a.action === 'resize') {
           const w = Math.max(640, Math.min(2560, Math.floor(Number(a.width) || 1280))), h = Math.max(480, Math.min(1600, Math.floor(Number(a.height) || 800)));
           await io.write('/persist/aib/screen', enc(`${w}x${h}`)); await run.vm_desktop({ action: 'stop' }, ctx); await ensure(ctx);
