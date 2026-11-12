@@ -178,6 +178,7 @@ async function start({ signal } = {}) {
       try { await Promise.race([client.request('exec', { cmd: 'for i in $(seq 1 40); do ip route 2>/dev/null | grep -q "^default" && break; sleep 0.25; done', timeout: 15 }), new Promise(r => setTimeout(r, 12000))]); } catch {}
       client.on('close', () => { if (st.client === client && st.phase === 'running') setPhase('stopped', '与虚拟机的连接已断开'); });
       setPhase('running', 'Linux 虚拟机已就绪');
+      client.request('exec', { cmd: require('./codex-tools').BOOT_CMD, timeout: 60 }).catch(() => {}); // enabled vm_service services
       return status();
     } catch (e) {
       if (st.proc) { try { st.proc.kill('SIGKILL'); } catch {} st.proc = null; }

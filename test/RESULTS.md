@@ -1,11 +1,22 @@
 # 测试结果
 
-运行时间: 2026-11-12T06:36:58.644Z
+运行时间: 2026-11-12T07:00:20.699Z
 
-通过 385 / 失败 5 / 跳过 13 / 共 403
+通过 395 / 失败 6 / 跳过 13 / 共 414
 
 | 分组 | 测试项 | 结果 | 耗时 |
 |---|---|---|---|
+| Linux 虚拟机：Codex 风格工具（查看 / 编辑 / 补丁 / 搜索 / 列表 / 后台 / 软件包 / 服务 / git） | 工具定义：9 个工具，web 副本一致，补丁解析器 | PASS | 13ms |
+| Linux 虚拟机：Codex 风格工具（查看 / 编辑 / 补丁 / 搜索 / 列表 / 后台 / 软件包 / 服务 / git） | 启动虚拟机（QEMU，arm64 Alpine） | PASS | 4731ms |
+| Linux 虚拟机：Codex 风格工具（查看 / 编辑 / 补丁 / 搜索 / 列表 / 后台 / 软件包 / 服务 / git） | vm_edit create + vm_view 行号 / offset / limit | PASS | 349ms |
+| Linux 虚拟机：Codex 风格工具（查看 / 编辑 / 补丁 / 搜索 / 列表 / 后台 / 软件包 / 服务 / git） | vm_edit：唯一字符串替换 / 重复时报错并给出行号 / replace_all / 行范围 / 插入 / 尾随空格容错 | FAIL — Error: not equal: got "exact" expected "whitespace" /     at eq (/workspace/ipadport/repo/test/lib/runner.js:21:77) /    | 64ms |
+| Linux 虚拟机：Codex 风格工具（查看 / 编辑 / 补丁 / 搜索 / 列表 / 后台 / 软件包 / 服务 / git） | vm_apply_patch：Codex 格式（新增 / 修改 / 移动 / 删除，失败时不写入任何文件）+ 统一 diff | PASS | 426ms |
+| Linux 虚拟机：Codex 风格工具（查看 / 编辑 / 补丁 / 搜索 / 列表 / 后台 / 软件包 / 服务 / git） | vm_search（ripgrep 或 grep）+ vm_list 目录树 | PASS | 5052ms |
+| Linux 虚拟机：Codex 风格工具（查看 / 编辑 / 补丁 / 搜索 / 列表 / 后台 / 软件包 / 服务 / git） | vm_bg：后台启动 → 增量输出 → wait → list → kill | PASS | 8514ms |
+| Linux 虚拟机：Codex 风格工具（查看 / 编辑 / 补丁 / 搜索 / 列表 / 后台 / 软件包 / 服务 / git） | vm_service：create → start → 崩溃后自动重启 → enable → logs → stop → remove | PASS | 7239ms |
+| Linux 虚拟机：Codex 风格工具（查看 / 编辑 / 补丁 / 搜索 / 列表 / 后台 / 软件包 / 服务 / git） | vm_git：init / add / commit / log / diff（非交互，默认作者） | PASS | 513ms |
+| Linux 虚拟机：Codex 风格工具（查看 / 编辑 / 补丁 / 搜索 / 列表 / 后台 / 软件包 / 服务 / git） | vm_pkg：list / search / info / install + remove（jq） | PASS | 9546ms |
+| Linux 虚拟机：Codex 风格工具（查看 / 编辑 / 补丁 / 搜索 / 列表 / 后台 / 软件包 / 服务 / git） | enable 的服务在虚拟机重启后自动启动 | PASS | 7304ms |
 | iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 启动：Node 18 主进程 + 原生视图；chrome / 首页是桌面版页面（aib 桥、触控样式） | PASS | 231ms |
 | iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 首页布局与桌面版相同（同一 home.html：问候语、输入框、模型选择、Chat/Task、工具图标、数学键盘） | PASS | 43ms |
 | iPad 版（桌面版直接移植）：模拟宿主上运行整个 iPad 负载 | 标签页：网页加载、标题、后退/前进、新建/切换/关闭（原生视图按桌面布局摆放） | PASS | 703ms |

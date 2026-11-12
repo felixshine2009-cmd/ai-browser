@@ -49,6 +49,7 @@ async function start() {
       if (!r || !r.ok) throw new Error((r && r.error) || 'Linux 虚拟机启动失败');
       st.info = Object.assign({}, r.info || {}, { network: false }); st.startedAt = Date.now();
       setPhase('running', 'Linux 虚拟机已就绪');
+      afterBoot().catch((e) => console.error('vm afterBoot', e.message));
       return status();
     } catch (e) {
       try { st.win && st.win.destroy(); } catch {} st.win = null;
@@ -130,9 +131,13 @@ async function runJob(startExpr, { onOutput, signal, killExpr } = {}) {
   } finally { if (signal) signal.removeEventListener('abort', ab); }
 }
 
-async function shell(command, { cwd, timeoutSec, signal, onOutput, stdin } = {}) {
+async function shell(command, { cwd, timeoutSec, signal, onOutput, stdin, quick } = {}) {
   await ensure();
   const t0 = Date.now();
+  if (quick) { // internal helper commands of the VM tools: no shared-folder sync, no snapshot
+    const r = await runJob(`window.vmhost.exec(${JSON.stringify(String(command))}, ${JSON.stringify(cwd || '/root/work')}, ${Math.max(1, Math.min(86400, Number(timeoutSec) || 600))}, ${JSON.stringify(stdin == null ? null : String(stdin))})`, { onOutput, signal });
+    return { exitCode: r.code, stdout: r.stdout, stderr: r.stderr, ms: Date.now() - t0, truncated: !!r.truncated, timedOut: !!r.timedOut, stopped: !!(signal && signal.aborted) };
+  }
   const pipm = /^\s*(?:python3?\s+-m\s+)?pip3?\s+install\s+(.+)$/.exec(String(command));
   if (pipm) { // no network inside the guest: the app fetches the wheels
     const names = pipm[1].split(/\s+/).filter(x => x && !x.startsWith('-')).map(x => x.replace(/^['"]|['"]$/g, ''));
@@ -200,10 +205,93 @@ async function pipInstall(names, { onOutput, signal } = {}) {
   await save().catch(() => {});
   return { installed: done, needsNative: skipped };
 }
+// ---- software packages without network in the guest: the app resolves and downloads Alpine packages (APKINDEX),
+// installs them with `apk add --no-network`, caches the .apk files and re-installs them after every boot (only /root and
+// /persist survive a restart of the in-memory VM).
+const ALPINE = 'https://dl-cdn.alpinelinux.org/alpine';
+const apkCacheDir = () => path.join(D().base, 'apk-cache');
+const apkWorldFile = () => path.join(D().base, 'apk-world.json');
+function apkWorld() { try { return JSON.parse(fs.readFileSync(apkWorldFile(), 'utf8')); } catch { return { packages: [], files: [] }; } }
+function untar(buf) { const out = {}; let o = 0; while (o + 512 <= buf.length) { const name = buf.toString('utf8', o, o + 100).replace(/\0.*$/, ''); if (!name) break; const size = parseInt(buf.toString('utf8', o + 124, o + 136).replace(/\0.*$/, '').trim() || '0', 8); out[name] = buf.subarray(o + 512, o + 512 + size); o += 512 + Math.ceil(size / 512) * 512; } return out; }
+function parseApkIndex(text, repo) {
+  const pk = []; let cur = {};
+  for (const line of String(text).split('\n')) {
+    if (!line.trim()) { if (cur.P) pk.push(cur); cur = {}; continue; }
+    const k = line[0], v = line.slice(2);
+    if (k === 'P') cur.P = v; else if (k === 'V') cur.V = v; else if (k === 'D') cur.D = v.split(' ').filter(Boolean); else if (k === 'p') cur.p = v.split(' ').filter(Boolean); else if (k === 'S') cur.S = Number(v);
+    cur.repo = repo;
+  }
+  if (cur.P) pk.push(cur);
+  return pk;
+}
+const depName = (d) => d.replace(/^!/, '').split(/[<>=~]/)[0];
+let apkIdx = null;
+async function apkIndex(onOutput) {
+  if (apkIdx) return apkIdx;
+  const r = await runJob(`window.vmhost.exec(${JSON.stringify('cat /etc/apk/arch; cut -d. -f1,2 /etc/alpine-release')}, '/', 30)`, {});
+  const [arch, ver] = String(r.stdout || '').trim().split('\n');
+  const byName = new Map(), byProv = new Map();
+  for (const repo of ['main', 'community']) {
+    const url = `${ALPINE}/v${ver}/${repo}/${arch}`;
+    if (onOutput) onOutput('stdout', `fetch ${url}/APKINDEX.tar.gz\n`);
+    const res = await fetch(url + '/APKINDEX.tar.gz'); if (!res.ok) throw new Error('无法获取软件包索引（HTTP ' + res.status + '）');
+    const tar = untar(require('zlib').gunzipSync(Buffer.from(await res.arrayBuffer())));
+    for (const p of parseApkIndex((tar.APKINDEX || Buffer.alloc(0)).toString('utf8'), url)) {
+      if (!byName.has(p.P)) byName.set(p.P, p);
+      for (const pr of p.p || []) { const n = depName(pr); if (!byProv.has(n)) byProv.set(n, p); }
+    }
+  }
+  apkIdx = { byName, byProv, arch, ver }; return apkIdx;
+}
+async function apkInstalled() {
+  const r = await js(`window.vmhost.readFile('/lib/apk/db/installed', 0)`).catch(() => null);
+  const have = new Set(); if (!r) return have;
+  for (const line of Buffer.from(r.b64, 'base64').toString('utf8').split('\n')) { if (line.startsWith('P:')) have.add(line.slice(2)); else if (line.startsWith('p:')) for (const x of line.slice(2).split(' ')) have.add(depName(x)); }
+  return have;
+}
+async function apkPushAndAdd(files, { onOutput } = {}) {
+  for (const f of files) await js(`window.vmhost.writeFile(${JSON.stringify('/tmp/aib-apk/' + f)}, ${JSON.stringify(fs.readFileSync(path.join(apkCacheDir(), f)).toString('base64'))}, false)`);
+  const r = await runJob(`window.vmhost.exec(${JSON.stringify('apk add --allow-untrusted --no-network --no-progress ' + files.map(f => '/tmp/aib-apk/' + f).join(' ') + '; s=$?; rm -rf /tmp/aib-apk; exit $s')}, '/', 900)`, { onOutput });
+  return r;
+}
+async function apkInstall(names, { onOutput, signal } = {}) {
+  await ensure();
+  const idx = await apkIndex(onOutput); const have = await apkInstalled();
+  const need = []; const seen = new Set(); const missing = [];
+  const visit = (dep) => {
+    if (dep.startsWith('!')) return; const n = depName(dep); if (!n || have.has(n) || seen.has(n)) return; seen.add(n);
+    const p = idx.byName.get(n) || idx.byProv.get(n); if (!p) { missing.push(n); return; }
+    if (have.has(p.P) || need.includes(p)) return;
+    need.push(p); for (const d of p.D || []) visit(d);
+  };
+  for (const n of names) { if (!idx.byName.get(n) && !idx.byProv.get(n)) throw new Error('Alpine 软件源中没有这个包：' + n); visit(n); }
+  if (!need.length) return { ok: true, exitCode: 0, installed: [], output: '已安装 / already installed: ' + names.join(', ') };
+  fs.mkdirSync(apkCacheDir(), { recursive: true });
+  const files = [];
+  for (const p of need) {
+    if (signal && signal.aborted) throw new Error('已由用户停止');
+    const f = `${p.P}-${p.V}.apk`; const dst = path.join(apkCacheDir(), f);
+    if (!fs.existsSync(dst)) { if (onOutput) onOutput('stdout', `download ${f}\n`); const res = await fetch(`${p.repo}/${f}`); if (!res.ok) throw new Error('下载失败：' + f + '（HTTP ' + res.status + '）'); fs.writeFileSync(dst, Buffer.from(await res.arrayBuffer())); }
+    files.push(f);
+  }
+  const r = await apkPushAndAdd(files, { onOutput });
+  if (r.code === 0) { const w = apkWorld(); w.packages = Array.from(new Set(w.packages.concat(names))); w.files = Array.from(new Set(w.files.concat(files))); fs.writeFileSync(apkWorldFile(), JSON.stringify(w)); }
+  return { ok: r.code === 0, exitCode: r.code, installed: need.map(p => p.P + '-' + p.V), unresolved: missing.length ? missing : undefined, output: String((r.stdout || '') + (r.stderr || '')).slice(-6000), note: '应用已代为下载（虚拟机内没有网络）；这些软件包会在每次虚拟机启动时自动重新安装' };
+}
+async function offlineInstall(manager, names, opts = {}) {
+  if (manager === 'apk') return apkInstall(names, opts);
+  if (manager === 'pip') { const r = await pipInstall(names, opts); return { ok: !r.needsNative.length, exitCode: r.needsNative.length ? 1 : 0, installed: r.installed, needsNative: r.needsNative.length ? r.needsNative : undefined }; }
+  throw new Error('iPad 上的虚拟机没有网络，只支持 apk 和 pip 安装（由应用代为下载）');
+}
+async function afterBoot() {
+  const w = apkWorld(); const files = w.files.filter(f => fs.existsSync(path.join(apkCacheDir(), f)));
+  if (files.length) { setPhase('running', '正在恢复已安装的软件包…'); try { await apkPushAndAdd(files); } finally { setPhase('running', 'Linux 虚拟机已就绪'); } }
+  await runJob(`window.vmhost.exec(${JSON.stringify(require('../vm/codex-tools').BOOT_CMD)}, '/', 60)`, {});
+}
 async function ping() { await ensure(); const r = await js('window.vmhost.ping()'); st.info = Object.assign({}, st.info || {}, (r && r.info) || {}); return st.info; }
 function diskUsage() { const s = status(); return { diskBytes: s.diskBytes, diskGB: s.diskGB, imageReady: true }; }
 function shutdownSync() { try { st.win && st.win.destroy(); } catch {} }
 function launchArgs() { throw new Error('iPad 使用 v86 虚拟机'); }
 function sockPath() { return ''; }
 
-module.exports = { IMAGE, events, status, supported, backend, start, stop, reset, ensure, running, shell, readFile, writeFile, python, ping, diskUsage, shutdownSync, pipInstall, save, dirs: D, launchArgs, sockPath, _setUserData: (p) => { userDataOverride = p; } };
+module.exports = { IMAGE, events, status, supported, backend, start, stop, reset, ensure, running, shell, readFile, writeFile, python, ping, diskUsage, shutdownSync, pipInstall, offlineInstall, apkInstall, save, dirs: D, launchArgs, sockPath, _setUserData: (p) => { userDataOverride = p; } };

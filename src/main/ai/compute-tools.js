@@ -6,6 +6,7 @@ const path = require('path');
 const os = require('os');
 const py = require('../python');
 const vm = require('../vm');
+const CODEX = require('../vm/codex-tools');
 
 const str = (d) => ({ type: 'string', description: d });
 const obj = (properties, required = []) => ({ type: 'object', properties, required });
@@ -107,4 +108,25 @@ const TOOLS = [
     run: async (a, ctx) => { if (a.action === 'stop' || a.action === 'restart') await vm.stop(); if (a.action !== 'stop') await vmUp(ctx); const s = vm.status(); return { phase: s.phase, info: s.info }; } }
 ];
 
-module.exports = { TOOLS, engineFor };
+// Codex-style working tools (view / edit / apply_patch / search / list / background jobs / packages / services / git)
+let codexInst = null;
+function codex() {
+  if (codexInst) return codexInst;
+  codexInst = CODEX.create({
+    sh: (cmd, o) => vm.shell(cmd, o || {}),
+    read: (p, max) => vm.readFile(p, max),
+    write: (p, bytes) => vm.writeFile(p, Buffer.from(bytes)),
+    get network() { try { return vm.status().network !== false; } catch { return true; } },
+    offlineInstall: vm.offlineInstall ? (m, names, o) => vm.offlineInstall(m, names, o) : null
+  });
+  return codexInst;
+}
+for (const d of CODEX.DEFS) TOOLS.push({ name: d.name, group: 'vm', description: d.description, parameters: d.parameters,
+  run: async (a, ctx) => {
+    await vmUp(ctx);
+    const k = CODEX.LABELS[d.name]; status(ctx, `Linux 虚拟机：${k ? k[0] : d.name}…`);
+    try { return await codex().call(d.name, a, { status: (t) => status(ctx, t), stream: (s, x) => stream(ctx, s, x), signal: ctx && ctx.signal }); }
+    finally { if (vm.save) vm.save().catch(() => {}); } // iPad: snapshot /root and /persist
+  } });
+
+module.exports = { TOOLS, engineFor, codex };
