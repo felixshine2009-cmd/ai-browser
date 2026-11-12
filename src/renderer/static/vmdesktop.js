@@ -24,7 +24,7 @@
     if (busy || (!force && !$('live').checked) || document.hidden) return;
     busy = true;
     try {
-      const r = await window.aib.invoke('vm:gui:shot');
+      const r = await window.aib.invoke('vm:guiShot');
       if (r.ok) { img.src = r.dataUrl; screen = r.screen; empty.textContent = ''; stEl.textContent = `${r.screen.width}×${r.screen.height}`; last = Date.now(); }
       else if (r.needGui) { empty.innerHTML = T('当前使用的是命令行镜像。请在 设置 → Python 与 Linux → Linux 虚拟机 中选择“图形桌面（Debian + XFCE）”。', 'The VM uses the command-line image. Choose “Graphical desktop (Debian + XFCE)” in Settings → Python & Linux → Linux VM.'); stEl.textContent = ''; }
       else { empty.textContent = r.error || T('无法获取画面', 'No picture'); }
@@ -32,7 +32,7 @@
     finally { busy = false; }
   }
   const pos = (e) => { const b = img.getBoundingClientRect(); return { x: Math.round((e.clientX - b.left) * screen.width / b.width), y: Math.round((e.clientY - b.top) * screen.height / b.height) }; };
-  const send = async (ev) => { await window.aib.invoke('vm:gui:input', ev); setTimeout(() => refresh(true), 250); };
+  const send = async (ev) => { await window.aib.invoke('vm:guiInput', ev); setTimeout(() => refresh(true), 250); };
   img.addEventListener('mousedown', (e) => { e.preventDefault(); wrap.focus(); });
   img.addEventListener('click', (e) => { if (!screen) return; send(Object.assign({ type: 'click', button: 'left', double: false }, pos(e))); });
   img.addEventListener('dblclick', (e) => { if (!screen) return; send(Object.assign({ type: 'click', button: 'left', double: true }, pos(e))); });

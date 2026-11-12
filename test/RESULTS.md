@@ -1,32 +1,33 @@
 # 测试结果
 
-运行时间: 2026-11-12T08:45:17.843Z
+运行时间: 2026-11-12T09:35:13.582Z
 
-通过 397 / 失败 15 / 跳过 14 / 共 426
+通过 407 / 失败 6 / 跳过 14 / 共 427
 
 | 分组 | 测试项 | 结果 | 耗时 |
 |---|---|---|---|
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 切换镜像：首次使用时下载（与内置镜像的差量）并启动 | FAIL — TypeError: fetch failed | 317155ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 启动图形桌面并截图（首次启动计时） | FAIL — Error: Linux 虚拟机启动超时 /     at Object.tool (/workspace/ipadport/repo/test/lib/ipad-sim.js:58:188) /     at process.proces | 457844ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_screenshot：画面不是纯色（桌面已绘制） | FAIL — TypeError: fetch failed | 362728ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_click：鼠标移动到指定坐标并点击 | FAIL — TypeError: Cannot read properties of undefined (reading 'width') /     at test.timeout.timeout (/workspace/ipadport/repo | 5ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_type + vm_key：在终端里输入命令并回车，命令真的执行了 | FAIL — Error: Linux 虚拟机启动超时 /     at Object.tool (/workspace/ipadport/repo/test/lib/ipad-sim.js:58:188) /     at process.proces | 275913ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_scroll / vm_drag / vm_key 组合键返回新截图 | FAIL — TypeError: fetch failed | 300829ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 无效按键被拒绝（不会拼进 shell 命令） | FAIL — Error: assertion failed: fetch failed /     at assert (/workspace/ipadport/repo/test/lib/runner.js:20:41) /     at test. | 100287ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 应用内“Linux 桌面”页面显示画面并可点击 | FAIL — page.evaluate: Target page, context or browser has been closed /     at Object.invoke (/workspace/ipadport/repo/test/lib | 16ms |
-| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 切回命令行镜像 | FAIL — TypeError: fetch failed | 2ms |
-| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 工具定义与注册：7 个电脑操作工具 | PASS | 14ms |
-| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 截图脚本：解析 Xvfb 帧缓冲（XWD）为 PNG，像素颜色正确 | PASS | 633ms |
-| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 截图送给视觉模型：OpenAI 格式追加图片消息，Anthropic 放进 tool_result；旧截图与不支持视觉的模型只给文字 | PASS | 8ms |
-| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 切换到图形镜像（Debian 13 + XFCE）并启动（QEMU） | PASS | 21208ms |
-| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 桌面 Debian · 启动图形桌面并截图（首次启动计时） | PASS | 1242ms |
-| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 桌面 Debian · vm_screenshot：画面不是纯色（桌面已绘制） | FAIL — Error: assertion failed: distinct colours: 1 /  /     at assert (/workspace/ipadport/repo/test/lib/runner.js:20:41) /    | 7709ms |
-| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 桌面 Debian · vm_click：鼠标移动到指定坐标并点击 | PASS | 18767ms |
-| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 桌面 Debian · vm_type + vm_key：在终端里输入命令并回车，命令真的执行了 | PASS | 10226ms |
-| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 桌面 Debian · vm_scroll / vm_drag / vm_key 组合键返回新截图 | PASS | 5306ms |
-| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 桌面 Debian · 无效按键被拒绝（不会拼进 shell 命令） | PASS | 28ms |
-| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | Codex 工具在 Debian 镜像中同样可用（apt / git / 服务） | PASS | 320ms |
-| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 切回命令行镜像，两个镜像的磁盘互相独立 | PASS | 8957ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 切换镜像：首次使用时下载（与内置镜像的差量）并启动 | PASS | 14493ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 启动图形桌面并截图（首次启动计时） | PASS | 19215ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_screenshot：画面不是纯色（桌面已绘制） | PASS | 36301ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_click：鼠标移动到指定坐标并点击 | PASS | 22200ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_type + vm_key：在终端里输入命令并回车，命令真的执行了 | PASS | 31756ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · vm_scroll / vm_drag / vm_key 组合键返回新截图 | PASS | 18297ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 无效按键被拒绝（不会拼进 shell 命令） | PASS | 518ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 应用内“Linux 桌面”页面显示画面并可点击 | FAIL — Error: timeout waiting for viewer picture {"empty":"bad channel","hidden":false,"src":""} /     at test.timeout (/worksp | 121286ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 设置页：系统镜像选择（命令行 / 图形桌面）与“打开桌面”按钮 | PASS | 1211ms |
+| iPad 图形镜像（Alpine + JWM，v86）：首次下载、电脑操作工具、桌面查看器、速度 | iPad 图形镜像 · 切回命令行镜像 | PASS | 13446ms |
+| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 工具定义与注册：7 个电脑操作工具 | PASS | 30ms |
+| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 截图脚本：解析 Xvfb 帧缓冲（XWD）为 PNG，像素颜色正确 | PASS | 868ms |
+| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 截图送给视觉模型：OpenAI 格式追加图片消息，Anthropic 放进 tool_result；旧截图与不支持视觉的模型只给文字 | PASS | 40ms |
+| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 切换到图形镜像（Debian 13 + XFCE）并启动（QEMU） | PASS | 29629ms |
+| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 桌面 Debian · 启动图形桌面并截图（首次启动计时） | PASS | 1073ms |
+| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 桌面 Debian · vm_screenshot：画面不是纯色（桌面已绘制） | PASS | 16513ms |
+| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 桌面 Debian · vm_click：鼠标移动到指定坐标并点击 | PASS | 17536ms |
+| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 桌面 Debian · vm_type + vm_key：在终端里输入命令并回车，命令真的执行了 | PASS | 10886ms |
+| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 桌面 Debian · vm_scroll / vm_drag / vm_key 组合键返回新截图 | PASS | 4976ms |
+| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 桌面 Debian · 无效按键被拒绝（不会拼进 shell 命令） | PASS | 43ms |
+| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | Codex 工具在 Debian 镜像中同样可用（apt / git / 服务） | PASS | 376ms |
+| Linux 虚拟机：图形桌面镜像 + 电脑操作工具（截图 / 点击 / 输入 / 按键 / 滚动 / 拖动） | 切回命令行镜像，两个镜像的磁盘互相独立 | PASS | 8141ms |
 | 按钮 / 功能全面审计（逐个真实点击 + 断言效果） | [审计] 工具栏 · Chat / Search 分段控件：点击切换模式、滑块移动、持久化 | PASS | 123ms |
 | 按钮 / 功能全面审计（逐个真实点击 + 断言效果） | [审计] 工具栏 · 地址栏：Search 模式输入网址回车导航；Chat 模式输入问题进入 AI；Esc 恢复 | PASS | 2055ms |
 | 按钮 / 功能全面审计（逐个真实点击 + 断言效果） | [审计] 工具栏 · 后退 / 前进 / 重新载入：点击后退、前进、重新载入（并验证禁用状态） | PASS | 1233ms |

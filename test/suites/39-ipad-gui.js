@@ -32,7 +32,8 @@ module.exports = async ({ test, group, assert, eq, until, skip }) => {
     const times = await require('../lib/vm-gui-check')({ test, assert, eq }, (n, a) => app.tool(n, a), { tag: 'iPad 图形镜像 · ', terminal: 'xterm -geometry 80x20+60+60', termClass: 'xterm', shots: SHOTS, prefix: '15-ipad-gui-', timeout: 600000, settleMs: 3000 });
     await test('iPad 图形镜像 · 应用内“Linux 桌面”页面显示画面并可点击', async () => {
       const p = await open('aibrowser://vmdesktop');
-      await until(() => p.evaluate(() => { const i = document.getElementById('scr'); return !!(i && i.naturalWidth > 100); }), 120000, 'viewer picture', 1000);
+      try { await until(() => p.evaluate(() => { const i = document.getElementById('scr'); return !!(i && i.naturalWidth > 100); }), 120000, 'viewer picture', 1000); }
+      catch (e) { const info = await p.evaluate(() => ({ empty: (document.getElementById('empty') || {}).textContent, hidden: document.hidden, src: String((document.getElementById('scr') || {}).src || '').slice(0, 40) })).catch(x => ({ err: x.message })); await shot('16-vm-desktop-viewer-fail'); throw new Error(e.message + ' ' + JSON.stringify(info)); }
       await sleep(500); await shot('16-vm-desktop-viewer');
     }, { timeout: 180000 });
     await test('iPad 图形镜像 · 设置页：系统镜像选择（命令行 / 图形桌面）与“打开桌面”按钮', async () => {
