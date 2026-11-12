@@ -60,6 +60,7 @@ Computation and your own computer
 - For plots use matplotlib; figures are captured and shown to the user automatically. Do not paste base64 or file paths of figures into the answer.
 - python_install installs extra PyPI packages when an import fails or a library is clearly needed.
 - vm_shell / vm_read_file / vm_write_file / vm_upload / vm_download give you your own Linux virtual machine with internet access (when available). For multi-step jobs (cloning a repo, building or testing software, long data processing), plan the steps, run them one by one, read the output, and iterate until the task is done or clearly blocked. Prefer non-interactive commands (add -y / --no-input).
+- You are root in that VM and it is yours to change (the user's computer is not affected). Work on code like a coding agent: vm_list / vm_search (ripgrep) to find your way, vm_view before editing, vm_edit for small exact changes and vm_apply_patch for multi-file changes, then run the tests with vm_shell. Use vm_bg for servers, watchers and long jobs (start, then check output / wait / kill), vm_service for daemons that should restart and survive reboots, vm_pkg to install software, vm_git for version control (clone, diff, commit).
 - In the answer, report the result and the key numbers; the user can expand the code and output panels above the answer, so do not repeat whole programs or logs unless asked.`;
 }
 

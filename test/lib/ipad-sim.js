@@ -29,14 +29,14 @@ const get = (port, p, body) => new Promise((resolve, reject) => {
 });
 
 async function launchIpad(opts = {}) {
-  const port = 9600 + Math.floor(Math.random() * 300), ctl = port + 1000;
+  const port = 9600 + Math.floor(Math.random() * 300), ctl = port + 1000, toolsPort = port + 2000;
   const userData = opts.userData || fs.mkdtempSync(path.join(os.tmpdir(), 'aib-ipad-ud-'));
   const sp = path.join(userData, 'settings.json');
   if (!fs.existsSync(sp)) { fs.mkdirSync(userData, { recursive: true }); fs.writeFileSync(sp, JSON.stringify({ onboarding: { completed: true, skipped: false, completedAt: 1 } })); }
   const [w, h] = opts.size || [1180, 820];
   const logs = [];
   const proc = spawn(electronPath, [path.join(ROOT, 'ipad', 'sim'), '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', `--remote-debugging-port=${port}`], {
-    cwd: ROOT, env: { ...process.env, AIB_BUNDLE: bundleDir(), AIB_NODE: node18(), AIB_SIM_UD: userData, AIB_SIM_SIZE: `${w}x${h}`, AIB_SIM_CTL: String(ctl), AIB_SIM_DARK: opts.systemDark === false ? '0' : '1' }
+    cwd: ROOT, env: { ...process.env, AIB_BUNDLE: bundleDir(), AIB_NODE: node18(), AIB_SIM_UD: userData, AIB_SIM_SIZE: `${w}x${h}`, AIB_SIM_CTL: String(ctl), AIB_SIM_DARK: opts.systemDark === false ? '0' : '1', AIB_SIM_TOOLS_PORT: String(toolsPort) }
   });
   proc.stdout.on('data', d => logs.push(String(d))); proc.stderr.on('data', d => logs.push(String(d)));
   let exited = false; proc.on('exit', () => { exited = true; });
@@ -54,6 +54,8 @@ async function launchIpad(opts = {}) {
       throw new Error('page not found: ' + match + ' have: ' + ctx.pages().map(p => p.url()).join(' | '));
     },
     chrome() { return app.waitPage(u => u.startsWith('aibrowser://chrome')); },
+    // run an agent tool in the iPad main process (simulator-only hook, AIB_SIM_TOOLS_PORT)
+    async tool(name, args) { const r = await fetch(`http://127.0.0.1:${toolsPort}/`, { method: 'POST', body: JSON.stringify({ name, args }) }); const j = await r.json(); if (!j.ok) throw new Error(j.error); return j.result; },
     async invoke(ch, ...a) { const c = await app.chrome(); return c.evaluate(([ch, a]) => window.aib.invoke(ch, ...a), [ch, a]); },
     cmds: () => get(ctl, '/cmds'), state: () => get(ctl, '/state'), event: (m) => get(ctl, '/event', m), menu: (id) => get(ctl, '/menu', { id }), dialog: (response) => get(ctl, '/dialog', { response }),
     resize: (w2, h2) => { app.size = [w2, h2]; return get(ctl, '/resize', { w: w2, h: h2 }); },

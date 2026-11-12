@@ -86,7 +86,13 @@
     await execWait(`mkdir -p '${dir.replace(/'/g, '')}'`, 30);
     let data = u8of(b64);
     if (append) { try { const old = await emu.read_file(p); const all = new Uint8Array(old.length + data.length); all.set(old); all.set(data, old.length); data = all; } catch {} }
-    await emu.create_file(p, data); return { size: data.length };
+    // v86's 9p create_file does not replace an existing file the guest has already looked up: write a new file, then
+    // let the guest rename it over the target so the guest and the host always see the same content
+    const tmp = dir.replace(/\/$/, '') + '/.aib-w-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    await emu.create_file(tmp, data);
+    const r = await execWait(`mv -f '${tmp.replace(/'/g, '')}' '${p.replace(/'/g, "'\\''")}'`, 30);
+    if (r && r.code) throw new Error('写入失败：' + p);
+    return { size: data.length };
   }
   async function save() {
     if (!emu || phase !== 'running') return { ok: false };

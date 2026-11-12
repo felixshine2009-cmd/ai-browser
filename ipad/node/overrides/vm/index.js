@@ -48,8 +48,8 @@ async function start() {
       const r = await js(`window.vmhost.start(${JSON.stringify({ memoryMB: settings().memoryMB })})`);
       if (!r || !r.ok) throw new Error((r && r.error) || 'Linux 虚拟机启动失败');
       st.info = Object.assign({}, r.info || {}, { network: false }); st.startedAt = Date.now();
+      try { await afterBoot(); } catch (e) { console.error('vm afterBoot', e.message); }
       setPhase('running', 'Linux 虚拟机已就绪');
-      afterBoot().catch((e) => console.error('vm afterBoot', e.message));
       return status();
     } catch (e) {
       try { st.win && st.win.destroy(); } catch {} st.win = null;
@@ -285,7 +285,7 @@ async function offlineInstall(manager, names, opts = {}) {
 }
 async function afterBoot() {
   const w = apkWorld(); const files = w.files.filter(f => fs.existsSync(path.join(apkCacheDir(), f)));
-  if (files.length) { setPhase('running', '正在恢复已安装的软件包…'); try { await apkPushAndAdd(files); } finally { setPhase('running', 'Linux 虚拟机已就绪'); } }
+  if (files.length) { setPhase('booting', '正在恢复已安装的软件包…'); await apkPushAndAdd(files); }
   await runJob(`window.vmhost.exec(${JSON.stringify(require('../vm/codex-tools').BOOT_CMD)}, '/', 60)`, {});
 }
 async function ping() { await ensure(); const r = await js('window.vmhost.ping()'); st.info = Object.assign({}, st.info || {}, (r && r.info) || {}); return st.info; }

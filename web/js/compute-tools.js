@@ -1,6 +1,7 @@
 // python_run / python_install (+ Linux VM tools on iPad) for the web / iPad agent loop.
 import * as PY from './python.js';
 import * as VM from './linux-vm.js';
+import './vm-codex-tools.js'; // UMD: sets self.AIBVmTools (same file as the desktop src/main/vm/codex-tools.js)
 
 const obj = (properties, required = []) => ({ type: 'object', properties, required });
 const str = (d) => ({ type: 'string', description: d });
@@ -28,7 +29,19 @@ const VM_DEFS = [
   { name: 'vm_download', description: 'Give the user a file from the VM (it is offered as a download / share).', parameters: obj({ path: str('absolute path in the VM'), name: str('optional file name') }, ['path']) },
   { name: 'vm_status', description: 'Status of the Linux VM.', parameters: obj({}) }
 ];
-export async function defs() { return (await VM.available()) ? DEFS.concat(VM_DEFS) : DEFS; }
+const CODEX = self.AIBVmTools;
+let codexInst = null;
+function codex() {
+  if (!codexInst) codexInst = CODEX.create({
+    sh: (cmd, o) => VM.exec(cmd, o || {}),
+    read: async (p, max) => { const d = await VM.readFile(p); const cut = max && d.length > max ? d.subarray(0, max) : d; return { data: cut, size: d.length, truncated: cut.length < d.length }; },
+    write: (p, bytes) => VM.writeFile(p, bytes),
+    network: false,
+    offlineInstall: async (m, names, o) => { if (m !== 'pip') throw new Error('此虚拟机没有网络，只能安装 Python 库（pip）'); const r = await VM.pipInstall(names, o || {}); return { ok: !r.needsNative.length, exitCode: r.needsNative.length ? 1 : 0, installed: r.installed, needsNative: r.needsNative }; }
+  });
+  return codexInst;
+}
+export async function defs() { return (await VM.available()) ? DEFS.concat(VM_DEFS, CODEX.DEFS.map(d => ({ name: d.name, description: d.description, parameters: d.parameters }))) : DEFS; }
 export const isCompute = (n) => /^(python_|vm_)/.test(n);
 
 function pickFile(prompt) {
@@ -82,5 +95,6 @@ export async function call(name, a, ctx) {
     return { saved: true, name: nm, bytes: d.length };
   }
   if (name === 'vm_status') return VM.status();
+  if (CODEX.NAMES.includes(name)) { status('Linux 虚拟机：' + (CODEX.LABELS[name] || [name])[0] + '…'); try { return await codex().call(name, a, { status, stream, signal: ctx.signal }); } finally { VM.save().catch(() => {}); } }
   throw new Error('unknown tool: ' + name);
 }

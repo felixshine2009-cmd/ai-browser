@@ -107,7 +107,7 @@ export async function python(code, { session = 'default', signal, timeoutSec = 6
   } finally { clearTimeout(timer); }
 }
 export async function readFile(path) { if (!running()) await start(); return emu.read_file(path); }
-export async function writeFile(path, bytes) { if (!running()) await start(); const dir = path.replace(/\/[^/]*$/, '') || '/'; await exec(`mkdir -p '${dir.replace(/'/g, '')}'`); await emu.create_file(path, bytes); return { size: bytes.length }; }
+export async function writeFile(path, bytes) { if (!running()) await start(); const dir = path.replace(/\/[^/]*$/, '') || '/'; await exec(`mkdir -p '${dir.replace(/'/g, '')}'`); const tmp = dir.replace(/\/$/, '') + '/.aib-w-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); await emu.create_file(tmp, bytes); const r = await exec(`mv -f '${tmp}' '${path.replace(/'/g, "'\\''")}'`); if (r.exitCode) throw new Error('写入失败：' + path); return { size: bytes.length }; } // v86 create_file does not replace a file the guest already knows: rename inside the guest
 
 // python_install on iPad: the VM has no network, so pure-Python wheels are fetched from PyPI by the app and installed
 // into /persist/site (on sys.path). Packages with native code are reported so the caller can fall back to Pyodide.

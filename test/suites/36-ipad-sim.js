@@ -122,6 +122,18 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     } finally { llm.state.script = null; }
   }, { timeout: 450000 });
 
+  if (process.env.AIB_IPAD_BUNDLE && fs.existsSync(path.join(process.env.AIB_IPAD_BUNDLE, 'vm'))) {
+    // Codex-style VM tools on the iPad VM (v86, no network: packages are fetched by the app)
+    await require('../lib/vm-tools-check')({ test, assert, eq }, (n, a) => app.tool(n, a), { network: false, timeout: 400000, tag: 'iPad 虚拟机 · ' });
+    if (!process.env.AIB_NO_NET) await test('iPad 虚拟机 · vm_pkg install：应用代为下载 Alpine 软件包（虚拟机内无网络）并在重启后恢复', async () => {
+      const i = await app.tool('vm_pkg', { action: 'install', packages: ['jq'] });
+      assert(i.ok && i.installed.some(x => /^jq-/.test(x)), JSON.stringify(i).slice(0, 600));
+      const j = await app.tool('vm_shell', { command: `echo '{"a":[1,2,3]}' | jq '.a | add'` }); eq(j.stdout.trim(), '6');
+      await app.tool('vm_control', { action: 'restart' });
+      const k = await app.tool('vm_shell', { command: 'command -v jq' }); eq(k.exitCode, 0, 'jq restored after restart');
+    }, { timeout: 600000 });
+  }
+
   await test('工具页（解题 / 词典 / 维基 / 物理 / GeoGebra）、历史、下载、书签、拓展、设置都能打开', async () => {
     const urls = ['aibrowser://tool?id=solve', 'aibrowser://tool?id=dict', 'aibrowser://tool?id=wiki', 'aibrowser://tool?id=physics', 'aibrowser://history', 'aibrowser://downloads', 'aibrowser://bookmarks', 'aibrowser://extensions', 'aibrowser://settings'];
     let i = 4;

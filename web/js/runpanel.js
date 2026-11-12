@@ -4,7 +4,9 @@
   const KINDS = {
     python_run: ['Python', 'Python'], python_install: ['安装 Python 库', 'Install packages'], vm_shell: ['Linux 终端', 'Linux shell'],
     vm_read_file: ['读取文件', 'Read file'], vm_write_file: ['写入文件', 'Write file'], vm_upload: ['上传到虚拟机', 'Upload to VM'],
-    vm_download: ['从虚拟机下载', 'Download from VM'], vm_status: ['虚拟机状态', 'VM status'], vm_control: ['虚拟机控制', 'VM control']
+    vm_download: ['从虚拟机下载', 'Download from VM'], vm_status: ['虚拟机状态', 'VM status'], vm_control: ['虚拟机控制', 'VM control'],
+    vm_view: ['查看文件', 'View file'], vm_edit: ['编辑文件', 'Edit file'], vm_apply_patch: ['应用补丁', 'Apply patch'], vm_search: ['搜索代码', 'Search'],
+    vm_list: ['列出目录', 'List files'], vm_bg: ['后台进程', 'Background job'], vm_pkg: ['软件包', 'Packages'], vm_service: ['服务', 'Service'], vm_git: ['Git', 'Git']
   };
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function create(host, figs, opts) {
@@ -21,6 +23,14 @@
       if (name === 'vm_write_file') return { lang: 'text', text: `# ${a.path || ''}\n` + String(a.encoding === 'base64' ? L('（二进制内容）', '(binary content)') : (a.content || '')).slice(0, 20000) };
       if (name === 'vm_read_file' || name === 'vm_download') return { lang: 'text', text: a.path || '' };
       if (name === 'vm_control') return { lang: 'text', text: a.action || '' };
+      if (name === 'vm_apply_patch') return { lang: 'diff', text: String(a.patch || '').slice(0, 20000) };
+      if (name === 'vm_edit') return { lang: 'text', text: `# ${a.path || ''}` + (a.create ? '\n' + String(a.new_string || '').slice(0, 20000) : a.old_string != null ? `\n- ${String(a.old_string).slice(0, 4000).replace(/\n/g, '\n- ')}\n+ ${String(a.new_string || '').slice(0, 4000).replace(/\n/g, '\n+ ')}` : `\n@${a.start_line != null ? a.start_line + '-' + (a.end_line || a.start_line) : '+' + a.insert_after_line}\n` + String(a.new_string || '').slice(0, 8000)) };
+      if (name === 'vm_view' || name === 'vm_list') return { lang: 'text', text: (a.path || '/root/work') + (a.offset ? ` (${a.offset}…)` : '') };
+      if (name === 'vm_search') return { lang: 'text', text: `/${a.pattern || ''}/ ${a.path || '/root/work'}${a.glob ? ' ' + a.glob : ''}` };
+      if (name === 'vm_bg') return { lang: 'shell', text: a.action === 'start' ? (a.cwd ? `cd ${a.cwd}\n` : '') + (a.command || '') : `${a.action}${a.id ? ' ' + a.id : ''}` };
+      if (name === 'vm_pkg') return { lang: 'shell', text: `${a.manager && a.manager !== 'auto' ? a.manager : 'pkg'} ${a.action} ${(a.packages || []).join(' ')}` };
+      if (name === 'vm_service') return { lang: 'shell', text: `service ${a.action} ${a.name || ''}` + (a.command ? `\n${a.command}` : '') };
+      if (name === 'vm_git') return { lang: 'shell', text: (a.repo ? `cd ${a.repo}\n` : '') + 'git ' + (a.args || []).join(' ') };
       return null;
     }
     function ensure(ev) {
@@ -85,6 +95,14 @@
         append(p, '\n' + (r.ok ? L('安装完成：', 'Installed: ') + (r.packages || []).join(', ') : (r.error || L('安装失败', 'Install failed'))), r.ok ? 'run-res' : 'run-err');
       } else if (ev.name === 'vm_read_file') {
         append(p, r.text != null ? r.text.slice(0, 20000) : r.binary ? L('（二进制文件，', '(binary file, ') + r.size + ' B)' : '');
+      } else if (/^vm_(view|edit|apply_patch|search|list|bg|pkg|service|git)$/.test(ev.name)) {
+        const main = r.content || r.tree || r.matches || r.snippet || r.output || r.stdout || '';
+        const head = r.files ? r.files.join('\n') + '\n' : r.jobs ? r.jobs.map(j => `${j.id}  ${j.state}  ${j.name || ''}  ${j.command}`).join('\n') + '\n' : r.id && ev.name === 'vm_bg' && r.started ? `id ${r.id}\n` : '';
+        if (!streamed || !/^vm_(pkg|git)$/.test(ev.name)) append(p, head + String(main).slice(0, 40000));
+        if (r.stderr) append(p, '\n' + String(r.stderr).slice(0, 8000), 'run-err');
+        const tail = [r.more, r.note, r.truncated ? L('（结果已截断）', '(truncated)') : ''].filter(Boolean).join('\n');
+        if (tail) append(p, (p.text && !p.text.endsWith('\n') ? '\n' : '') + tail, 'run-res');
+        if (!p.text) append(p, JSON.stringify(r, null, 2).slice(0, 8000));
       } else {
         const show = Object.assign({}, r); delete show.images; append(p, JSON.stringify(show, null, 2));
       }

@@ -17,7 +17,7 @@ curl -fsSL -o "$WORK/mini.tgz" "$MIRROR/$ALP/releases/$ARCH/$MINI"
 sudo mkdir -p "$RFS"; sudo tar -xzf "$WORK/mini.tgz" -C "$RFS"
 echo -e "https://dl-cdn.alpinelinux.org/alpine/$ALP/main\nhttps://dl-cdn.alpinelinux.org/alpine/$ALP/community" | sudo tee "$RFS/etc/apk/repositories" >/dev/null
 COMMON="python3 py3-pip py3-numpy py3-scipy py3-sympy py3-mpmath py3-matplotlib py3-pandas py3-pillow linux-virt busybox-static e2fsprogs ca-certificates-bundle curl bash tzdata"
-if [ "$ARCH" = aarch64 ]; then PKGS="$COMMON git build-base python3-dev e2fsprogs-extra openssh-client wget file less"; else PKGS="$COMMON blas cblas lapack"; fi
+if [ "$ARCH" = aarch64 ]; then PKGS="$COMMON git ripgrep patch build-base python3-dev e2fsprogs-extra openssh-client wget file less"; else PKGS="$COMMON blas cblas lapack git ripgrep patch"; fi
 sudo "$APK" --arch "$ARCH" --root "$RFS" --keys-dir "$RFS/etc/apk/keys" --no-scripts --no-cache --update-cache add $PKGS
 # busybox applet links (package post-install script was skipped)
 if [ -f "$RFS/etc/busybox-paths.d/busybox" ]; then

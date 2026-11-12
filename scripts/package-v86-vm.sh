@@ -10,7 +10,7 @@ cp "$V/package/build/libv86.js" "$V/package/build/v86.wasm" "$V/seabios.bin" "$V
 cp "$V/package/LICENSE" "$T/vm/LICENSE-v86.txt"
 FILES=$(find "$T/vm/fs" -type f | wc -l); BYTES=$(du -sb "$T/vm" | cut -f1)
 cat > "$T/vm/manifest.json" <<JSON
-{ "name": "AI Browser Linux VM", "version": "alpine-3.22-x86-1", "arch": "i686", "emulator": "v86 0.5.473", "memoryMB": 512, "files": $FILES, "bytes": $BYTES }
+{ "name": "AI Browser Linux VM", "version": "alpine-3.22-x86-2", "arch": "i686", "emulator": "v86 0.5.473", "memoryMB": 512, "files": $FILES, "bytes": $BYTES }
 JSON
 tar -C "$T" -czf "$OUT" vm
 rm -rf "$T"

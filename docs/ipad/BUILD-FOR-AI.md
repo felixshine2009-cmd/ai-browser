@@ -17,7 +17,7 @@ cannot be built there, build locally with the steps below.
 npm ci
 node scripts/build-ipad-bundle.js ipad/build/payload          # desktop main process + pages + iPad layer
 node scripts/fetch-ipad-pyodide.js ipad/build/payload          # Pyodide 314 (CPython 3.14 WASM) + numpy/scipy/sympy/pandas/matplotlib/Pillow
-gh release download v5.3.0 -R felixshine2009-cmd/ai-browser -p linux-vm-x86-v86.tar.gz
+gh release download v5.6.0 -R felixshine2009-cmd/ai-browser -p linux-vm-x86-v86.tar.gz
 tar -C ipad/build/payload -xzf linux-vm-x86-v86.tar.gz         # vm/ : v86 + Alpine image with the guest agent
 ```
 

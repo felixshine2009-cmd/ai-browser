@@ -49,6 +49,16 @@ host.bus.on('event', (m) => {
     require('./src/main/main.js');
     require('./ipad-extra.js');
   } catch (e) { console.error('main failed to load', e && e.stack || e); }
+  // Host simulator only (never set on a device): run agent tools directly for tests.
+  if (process.env.AIB_SIM_TOOLS_PORT) {
+    require('http').createServer(async (req, res) => {
+      let body = ''; for await (const c of req) body += c;
+      let out;
+      try { const { name, args } = JSON.parse(body); const t = require('./src/main/ai/compute-tools').TOOLS.find(x => x.name === name); if (!t) throw new Error('unknown tool ' + name); out = { ok: true, result: await t.run(args || {}, { emit: () => {} }) }; }
+      catch (e) { out = { ok: false, error: String(e && e.message || e) }; }
+      res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(out));
+    }).listen(Number(process.env.AIB_SIM_TOOLS_PORT), '127.0.0.1');
+  }
   setImmediate(() => electron.app._markReady());
 });
 console.log('[aib] node', process.version, 'waiting for host');
