@@ -3,7 +3,7 @@
 # Inputs that are downloaded / generated, not committed (see docs/ipad/BUILD-FOR-AI.md and .github/workflows/ipad-ipa.yml):
 #   Frameworks/NodeMobile.xcframework   nodejs-mobile v18.20.4 (embedded Node.js)
 #   Frameworks/llama.xcframework        llama.cpp b12314 (Metal)
-#   build/payload/                      scripts/build-ipad-bundle.js (+ pyodide, vm)
+#   build/aibapp/                      scripts/build-ipad-bundle.js (+ pyodide, vm)
 name: AIBrowser
 options:
   deploymentTarget: { iOS: "16.0" }
@@ -20,7 +20,7 @@ targets:
     sources:
       - path: App
         excludes: ["Info.plist"]
-      - path: build/payload
+      - path: build/aibapp
         type: folder
         buildPhase: resources
     dependencies:

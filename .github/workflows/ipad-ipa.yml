@@ -76,18 +76,20 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_16.4.app 2>/dev/null || sudo xcode-select -s "$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)"
           xcodebuild -version
       - name: Payload (desktop main process + pages + iPad layer)
-        run: node scripts/build-ipad-bundle.js ipad/build/payload
+        run: node scripts/build-ipad-bundle.js ipad/build/aibapp
       - name: "Payload: Pyodide (embedded Python)"
-        run: node scripts/fetch-ipad-pyodide.js ipad/build/payload --cache "$RUNNER_TEMP/pyodide"
+        run: node scripts/fetch-ipad-pyodide.js ipad/build/aibapp --cache "$RUNNER_TEMP/pyodide"
       - name: "Payload: Linux VM (v86 + Alpine, guest agent)"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           gh release download "$VM_RELEASE" -p 'linux-vm-x86-v86.tar.gz' -D "$RUNNER_TEMP"
-          tar -C ipad/build/payload -xzf "$RUNNER_TEMP/linux-vm-x86-v86.tar.gz"
-          test -f ipad/build/payload/vm/manifest.json
-          du -sh ipad/build/payload/*
+          tar -C ipad/build/aibapp -xzf "$RUNNER_TEMP/linux-vm-x86-v86.tar.gz"
+          test -f ipad/build/aibapp/vm/manifest.json
+          du -sh ipad/build/aibapp/*
+          # iOS install verification rejects bundles some re-signers mangle: no symlinks inside the .app
+          find ipad/build/aibapp -type l -print -delete
       - name: Frameworks (nodejs-mobile, llama.cpp)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -119,7 +121,7 @@ jobs:
           VER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Payload/AIBrowser.app/Info.plist)
           echo "CFBundleShortVersionString=$VER"
           if [[ "${GITHUB_REF_NAME:-}" == ipad-v* ]] && [[ "$VER" != "${GITHUB_REF_NAME#ipad-v}" ]]; then echo "version $VER does not match tag $GITHUB_REF_NAME"; exit 1; fi
-          test -f Payload/AIBrowser.app/payload/nodejs-project/main-ipad.js
+          test -f Payload/AIBrowser.app/aibapp/nodejs-project/main-ipad.js
           test -d Payload/AIBrowser.app/Frameworks/NodeMobile.framework
           test -d Payload/AIBrowser.app/Frameworks/llama.framework
           zip -qry AI-Browser-iPad-unsigned.ipa Payload

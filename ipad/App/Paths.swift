@@ -12,6 +12,6 @@ enum Paths {
     static var documents: URL { fm.urls(for: .documentDirectory, in: .userDomainMask)[0] }
     static var tmp: URL { URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true) }
     /// Payload assembled by scripts/build-ipad-bundle.js (nodejs-project, web, pyodide, vm)
-    static var payload: URL { Bundle.main.resourceURL!.appendingPathComponent("payload", isDirectory: true) }
+    static var payload: URL { Bundle.main.resourceURL!.appendingPathComponent("aibapp", isDirectory: true) }
     static var nodeProject: URL { payload.appendingPathComponent("nodejs-project", isDirectory: true) }
 }
