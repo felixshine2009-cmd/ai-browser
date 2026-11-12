@@ -35,6 +35,13 @@ module.exports = async ({ test, group, assert, eq, until, skip }) => {
       await until(() => p.evaluate(() => { const i = document.getElementById('scr'); return !!(i && i.naturalWidth > 100); }), 120000, 'viewer picture', 1000);
       await sleep(500); await shot('16-vm-desktop-viewer');
     }, { timeout: 180000 });
+    await test('iPad 图形镜像 · 设置页：系统镜像选择（命令行 / 图形桌面）与“打开桌面”按钮', async () => {
+      const sp = await open('aibrowser://settings'); await sp.click('[data-nav="python"]');
+      await until(() => sp.evaluate(() => { const s = document.getElementById('vmimg'); return !!(s && s.options.length === 2 && !document.getElementById('vmimgrow').hidden); }), 20000, 'image selector');
+      eq(await sp.evaluate(() => document.getElementById('vmimg').value), 'alpine-gui');
+      assert(await sp.evaluate(() => !document.getElementById('vmdesk').hidden), 'open desktop button');
+      await sp.evaluate(() => document.getElementById('vmimgrow').scrollIntoView({ block: 'center' })); await sleep(400); await shot('17-settings-vm-image');
+    }, { timeout: 60000 });
     console.log(`      iPad GUI (v86): boot ${bootMs} ms; ` + Object.entries(times || {}).map(([k, v]) => `${k} ${v} ms`).join(', '));
     try { fs.writeFileSync(path.join(SHOTS, 'ipad-gui-speed.json'), JSON.stringify(Object.assign({ bootMs }, times), null, 2)); } catch {}
     await test('iPad 图形镜像 · 切回命令行镜像', async () => { await app.tool('__vm', { fn: 'setImage', args: ['alpine'] }); const s = await app.tool('__vm', { fn: 'status' }); eq(s.image, 'alpine'); }, { timeout: 300000 });
