@@ -124,6 +124,11 @@ jobs:
           test -f Payload/AIBrowser.app/aibapp/nodejs-project/main-ipad.js
           test -d Payload/AIBrowser.app/Frameworks/NodeMobile.framework
           test -d Payload/AIBrowser.app/Frameworks/llama.framework
+          # normalise permissions: only Mach-O binaries are executable (re-signers and installd verify these)
+          find Payload -type l -print -delete
+          find Payload -type f -exec chmod 644 {} +
+          chmod 755 Payload/AIBrowser.app/AIBrowser Payload/AIBrowser.app/Frameworks/llama.framework/llama
+          chmod 755 Payload/AIBrowser.app/Frameworks/NodeMobile.framework/NodeMobile
           zip -qry AI-Browser-iPad-unsigned.ipa Payload
           ls -lh AI-Browser-iPad-unsigned.ipa
       - uses: actions/upload-artifact@v4
