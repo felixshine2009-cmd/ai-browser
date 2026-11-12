@@ -120,7 +120,7 @@ function createHost(m) {
   wc.on('did-navigate-in-page', (e, url, main) => { if (main) { emit(h, 'navigate', { url, inPage: true }); navState(h); } });
   wc.on('page-title-updated', (e, title) => { emit(h, 'title', { title }); navState(h); });
   wc.on('page-favicon-updated', (e, f) => emit(h, 'favicon', { url: (f && f[0]) || '' }));
-  wc.on('did-finish-load', () => { emit(h, 'domready'); emit(h, 'finish'); navState(h); });
+  wc.on('did-finish-load', () => { emit(h, 'domready'); emit(h, 'finish'); navState(h); if (h.id === winHostId && !sim.windowShown) { sim.windowShown = Date.now(); event({ type: 'app', name: 'windowShown' }); } });
   wc.on('did-fail-load', (e, code, desc, url, isMain) => { if (isMain) emit(h, 'fail', { code, desc, url }); });
   wc.on('focus', () => emit(h, 'focus')); wc.on('blur', () => emit(h, 'blur'));
   wc.on('found-in-page', (e, r) => emit(h, 'found', { requestId: r.requestId, active: r.activeMatchOrdinal, matches: r.matches }));
@@ -148,7 +148,7 @@ function attach(h) {
 }
 
 // ------------------------------------------------------------------ commands (BrowserViewController.swift)
-const sim = { menuChoice: null, dialogChoice: null, openPaths: [], cmds: [], log: [] };
+const sim = { menuChoice: null, dialogChoice: null, openPaths: [], cmds: [], log: [], diag: [], windowShown: 0 };
 global.__aibSim = sim;
 async function onCmd(m) {
   sim.log.push(m.cmd === 'wc.send' ? { cmd: m.cmd, id: m.id, channel: m.channel } : m.cmd === 'wc.exec' || m.cmd === 'wc.css' ? { cmd: m.cmd, id: m.id } : m); if (sim.log.length > 4000) sim.log.splice(0, 2000);
@@ -158,6 +158,7 @@ async function onCmd(m) {
   try {
     switch (m.cmd) {
       case 'wc.create': createHost(m); break;
+      case 'app.diag': sim.diag.push({ stage: m.stage, error: m.error, fatal: !!m.fatal }); break; // native: diagnostics panel
       case 'view.create': break;
       case 'window.attach': winHostId = m.id; attach(hosts.get(m.id)); break;
       case 'view.attach': if (h) { attach(h); const wh = hosts.get(winHostId); } break;
@@ -252,7 +253,8 @@ app.whenReady().then(async () => {
   win = new BaseWindow({ x: 0, y: 0, frame: false, width: W, height: H, useContentSize: true, title: 'AI浏览器 (iPad simulator)', backgroundColor: '#0b0f10' });
   nativeTheme.on('updated', () => event({ type: 'theme', dark: nativeTheme.shouldUseDarkColors }));
   const nodeBin = process.env.AIB_NODE || 'node';
-  const child = spawn(nodeBin, [path.join(NP, 'main-ipad.js'), '--port', String(port), '--token', token, '--userdata', UD, '--documents', DOCS, '--tmp', os.tmpdir(), '--resources', BUNDLE], { cwd: NP, stdio: ['ignore', 'pipe', 'pipe'], env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '' }) });
+  // like nodejs-mobile on iOS: V8 without a JIT, hence no WebAssembly (AIB_SIM_JIT=1 turns the JIT back on)
+  const child = spawn(nodeBin, [...(process.env.AIB_SIM_JIT === '1' ? [] : ['--jitless']), path.join(NP, 'main-ipad.js'), '--port', String(port), '--token', token, '--userdata', UD, '--documents', DOCS, '--tmp', os.tmpdir(), '--resources', BUNDLE], { cwd: NP, stdio: ['ignore', 'pipe', 'pipe'], env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '' }) });
   child.stdout.on('data', d => process.stdout.write('[node] ' + d)); child.stderr.on('data', d => process.stderr.write('[node] ' + d));
   child.on('exit', (c) => { console.log('[sim] node exited', c); app.quit(); });
   app.on('before-quit', () => { try { child.kill(); } catch {} });
@@ -266,7 +268,7 @@ app.whenReady().then(async () => {
     else if (req.url === '/event') out = await event(body);
     else if (req.url === '/menu') { sim.menuChoice = body && body.id; out = true; }
     else if (req.url === '/dialog') { sim.dialogChoice = body && body.response; out = true; }
-    else if (req.url === '/state') out = { lastMenu: sim.lastMenu || null, lastDialog: sim.lastDialog || null, lastShell: sim.lastShell || null, appKeys: (sim.appKeys || []).length, themeSource: nativeTheme.themeSource, views: Array.from(hosts.values()).map(h => ({ id: h.id, kind: h.kind, url: h.view.webContents.getURL(), attached: h.attached, visible: h.visible, bounds: h.id === winHostId ? { x: 0, y: 0, width: W, height: H } : h.bounds })) };
+    else if (req.url === '/state') out = { diag: sim.diag, windowShown: sim.windowShown, lastMenu: sim.lastMenu || null, lastDialog: sim.lastDialog || null, lastShell: sim.lastShell || null, appKeys: (sim.appKeys || []).length, themeSource: nativeTheme.themeSource, views: Array.from(hosts.values()).map(h => ({ id: h.id, kind: h.kind, url: h.view.webContents.getURL(), attached: h.attached, visible: h.visible, bounds: h.id === winHostId ? { x: 0, y: 0, width: W, height: H } : h.bounds })) };
     else if (req.url === '/resize') { const b = body || {}; win.setContentSize(b.w, b.h); W = b.w; H = b.h; for (const h of hosts.values()) layoutHost(h); out = await event({ type: 'window', w: b.w, h: b.h }); }
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(out));
   }).listen(Number(process.env.AIB_SIM_CTL), '127.0.0.1');

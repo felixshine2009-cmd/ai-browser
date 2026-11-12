@@ -45,6 +45,7 @@ const IP = path.join(ROOT, 'ipad', 'node');
 fs.copyFileSync(path.join(IP, 'main-ipad.js'), path.join(NP, 'main-ipad.js'));
 fs.copyFileSync(path.join(IP, 'host.js'), path.join(NP, 'host.js'));
 fs.copyFileSync(path.join(IP, 'ipad-extra.js'), path.join(NP, 'ipad-extra.js'));
+for (const f of ['wasm-shim.js', 'polywasm.js']) fs.copyFileSync(path.join(IP, f), path.join(NP, f));
 for (const m of ['electron', 'node-llama-cpp']) { fs.rmSync(path.join(NP, 'node_modules', m), { recursive: true, force: true }); cp(path.join(IP, m), path.join(NP, 'node_modules', m)); }
 // module overrides: platform services that iPadOS provides differently (no child processes, no Virtualization.framework)
 cp(path.join(IP, 'overrides'), path.join(NP, 'src', 'main'));

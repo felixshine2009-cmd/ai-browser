@@ -2,6 +2,9 @@
 // iPad entry point for the embedded Node.js runtime (nodejs-mobile). Starts the loopback host bridge, waits for the
 // native shell's "init" event, then runs the desktop main process (src/main/main.js) unchanged on top of the Electron
 // API implementation in node_modules/electron.
+// First: WebAssembly for Node's fetch / Response on iOS (no JIT there, so no native WebAssembly). See wasm-shim.js.
+let wasmShimError = null;
+try { require('./wasm-shim.js'); } catch (e) { wasmShimError = e; }
 const path = require('path');
 const fs = require('fs');
 
@@ -12,16 +15,33 @@ const documents = arg('documents');
 const tmp = arg('tmp', require('os').tmpdir());
 fs.mkdirSync(path.join(userData, 'logs'), { recursive: true });
 
-// ---- logging: nodejs-mobile has no visible stdout; keep a rotating log file under userData/logs
+// ---- logging: nodejs-mobile has no visible stdout; keep a rotating log file under userData/logs, mirrored to
+// Documents/日志/node.log so that it can be read in the Files app (On My iPad → AI 浏览器 → 日志)
 const LOG = path.join(userData, 'logs', 'node.log');
-try { if (fs.statSync(LOG).size > 4 * 1024 * 1024) fs.renameSync(LOG, LOG + '.1'); } catch {}
+const DOC_LOG_DIR = documents ? path.join(documents, '日志') : '';
+const DOC_LOG = DOC_LOG_DIR ? path.join(DOC_LOG_DIR, 'node.log') : '';
+try { if (DOC_LOG_DIR) fs.mkdirSync(DOC_LOG_DIR, { recursive: true }); } catch {}
+for (const f of [LOG, DOC_LOG]) { try { if (f && fs.statSync(f).size > 2 * 1024 * 1024) fs.renameSync(f, f + '.1'); } catch {} }
 const util = require('util');
 for (const lvl of ['log', 'info', 'warn', 'error']) {
   const orig = console[lvl].bind(console);
-  console[lvl] = (...a) => { try { fs.appendFileSync(LOG, `[${new Date().toISOString()}] ${lvl} ${util.format(...a)}\n`); } catch {} try { orig(...a); } catch {} };
+  console[lvl] = (...a) => {
+    const line = `[${new Date().toISOString()}] ${lvl} ${util.format(...a)}\n`;
+    try { fs.appendFileSync(LOG, line); } catch {}
+    if (DOC_LOG) { try { fs.appendFileSync(DOC_LOG, line); } catch {} }
+    try { orig(...a); } catch {}
+  };
 }
-process.on('uncaughtException', (e) => console.error('uncaught', e && e.stack || e));
-process.on('unhandledRejection', (e) => console.error('unhandled rejection', e && e.stack || e));
+let host = null, windowShown = false;
+// startup problems go to the native shell at once, which shows them in its diagnostics panel (BrowserViewController)
+function diag(stage, err, fatal) {
+  const text = String(err && err.stack || err);
+  try { host && host.cmd('app.diag', { stage, error: text.slice(0, 8000), fatal: !!fatal }); } catch {}
+}
+process.on('uncaughtException', (e) => { console.error('uncaught', e && e.stack || e); if (!windowShown) diag('uncaught', e, false); });
+process.on('unhandledRejection', (e) => { console.error('unhandled rejection', e && e.stack || e); if (!windowShown) diag('unhandled', e, false); });
+{ const W = globalThis.WebAssembly; console.log('[aib] start', process.version, process.platform, process.arch, 'webassembly:', W ? (W.__aibPolyfill ? 'polywasm (no JIT)' : 'native') : 'none'); }
+if (wasmShimError) console.error('wasm shim failed', wasmShimError && wasmShimError.stack || wasmShimError);
 
 let version = '0.0.0';
 try { version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version; } catch {}
@@ -34,8 +54,9 @@ process.env.AIB_IPAD = '1';
 process.env.AIB_USER_DATA = userData;
 for (const d of ['Downloads', '导出']) { try { fs.mkdirSync(path.join(documents, d), { recursive: true }); } catch {} }
 
-const host = require('./host');
+host = require('./host');
 host.start({ port: Number(arg('port')), tok: arg('token') });
+host.bus.on('event', (m) => { if (m && m.type === 'app' && m.name === 'windowShown') { windowShown = true; console.log('[aib] window shown'); } });
 const electron = require('electron');
 
 let started = false;
@@ -45,10 +66,14 @@ host.bus.on('event', (m) => {
   electron.__ipad.init(m);
   if (m.os) global.__aibIpad.os = String(m.os);
   console.log('[aib] init', JSON.stringify({ w: m.w, h: m.h, biometry: !!m.biometry, os: m.os || '' }));
+  const t0 = Date.now();
   try {
+    // host simulator only (never set on a device): exercise the diagnostics path
+    if (process.env.AIB_SIM_FAIL_MAIN === '1') throw new Error('forced main.js failure (AIB_SIM_FAIL_MAIN)');
     require('./src/main/main.js');
     require('./ipad-extra.js');
-  } catch (e) { console.error('main failed to load', e && e.stack || e); }
+    console.log('[aib] main loaded in', Date.now() - t0, 'ms');
+  } catch (e) { console.error('main failed to load', e && e.stack || e); diag('main', e, true); }
   // Host simulator only (never set on a device): run agent tools directly for tests.
   if (process.env.AIB_SIM_TOOLS_PORT) {
     require('http').createServer(async (req, res) => {

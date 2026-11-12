@@ -61,10 +61,11 @@ function start({ port, tok }) {
     const u = new URL(req.url, 'http://127.0.0.1');
     try {
       if (u.pathname === '/host/events') {
-        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+        // nosniff + a 2 KB comment up front: URLSession may hold back the first bytes of a response for content sniffing
+        res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
         res.socket.setNoDelay(true); res.socket.setTimeout(0);
         if (stream) { try { stream.end(); } catch {} }
-        stream = res; res.write(': hello\n\n');
+        stream = res; res.write(': hello ' + ' '.repeat(2048) + '\n\n');
         while (queue.length) res.write(queue.shift());
         const ka = setInterval(() => { try { res.write(': ka\n\n'); } catch {} }, 15000);
         req.on('close', () => { clearInterval(ka); if (stream === res) stream = null; });
