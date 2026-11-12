@@ -19,10 +19,16 @@ module.exports = async function guiChecks(h, call, opts) {
     save(r, (opts.prefix || '') + 'boot-desktop.png');
   }, { timeout });
   await test(tag + 'vm_screenshot：画面不是纯色（桌面已绘制）', async () => {
-    await new Promise(r => setTimeout(r, opts.settleMs || 4000));
-    const r = await timed('screenshot', () => call('vm_screenshot', {}));
-    const s = await call('vm_shell', { command: `python3 -c "from PIL import Image; im=Image.open('/tmp/aib-shot.png').convert('RGB'); print(len(set(im.resize((64,40)).getdata())))"` });
-    assert(Number(String(s.stdout).trim()) > 4, 'distinct colours: ' + s.stdout);
+    // the session may still be drawing its panels: wait until the picture has some variety (up to ~3 min on TCG / v86)
+    let r, n = 0; const t0 = Date.now();
+    while (Date.now() - t0 < (opts.drawWaitMs || 180000)) {
+      r = await timed('screenshot', () => call('vm_screenshot', {}));
+      const s = await call('vm_shell', { command: `python3 -c "from PIL import Image; im=Image.open('/tmp/aib-shot.png').convert('RGB'); print(len(set(im.resize((64,40)).getdata())))"` });
+      n = Number(String(s.stdout).trim()); if (n > 4) break;
+      await new Promise(res => setTimeout(res, opts.settleMs || 4000));
+    }
+    times.desktopDrawn = Date.now() - t0;
+    assert(n > 4, 'distinct colours: ' + n);
     save(r, (opts.prefix || '') + 'desktop.png');
   }, { timeout });
   await test(tag + 'vm_click：鼠标移动到指定坐标并点击', async () => {
