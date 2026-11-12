@@ -29,7 +29,7 @@ const DEFAULTS = {
   answerStyle: 'detailed',
   thinkingLevel: 'medium',
   workMode: 'chat',
-  appearance: { theme: 'aurora' },
+  appearance: { theme: 'aurora' }, // + mode ('system' | 'light' | 'dark') and light (light palette): see renderer/static/theme.js
   home: { layout: 'center', background: '' },
   toolsCollapsed: false,
   collab: {},
@@ -85,6 +85,8 @@ function init() {
   try { raw = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch { raw = null; }
   settingsFile = new JsonFile('settings.json', {});
   settingsFile.data = deepMerge(DEFAULTS, raw || {});
+  // v5.5: appearance gains a light / dark / follow-system mode; a legacy light palette ({ theme: 'sand' }) becomes mode 'light'
+  try { settingsFile.data.appearance = Object.assign({}, settingsFile.data.appearance, require('../renderer/static/theme.js').normAppearance(settingsFile.data.appearance)); } catch (e) { console.error('appearance', e); }
   // Brand-new install → show the wizard. Pre-3.0.0 upgrades (settings existed without onboarding) skip it.
   const fresh = raw === null || (typeof raw === 'object' && !Object.keys(raw).length);
   if (fresh) settingsFile.data.onboarding = { completed: false, skipped: false, completedAt: 0 };
@@ -174,6 +176,7 @@ function patchSettings(patch) {
   if (patch.dicts) settingsFile.data.dicts = patch.dicts, delete patch.dicts;
   if (patch.chromeExtensions) settingsFile.data.chromeExtensions = patch.chromeExtensions, delete patch.chromeExtensions;
   settingsFile.data = deepMerge(settingsFile.data, patch);
+  if (patch.appearance) { try { settingsFile.data.appearance = Object.assign({}, settingsFile.data.appearance, require('../renderer/static/theme.js').normAppearance(settingsFile.data.appearance)); } catch {} }
   syncProviders(patch);
   settingsFile.save();
   return publicSettings();

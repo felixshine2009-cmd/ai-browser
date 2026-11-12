@@ -1,105 +1,132 @@
 name: iPad IPA
 
+# ipad-v2+: the desktop app ported to iPad (native Swift host + embedded Node.js + llama.cpp Metal).
+#  sim-test  (Linux)  the whole iPad payload in the host simulator (ipad/sim) under Node 18 = nodejs-mobile
+#  build     (macOS)  XcodeGen project -> unsigned IPA, attached to the ipad-v* release
 on:
   workflow_dispatch:
   push:
     tags:
       - 'ipad-v*'
+    branches:
+      - 'ipad-native*'
 
 permissions:
   contents: write
 
-jobs:
-  build:
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+env:
+  NODE_MOBILE: v18.20.4
+  LLAMA_CPP: b12314
+  VM_RELEASE: v5.3.0
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+jobs:
+  sim-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Assemble web assets
-        run: bash scripts/build-web.sh "$GITHUB_WORKSPACE/dist-web"
-
-      - name: Copy web assets into Capacitor www
+      - name: Install (Electron for the simulator, Playwright core)
+        run: npm ci --no-audit --no-fund
+      - name: Node 18 (same major as nodejs-mobile)
         run: |
-          python3 - << 'PY'
-          import shutil
-          from pathlib import Path
-          src = Path('dist-web')
-          dst = Path('mobile/www')
-          if dst.exists():
-              shutil.rmtree(dst)
-          shutil.copytree(src, dst, ignore=shutil.ignore_patterns('.git'))
-          if not (dst / 'index.html').is_file():
-              raise SystemExit('mobile/www/index.html missing after copy')
-          print('copied', src, '->', dst)
-          PY
-
-      - name: Embed the Linux VM (v86 + Alpine Linux) into www/vm
+          curl -fsSL https://nodejs.org/dist/v18.20.4/node-v18.20.4-linux-x64.tar.xz | tar -xJ -C "$RUNNER_TEMP"
+          echo "AIB_NODE=$RUNNER_TEMP/node-v18.20.4-linux-x64/bin/node" >> "$GITHUB_ENV"
+      - name: System packages
+        run: sudo apt-get update && sudo apt-get install -y xvfb ffmpeg libnss3 libasound2t64 libgbm1 || sudo apt-get install -y xvfb ffmpeg libnss3 libgbm1
+      - name: Build the iPad payload (+ Pyodide, Linux VM)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VM_RELEASE: v5.3.0
         run: |
           set -euo pipefail
-          gh release download "$VM_RELEASE" -p 'linux-vm-x86-v86.tar.gz' -D /tmp
-          tar -C mobile/www -xzf /tmp/linux-vm-x86-v86.tar.gz
-          test -f mobile/www/vm/manifest.json
-          du -sh mobile/www/vm
-          cat mobile/www/vm/manifest.json
+          node scripts/build-ipad-bundle.js dist/ipad-bundle
+          node scripts/fetch-ipad-pyodide.js dist/ipad-bundle --cache "$RUNNER_TEMP/pyodide"
+          gh release download "$VM_RELEASE" -p 'linux-vm-x86-v86.tar.gz' -D "$RUNNER_TEMP"
+          tar -C dist/ipad-bundle -xzf "$RUNNER_TEMP/linux-vm-x86-v86.tar.gz"
+      - name: Simulator tests (iPad build) + appearance tests
+        env:
+          AIB_IPAD_BUNDLE: ${{ github.workspace }}/dist/ipad-bundle
+          AIB_IPAD_SHOTS: ${{ github.workspace }}/shots/ipad2
+        run: node scripts/run-tests.js 36-ipad-sim
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ipad-sim-screenshots
+          path: shots/ipad2
 
-      - name: Smoke-test the embedded Linux VM (boots in v86, runs Python)
-        continue-on-error: true
-        timeout-minutes: 30
-        run: node scripts/v86-smoke.cjs mobile/www/vm
-
-      - name: Install Capacitor dependencies
-        working-directory: mobile
-        run: npm ci
-
-      - name: Sync iOS project
-        working-directory: mobile
-        run: npx cap sync ios
-
-      - name: Archive unsigned iOS app
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app 2>/dev/null || sudo xcode-select -s "$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)"
+          xcodebuild -version
+      - name: Payload (desktop main process + pages + iPad layer)
+        run: node scripts/build-ipad-bundle.js ipad/build/payload
+      - name: "Payload: Pyodide (embedded Python)"
+        run: node scripts/fetch-ipad-pyodide.js ipad/build/payload --cache "$RUNNER_TEMP/pyodide"
+      - name: "Payload: Linux VM (v86 + Alpine, guest agent)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          xcodebuild -workspace mobile/ios/App/App.xcworkspace \
-            -scheme App \
-            -configuration Release \
-            -destination 'generic/platform=iOS' \
-            -archivePath "$PWD/build/App.xcarchive" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
-            archive
-
+          gh release download "$VM_RELEASE" -p 'linux-vm-x86-v86.tar.gz' -D "$RUNNER_TEMP"
+          tar -C ipad/build/payload -xzf "$RUNNER_TEMP/linux-vm-x86-v86.tar.gz"
+          test -f ipad/build/payload/vm/manifest.json
+          du -sh ipad/build/payload/*
+      - name: Frameworks (nodejs-mobile, llama.cpp)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p ipad/Frameworks "$RUNNER_TEMP/fw"
+          gh release download "$NODE_MOBILE" -R nodejs-mobile/nodejs-mobile -p "nodejs-mobile-$NODE_MOBILE-ios.zip" -D "$RUNNER_TEMP/fw"
+          unzip -q "$RUNNER_TEMP/fw/nodejs-mobile-$NODE_MOBILE-ios.zip" 'NodeMobile.xcframework/*' -d ipad/Frameworks
+          gh release download "$LLAMA_CPP" -R ggml-org/llama.cpp -p "llama-$LLAMA_CPP-xcframework.zip" -D "$RUNNER_TEMP/fw"
+          unzip -q "$RUNNER_TEMP/fw/llama-$LLAMA_CPP-xcframework.zip" -d "$RUNNER_TEMP/fw/llama"
+          cp -R "$(find "$RUNNER_TEMP/fw/llama" -name llama.xcframework -type d | head -1)" ipad/Frameworks/
+          ls ipad/Frameworks
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          cd ipad && xcodegen generate
+      - name: Archive (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild -project ipad/AIBrowser.xcodeproj -scheme AIBrowser -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$PWD/build/AIBrowser.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" archive | tee build.log | grep -E "error:|warning: .*(Swift|swift)|BUILD|ARCHIVE" || true
+          test -d build/AIBrowser.xcarchive/Products/Applications/AIBrowser.app || { grep -E "error" -A3 build.log | head -80; exit 1; }
       - name: Package unsigned IPA
         run: |
           set -euo pipefail
-          APP=$(find "$PWD/build/App.xcarchive/Products/Applications" -name '*.app' -maxdepth 1 | head -1)
-          test -n "$APP"
-          rm -rf Payload
-          mkdir Payload
-          cp -R "$APP" "Payload/$(basename "$APP")"
-          VER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "Payload/$(basename "$APP")/Info.plist")
+          APP=build/AIBrowser.xcarchive/Products/Applications/AIBrowser.app
+          rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
+          VER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Payload/AIBrowser.app/Info.plist)
           echo "CFBundleShortVersionString=$VER"
           if [[ "${GITHUB_REF_NAME:-}" == ipad-v* ]] && [[ "$VER" != "${GITHUB_REF_NAME#ipad-v}" ]]; then echo "version $VER does not match tag $GITHUB_REF_NAME"; exit 1; fi
-          zip -r AI-Browser-iPad-unsigned.ipa Payload
+          test -f Payload/AIBrowser.app/payload/nodejs-project/main-ipad.js
+          test -d Payload/AIBrowser.app/Frameworks/NodeMobile.framework
+          test -d Payload/AIBrowser.app/Frameworks/llama.framework
+          zip -qry AI-Browser-iPad-unsigned.ipa Payload
           ls -lh AI-Browser-iPad-unsigned.ipa
-          unzip -l AI-Browser-iPad-unsigned.ipa | tail -1
-
-      - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: AI-Browser-iPad-unsigned
           path: AI-Browser-iPad-unsigned.ipa
-
-      - name: Attach IPA to GitHub Release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xcodebuild-log
+          path: build.log
+      - name: Attach IPA to the GitHub release
         if: startsWith(github.ref, 'refs/tags/ipad-v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

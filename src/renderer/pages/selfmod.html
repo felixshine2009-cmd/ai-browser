@@ -12,18 +12,22 @@
 .sm .sub{color:var(--muted);margin:0 0 16px}
 .sm .banner{padding:10px 12px;border-radius:8px;margin:0 0 14px;background:#3a1a1a;color:#fecaca}
 .sm .banner.ok{background:#163528;color:#b7f0cf}
-.sm pre.diff{background:#0b1416;border:1px solid var(--border);border-radius:8px;padding:12px;overflow:auto;max-height:40vh;font:12px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap}
+.sm pre.diff{background:var(--bg-well);border:1px solid var(--border);border-radius:8px;padding:12px;overflow:auto;max-height:40vh;font:12px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap}
 .sm .file{margin:0 0 16px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--panel)}
 .sm .actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 20px}
 .sm .hist{list-style:none;padding:0;margin:0}
 .sm .hist li{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
-.sm .tag{font-size:11px;padding:2px 6px;border-radius:999px;background:#1e2c30}
+.sm .tag{font-size:11px;padding:2px 6px;border-radius:999px;background:var(--bg-raised)}
 .sm .tag.applied{background:#163528;color:#b7f0cf}
 .sm .tag.pending{background:#3a2a10;color:#fde047}
 .sm .tag.rolled_back,.sm .tag.rejected{background:#3a1a1a;color:#fecaca}
+html[data-scheme="light"] .sm .banner,html[data-scheme="light"] .sm .tag.rolled_back,html[data-scheme="light"] .sm .tag.rejected{background:#fde4e4;color:#8a1c1c}
+html[data-scheme="light"] .sm .banner.ok,html[data-scheme="light"] .sm .tag.applied{background:#d9f2e6;color:#14532d}
+html[data-scheme="light"] .sm .tag.pending{background:#fbefc9;color:#713f12}
 </style>
 </head>
 <body class="page"><div class="page-root"><div class="sm" id="root"></div></div>
+<script src="aibrowser://static/theme.js"></script>
 <script src="aibrowser://static/i18n.js"></script>
 <script src="aibrowser://static/confirm.js"></script>
 <script src="aibrowser://static/selfmod.js"></script>

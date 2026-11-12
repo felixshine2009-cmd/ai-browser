@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
+	<key>CFBundleDisplayName</key><string>AI 浏览器</string>
+	<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+	<key>CFBundleName</key><string>AIBrowser</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key><true/>
+	<key>UILaunchScreen</key><dict/>
+	<key>UIRequiresFullScreen</key><false/>
+	<key>UIApplicationSupportsIndirectInputEvents</key><true/>
+	<key>UIStatusBarStyle</key><string>UIStatusBarStyleLightContent</string>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<!-- Documents (downloads, exports, the Linux shared folder) appear in the Files app under "AI 浏览器" -->
+	<key>UIFileSharingEnabled</key><true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key><true/>
+	<!-- a web browser: any site; the loopback bridge to the embedded Node.js runtime -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key><true/>
+		<key>NSAllowsArbitraryLoadsInWebContent</key><true/>
+		<key>NSAllowsLocalNetworking</key><true/>
+	</dict>
+	<key>NSFaceIDUsageDescription</key><string>用面容 ID 解锁已保存的密码。Face ID unlocks saved passwords.</string>
+	<key>NSCameraUsageDescription</key><string>网页请求使用相机时需要您的许可。Websites may ask to use the camera.</string>
+	<key>NSMicrophoneUsageDescription</key><string>网页与语音输入使用麦克风时需要您的许可。Websites and voice input may use the microphone.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key><string>保存网页中的图片到照片。Save images from web pages to Photos.</string>
+	<key>NSLocalNetworkUsageDescription</key><string>AI 浏览器在本机内部回环地址上运行其主程序。AI Browser runs its main process on the device's loopback address.</string>
+	<key>ITSAppUsesNonExemptEncryption</key><false/>
+</dict>
+</plist>

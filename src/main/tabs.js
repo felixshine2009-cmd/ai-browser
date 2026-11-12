@@ -115,6 +115,7 @@ function activateTab(id) {
   if (overlays.find) closeOverlay('find');
   // keep overlays above
   t.wc.focus();
+  try { t.wc.send('tab:shown'); } catch {} // pages lift their theme-switch transition guard once really on screen
   notify();
 }
 
@@ -311,7 +312,7 @@ function zoom(dir) {
 function createWindow() {
   win = new BrowserWindow({
     width: 1280, height: 820, minWidth: 760, minHeight: 480,
-    backgroundColor: '#07100f', title: 'AI浏览器', icon: path.join(__dirname, '..', 'assets', 'icon.png'),
+    backgroundColor: require('./appearance').current().base, title: 'AI浏览器', icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 14, y: 11 },
     show: !process.env.AIB_HIDE, webPreferences: { preload: PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: true }
   });

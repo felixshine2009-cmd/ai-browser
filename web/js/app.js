@@ -120,18 +120,11 @@ function syncEngineUI(){
   if (kind === 'local') { updateLocalWarn(); refreshCacheHint(); }
 }
 
-function applyTheme(id){
-  const A = window.AIB36;
-  const themeId = id || 'aurora';
-  document.documentElement.dataset.theme = themeId;
-  if (!A || typeof A.themeCss !== 'function') return;
-  let styleEl = document.getElementById('aib-theme-vars');
-  if (!styleEl) {
-    styleEl = document.createElement('style');
-    styleEl.id = 'aib-theme-vars';
-    document.head.appendChild(styleEl);
-  }
-  styleEl.textContent = `:root { ${A.themeCss(themeId)} }`;
+// light / dark / follow-system (js/theme.js + js/theme-boot.js, the same palettes as the desktop app)
+function applyTheme(){
+  const T = window.AIBTheme; if (!T) return;
+  settings.appearance = T.normAppearance(settings.appearance || { theme: settings.theme });
+  if (window.__aibTheme) window.__aibTheme.set(settings.appearance);
 }
 
 function openSettings(focusLocal){
@@ -172,7 +165,7 @@ function collectSettings(){
   setLang(lang); settings.lang = lang;
   const ast = document.getElementById('astyle'); if (ast) settings.answerStyle = ast.value;
   const thk = document.getElementById('think'); if (thk) settings.thinkingLevel = thk.value;
-  applyTheme(settings.theme || 'aurora');
+  applyTheme();
   settings.engine = document.getElementById('engKind').value;
   const presetEl = document.getElementById('apiPreset');
   if (presetEl) settings.api.preset = presetEl.value || 'custom';
@@ -530,12 +523,30 @@ function wire(){
     });
   });
   function paintThemes(){
-    const grid = document.getElementById('themeGrid'); if (!grid || !A) return;
-    grid.innerHTML = Object.values(A.THEMES).map(th => `<button type="button" class="theme-combo ${settings.theme===th.id?'on':''}" data-theme="${esc(th.id)}"><b>${esc(th.zh)}</b><span class="swatches">${Object.values(th.colors).map(c=>`<i style="background:${esc(c)}"></i>`).join('')}</span></button>`).join('');
-    grid.querySelectorAll('[data-theme]').forEach(b => b.onclick = () => { settings.theme = b.dataset.theme; applyTheme(settings.theme); saveSettings(settings); paintThemes(); });
+    const T = window.AIBTheme; if (!T) return;
+    const ap = settings.appearance = T.normAppearance(settings.appearance || { theme: settings.theme });
+    const en = getLang() === 'en';
+    const names = { system: en ? 'Follow system' : '跟随系统', light: en ? 'Light' : '浅色', dark: en ? 'Dark' : '深色' };
+    const set = (patch) => { settings.appearance = Object.assign({}, ap, patch); settings.theme = settings.appearance.theme; applyTheme(); saveSettings(settings); paintThemes(); };
+    const mode = document.getElementById('themeMode');
+    if (mode) {
+      mode.innerHTML = T.MODES.map(m => `<button type="button" class="seg ${ap.mode===m?'active':''}" role="radio" aria-checked="${ap.mode===m}" data-mode="${m}">${names[m]}</button>`).join('');
+      mode.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => set({ mode: b.dataset.mode }));
+    }
+    const combo = (th, attr, on) => `<button type="button" class="theme-combo ${on?'on':''}" ${attr}="${esc(th.id)}" aria-pressed="${on}"><b>${esc(en ? th.en : th.zh)}</b><span class="swatches">${th.swatch.map(c=>`<i style="background:${esc(c)}"></i>`).join('')}</span></button>`;
+    const grid = document.getElementById('themeGrid');
+    if (grid) {
+      grid.innerHTML = T.DARK.map(id => combo(T.THEMES[id], 'data-theme', ap.theme === id)).join('');
+      grid.querySelectorAll('[data-theme]').forEach(b => b.onclick = () => set(Object.assign({ theme: b.dataset.theme }, ap.mode === 'light' ? { mode: 'dark' } : {})));
+    }
+    const lg = document.getElementById('themeGridLight');
+    if (lg) {
+      lg.innerHTML = T.LIGHT.map(id => combo(T.THEMES[id], 'data-light', ap.light === id)).join('');
+      lg.querySelectorAll('[data-light]').forEach(b => b.onclick = () => set(Object.assign({ light: b.dataset.light }, ap.mode === 'dark' ? { mode: 'light' } : {})));
+    }
   }
   window.__paintThemes = paintThemes;
-  applyTheme(settings.theme || 'aurora');
+  applyTheme();
   bindClick('kbAdd', async ()=>{
     const t0 = document.getElementById('kbText').value.trim(); if(!t0) return;
     await kbAdd(t0, 'note'); document.getElementById('kbText').value=''; toast(t('saved')); refreshKb();

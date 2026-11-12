@@ -1,0 +1,1 @@
+{ "name": "node-llama-cpp", "version": "3.0.0-ipad", "main": "index.js", "description": "iPad implementation of the node-llama-cpp API subset used by AI Browser, backed by llama.cpp (Metal) compiled into the app." }

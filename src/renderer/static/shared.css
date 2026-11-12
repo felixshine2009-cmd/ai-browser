@@ -1,7 +1,22 @@
 /* AI Browser Mockups — dark Gemini-inspired palette */
 :root {
   color-scheme: dark; /* iframes (extension pages) must declare it too, else Chromium paints an opaque WHITE canvas */
+  /* theme-able surfaces: dark "aurora" defaults; other palettes override them (src/renderer/static/theme.js) */
+  --bg-base: #050508;
+  --page-bg: radial-gradient(ellipse 80% 55% at 50% 88%, rgba(22, 96, 98, 0.30) 0%, transparent 65%), linear-gradient(180deg, #050607 0%, #07100f 42%, #0a1a1c 100%);
   --bg-window: #0a0a0f;
+  --bg-solid: #141b1d;              /* opaque cards and lists */
+  --bg-popover: rgba(20, 27, 29, 0.99); /* menus, popups, toasts, dialogs */
+  --bg-sheet: rgba(16, 22, 24, 0.97);   /* settings sheet */
+  --bg-shade: rgba(10, 16, 18, 0.55);   /* side columns, toolbars inside pages */
+  --bg-well: #0b1416;               /* embedded canvases, keys */
+  --bg-raised: #233036;             /* small badges and buttons */
+  --bg-search: rgba(28, 34, 36, 0.72);
+  --bg-search-focus: rgba(32, 40, 42, 0.85);
+  --on-accent: #ffffff;             /* text on an accent-filled control */
+  --scrim: rgba(0, 0, 0, 0.55);
+  /* short names used by page-level styles (onboarding, self-mod, virtual keyboard) */
+  --panel: var(--bg-solid); --border: var(--separator); --muted: var(--text-tertiary); --text: var(--text-primary);
   --bg-toolbar: rgba(14, 18, 20, 0.92);
   --bg-tabbar: #0a0f10;
   --bg-content: transparent;
@@ -21,7 +36,7 @@
   --text-secondary: #d0d3d9;
   --text-tertiary: #a9adb6;
   --text-link: #6cb6ff;
-  --accent: #3b82f6;
+  --accent: #2563eb; /* v5.5: was #3b82f6 — white button text was only 3.7:1 */
   --accent-soft: rgba(95, 185, 154, 0.16);
   --green: #5fb99a;
   --green-text: #9fe3c6;
@@ -68,7 +83,7 @@ html, body {
   font-size: 13px;
   font-weight: var(--fw-ui);
   color: var(--text-primary);
-  background: #050508;
+  background: var(--bg-base);
   -webkit-font-smoothing: auto;
 }
 button { font-family: inherit; cursor: default; border: none; background: none; color: inherit; }
@@ -78,9 +93,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
 .window {
   width: 100%;
   height: 100%;
-  background:
-    radial-gradient(ellipse 80% 55% at 50% 88%, rgba(22, 96, 98, 0.30) 0%, transparent 65%),
-    linear-gradient(180deg, #050607 0%, #07100f 42%, #0a1a1c 100%);
+  background: var(--page-bg);
   border-radius: 0;
   overflow: hidden;
   display: flex;
@@ -252,7 +265,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
   box-shadow: var(--shadow-sm);
 }
 .mode-seg .seg.ai.active {
-  background: rgba(95, 185, 154, 0.24);
+  background: color-mix(in srgb, var(--green) 24%, transparent);
   color: var(--green-text);
 }
 
@@ -366,7 +379,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
 .settings-win {
   width: 780px;
   height: 560px;
-  background: rgba(16, 22, 24, 0.97);
+  background: var(--bg-sheet);
   border-radius: 12px;
   box-shadow: var(--shadow-md), 0 0 0 0.5px rgba(255,255,255,0.08);
   display: flex;
@@ -375,7 +388,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
 }
 .settings-nav {
   width: 180px;
-  background: rgba(10, 16, 18, 0.92);
+  background: var(--bg-sheet);
   border-right: 0.5px solid var(--separator);
   padding: 16px 10px;
 }
@@ -390,14 +403,14 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
   color: var(--text-primary);
 }
 .settings-nav .nav-item.active {
-  background: rgba(95, 185, 154, 0.30); color: #d6fbe9; font-weight: 700;
+  background: color-mix(in srgb, var(--green) 30%, transparent); color: #d6fbe9; font-weight: 700;
   box-shadow: inset 3px 0 0 var(--green);
 }
 .settings-pane {
   flex: 1;
   padding: 24px 28px;
   overflow: hidden;
-  background: rgba(20, 26, 28, 0.94);
+  background: var(--bg-sheet);
 }
 .settings-pane h2 {
   font-size: 20px; font-weight: 600; margin-bottom: 4px;
@@ -422,7 +435,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
   font-size: 13px;
   color: var(--text-primary);
 }
-.form-row select option { background: #141c1e; color: #f5f5f7; }
+.form-row select option { background: var(--bg-solid); color: #f5f5f7; }
 .form-row .hint { font-size: 12px; color: var(--text-tertiary); margin-top: 4px; }
 
 /* Home — Gemini-like sparse start */
@@ -462,7 +475,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
   align-items: center;
   padding: 0 10px 0 22px;
   gap: 12px;
-  background: rgba(28, 34, 36, 0.72);
+  background: var(--bg-search);
   backdrop-filter: blur(20px);
 }
 .home-search-box .placeholder {
@@ -475,7 +488,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
   font-weight: 600;
   padding: 4px 10px;
   border-radius: var(--radius-pill);
-  border: 0.5px solid rgba(95,185,154,0.3);
+  border: 0.5px solid color-mix(in srgb, var(--green) 30%, transparent);
 }
 .home-search-box .go {
   width: 40px; height: 40px; border-radius: 50%;
@@ -523,7 +536,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
   width: 320px;
   border-left: 0.5px solid var(--separator-light);
   padding: 20px 18px;
-  background: rgba(10, 16, 18, 0.55);
+  background: var(--bg-shade);
   backdrop-filter: blur(12px);
   overflow: hidden;
   flex-shrink: 0;
@@ -592,7 +605,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
   gap: 0;
   padding: 0 24px;
   border-bottom: 0.5px solid var(--separator);
-  background: rgba(10, 16, 18, 0.55);
+  background: var(--bg-shade);
   flex-shrink: 0;
 }
 .dict-tabs .dt {
@@ -699,7 +712,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
   border: 0.5px solid var(--separator-light);
   border-radius: var(--radius-lg);
   padding: 14px 16px;
-  background: rgba(14, 20, 22, 0.65);
+  background: var(--bg-shade);
   backdrop-filter: blur(8px);
 }
 .tree .row {
@@ -728,7 +741,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 24px;
   border-bottom: 0.5px solid var(--separator);
-  background: rgba(10, 16, 18, 0.55);
+  background: var(--bg-shade);
 }
 .article-cols {
   flex: 1;
@@ -770,7 +783,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
 }
 .plot-panel {
   flex: 1;
-  background: rgba(8, 16, 18, 0.55);
+  background: var(--bg-shade);
   border-left: 0.5px solid var(--separator);
   display: flex;
   flex-direction: column;
@@ -778,7 +791,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
 }
 .plot-panel .gg-bar {
   height: 36px;
-  background: rgba(14, 22, 24, 0.85);
+  background: var(--bg-shade);
   border-bottom: 0.5px solid var(--separator);
   display: flex; align-items: center; padding: 0 12px; gap: 8px;
   font-size: 13px; color: var(--text-secondary);
@@ -789,7 +802,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
 .plot-panel .gg-bar .logo span { color: var(--green-text); }
 .gg-canvas {
   flex: 1;
-  background: rgba(10, 18, 20, 0.9);
+  background: var(--bg-shade);
   margin: 12px;
   border-radius: var(--radius-md);
   border: 0.5px solid var(--separator-light);
@@ -830,7 +843,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
 .web-page {
   height: 100%;
   overflow: hidden;
-  background: rgba(8, 14, 16, 0.55);
+  background: var(--bg-shade);
 }
 .web-hero {
   height: 200px;
@@ -954,7 +967,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
   right: 0;
   width: 240px;
   padding: 6px 0;
-  background: rgba(18, 24, 26, 0.97);
+  background: var(--bg-popover);
   border: 0.5px solid rgba(255,255,255,0.12);
   border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.04);
@@ -1002,7 +1015,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
   font-size: 12px; font-weight: 600; padding: 1px 7px; margin-left: 8px;
   border-radius: var(--radius-pill);
   background: var(--accent-soft); color: var(--green-text);
-  border: 0.5px solid rgba(59,130,246,0.35);
+  border: 0.5px solid color-mix(in srgb, var(--accent) 35%, transparent);
   vertical-align: 1px;
 }
 .ext-card .meta-row {
@@ -1018,8 +1031,8 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
 .ext-card .side-col .toggle { margin-top: 4px; }
 
 .std-card {
-  background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(34,211,238,0.06));
-  border: 0.5px solid rgba(59,130,246,0.35);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent), rgba(34,211,238,0.06));
+  border: 0.5px solid color-mix(in srgb, var(--accent) 35%, transparent);
   border-radius: var(--radius-lg);
   padding: 12px 16px;
   margin-bottom: 16px;
@@ -1104,7 +1117,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
 
 
 /* ---- v2: shared dark list card (settings lists, extension settings pages) */
-.card-list { background: #141b1d; border: 1px solid var(--separator); border-radius: 10px; margin: 10px 0; overflow: hidden; }
+.card-list { background: var(--bg-solid); border: 1px solid var(--separator); border-radius: 10px; margin: 10px 0; overflow: hidden; }
 .card-list .row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--separator-light); color: var(--text-primary); }
 .card-list .row:last-child { border-bottom: 0; }
 .card-list .row .nm { flex: 1; min-width: 0; }
@@ -1112,7 +1125,7 @@ input, textarea, select { font-family: inherit; color: var(--text-primary); }
 .card-list .row .nm small { display: block; color: var(--text-secondary); font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* v3.6 frosted glass, themes, tool split, and refined sidebar UI */
-html[data-theme="sand"] { color-scheme: light; }
+/* light / dark palettes: see theme.js (data-theme / data-scheme on <html>) */
 
 .toolbar, .tabbar, .settings-nav, .ai-side, .settings-pane, .home-search-box, .lookup-card, .tool-ai, .siri-pane, .tool-bar {
   background: color-mix(in srgb, var(--bg-sidebar) 74%, transparent);
@@ -1171,8 +1184,8 @@ html[data-theme="sand"] { color-scheme: light; }
   transform: scale(0.95);
 }
 .ticon.active, .tb-btn.siri-btn.active {
-  background: rgba(95, 185, 154, 0.20);
-  border-color: rgba(95, 185, 154, 0.45);
+  background: color-mix(in srgb, var(--green) 20%, transparent);
+  border-color: color-mix(in srgb, var(--green) 45%, transparent);
   color: var(--green-text);
 }
 .ticon svg {
@@ -1236,8 +1249,8 @@ html[data-theme="sand"] { color-scheme: light; }
 }
 .work-switch button.on {
   color: var(--text-primary);
-  background: rgba(95, 185, 154, 0.18);
-  border-color: rgba(95, 185, 154, 0.5);
+  background: color-mix(in srgb, var(--green) 18%, transparent);
+  border-color: color-mix(in srgb, var(--green) 50%, transparent);
 }
 
 /* Tool split layout (~2/3 left main + ~1/3 right collaboration notes) */
@@ -1281,7 +1294,7 @@ html[data-theme="sand"] { color-scheme: light; }
   min-height: 0;
   min-width: 0;
   border: 0;
-  background: #0b1416;
+  background: var(--bg-well);
 }
 .tool-body {
   padding: 20px;
@@ -1321,7 +1334,7 @@ html[data-theme="sand"] { color-scheme: light; }
 }
 .tool-split textarea:focus, .tool-split input:not([type=file]):focus {
   outline: none;
-  border-color: rgba(95, 185, 154, 0.55);
+  border-color: color-mix(in srgb, var(--green) 55%, transparent);
   background: rgba(255, 255, 255, 0.10);
 }
 .tool-split button {
@@ -1419,7 +1432,7 @@ html[data-theme="sand"] { color-scheme: light; }
   place-items: center;
   background: var(--accent-soft);
   color: var(--green-text);
-  border: 0.5px solid rgba(95, 185, 154, 0.28);
+  border: 0.5px solid color-mix(in srgb, var(--green) 28%, transparent);
 }
 .dict-empty h2 { margin: 0; font-size: 20px; font-weight: 600; }
 #hits article {
@@ -1540,8 +1553,8 @@ html[data-theme="sand"] { color-scheme: light; }
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .siri-chip:hover {
-  background: rgba(95, 185, 154, 0.16);
-  border-color: rgba(95, 185, 154, 0.42);
+  background: color-mix(in srgb, var(--green) 16%, transparent);
+  border-color: color-mix(in srgb, var(--green) 42%, transparent);
   color: var(--green-text);
 }
 .siri-chip:active {
@@ -1587,8 +1600,8 @@ html[data-theme="sand"] { color-scheme: light; }
 .siri-msg.user {
   align-self: flex-end;
   max-width: 85%;
-  background: rgba(95, 185, 154, 0.18);
-  border: 0.5px solid rgba(95, 185, 154, 0.32);
+  background: color-mix(in srgb, var(--green) 18%, transparent);
+  border: 0.5px solid color-mix(in srgb, var(--green) 32%, transparent);
   color: var(--text-primary);
   border-bottom-right-radius: 4px;
 }
@@ -1628,7 +1641,7 @@ html[data-theme="sand"] { color-scheme: light; }
 }
 .siri-composer:focus-within {
   background: rgba(255, 255, 255, 0.11);
-  border-color: rgba(95, 185, 154, 0.5);
+  border-color: color-mix(in srgb, var(--green) 50%, transparent);
 }
 .siri-composer textarea {
   flex: 1;
@@ -1706,8 +1719,8 @@ html[data-theme="sand"] { color-scheme: light; }
 }
 .tool-split button.tb-icon:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.24); color: var(--text-primary); }
 .tool-split button.tb-icon.active {
-  background: rgba(95, 185, 154, 0.20);
-  border-color: rgba(95, 185, 154, 0.45);
+  background: color-mix(in srgb, var(--green) 20%, transparent);
+  border-color: color-mix(in srgb, var(--green) 45%, transparent);
   color: var(--green-text);
 }
 .tool-split button.tb-icon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
@@ -1879,7 +1892,7 @@ html[data-theme="sand"] { color-scheme: light; }
   padding: 0 4px 0 10px;
   border-radius: var(--radius-pill);
   background: var(--green-soft);
-  border: 0.5px solid rgba(95, 185, 154, 0.32);
+  border: 0.5px solid color-mix(in srgb, var(--green) 32%, transparent);
   color: var(--green-text);
   font-size: 12.5px;
 }
@@ -1914,7 +1927,7 @@ html[data-theme="sand"] { color-scheme: light; }
   font-size: 13px;
 }
 .tool-split button.solve-chip:hover { color: var(--text-primary); background: rgba(255, 255, 255, 0.13); border-color: rgba(255, 255, 255, 0.24); }
-.tool-split button.solve-chip.on { color: var(--text-primary); background: rgba(95, 185, 154, 0.18); border-color: rgba(95, 185, 154, 0.5); }
+.tool-split button.solve-chip.on { color: var(--text-primary); background: color-mix(in srgb, var(--green) 18%, transparent); border-color: color-mix(in srgb, var(--green) 50%, transparent); }
 .solve-chip-count {
   font-style: normal;
   min-width: 18px;

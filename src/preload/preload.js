@@ -1,7 +1,7 @@
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
 
-const EVENTS = new Set(['vm:state', 'models:changed', 'tabs:state', 'settings:changed', 'chat:event', 'panel:call', 'downloads:changed', 'history:changed',
+const EVENTS = new Set(['theme:changed', 'tab:shown', 'vm:state', 'models:changed', 'tabs:state', 'settings:changed', 'chat:event', 'panel:call', 'downloads:changed', 'history:changed',
   'bookmarks:changed', 'ext:changed', 'lm:progress', 'find:result', 'find:focus', 'addr:focus', 'overlay:leave', 'vkeyboard:cmd', 'selfmod:changed', 'confirm:request', 'confirm:cancel', 'solve:photo', 'wiki:progress']);
 
 if (location.protocol === 'aibrowser:') {

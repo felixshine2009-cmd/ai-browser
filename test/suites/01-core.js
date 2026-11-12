@@ -108,11 +108,11 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     await until(async () => (await sp.locator('h2').innerText()) === 'General', 5000, 'settings english');
     await app.submit('aibrowser://home'); // new load in English
     const home = await app.waitPage('aibrowser://home');
-    await until(async () => (await home.locator('#greet').innerText()) === 'Felix, what would you like to do today?', 5000, 'home english');
+    await until(async () => (await home.locator('#greet').innerText()) === 'Felix, how may I help you?', 5000, 'home english');
     const ud = app.userData; await app.close(); await sleep(400);
     app = await launch({ userData: ud });
     const h2 = await app.waitPage('aibrowser://home');
-    await until(async () => (await h2.locator('#greet').innerText()).startsWith('Felix, what'), 5000, 'english after restart');
+    await until(async () => (await h2.locator('#greet').innerText()).startsWith('Felix, how may I help'), 5000, 'english after restart');
     const ch2 = await app.chrome();
     await sp.close().catch(() => {});
     await patchSettings(app, { lang: 'zh' });

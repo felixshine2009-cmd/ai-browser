@@ -1,0 +1,1 @@
+{ "name": "electron", "version": "45.0.0-ipad", "main": "index.js", "description": "iPad implementation of the Electron main-process API subset used by AI Browser (backed by the native Swift host)." }

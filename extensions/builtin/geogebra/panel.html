@@ -9,7 +9,7 @@ html,body{margin:0;width:100%;height:100%;background:var(--bg);color:var(--text)
 #bar{display:flex;gap:6px;align-items:center;padding:6px 10px;background:var(--panel);backdrop-filter:blur(16px) saturate(1.2);-webkit-backdrop-filter:blur(16px) saturate(1.2);border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;z-index:2}
 #apps{display:flex;gap:4px;flex-wrap:wrap}
 #apps button,#acts button{appearance:none;border:1px solid var(--border);background:var(--btn);color:var(--text);border-radius:7px;padding:5px 10px;font:500 12px/1 inherit;cursor:pointer;transition:background .15s,border-color .15s,transform .1s}
-#apps button.active{background:var(--accent);border-color:var(--accent);color:#04140c;font-weight:600}
+#apps button.active{background:var(--accent);border-color:var(--accent);color:var(--on-accent,#04140c);font-weight:600}
 #apps button:hover,#acts button:hover{background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.22)}
 #apps button.active:hover{background:#47ad7c;border-color:#47ad7c}
 #acts{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
@@ -21,8 +21,15 @@ html,body{margin:0;width:100%;height:100%;background:var(--bg);color:var(--text)
 #err{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--muted);text-align:center;padding:24px;background:rgba(11,20,22,0.85);backdrop-filter:blur(12px)}
 #toast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:rgba(22,53,40,0.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(95,185,154,0.35);color:#b7f0cf;padding:6px 14px;border-radius:999px;font-weight:500;opacity:0;transition:opacity .2s;pointer-events:none;z-index:5}
 input[type=file]{display:none}
+
+/* light palettes (data-scheme set by the theme script below) */
+html[data-scheme="light"] #apps button:hover,html[data-scheme="light"] #acts button:hover{background:rgba(0,0,0,.06);border-color:rgba(0,0,0,.22)}
+html[data-scheme="light"] #apps button.active:hover{background:var(--accent);border-color:var(--accent);filter:brightness(1.08)}
+html[data-scheme="light"] #err{background:color-mix(in srgb,var(--bg) 88%,transparent)}
+html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,.35);color:#14532d}
 </style>
 <script src="ggb/deployggb.js"></script>
+<script>/* AI Browser light / dark theme: the host page posts {aibTheme:{id,scheme,css}} (src/renderer/static/theme.js) */(function(){function ap(t){if(!t||typeof t.css!=='string')return;var h=document.documentElement;h.setAttribute('data-scheme',t.scheme);h.setAttribute('data-theme',t.id);h.style.colorScheme=t.scheme;var e=document.getElementById('aib-theme-vars');if(!e){e=document.createElement('style');e.id='aib-theme-vars';}(document.head||h).appendChild(e);e.textContent=t.css;}window.addEventListener('message',function(ev){var m=ev.data;if(!m||ev.source!==parent)return;if(m.aibTheme)ap(m.aibTheme);});try{if(parent!==window)parent.postMessage({aibThemeHello:true},'*');}catch(e){}})();</script>
 </head><body>
 <div id="chrome">
   <div id="bar">

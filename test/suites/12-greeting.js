@@ -30,7 +30,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     await until(async () => (await inv('settings:get')).greeting === '', 3000, 'saved');
     await until(async () => (await home.locator('#greet').innerText()) === 'Amy，请问需要什么帮助？', 5000, 'default w/ new name');
     await inv('settings:patch', { lang: 'en' });
-    await until(async () => (await home.locator('#greet').innerText()) === 'Amy, what would you like to do today?', 5000, 'english default');
+    await until(async () => (await home.locator('#greet').innerText()) === 'Amy, how may I help you?', 5000, 'english default');
     await inv('settings:patch', { lang: 'zh' });
   });
   await test('空显示名称：{name} 及其后的逗号被去掉', async () => {

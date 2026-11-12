@@ -1,0 +1,54 @@
+# XcodeGen spec for the native iPad app (ipad-v2+: the desktop app ported to iPad).
+#   brew install xcodegen && cd ipad && xcodegen generate   -> AIBrowser.xcodeproj
+# Inputs that are downloaded / generated, not committed (see docs/ipad/BUILD-FOR-AI.md and .github/workflows/ipad-ipa.yml):
+#   Frameworks/NodeMobile.xcframework   nodejs-mobile v18.20.4 (embedded Node.js)
+#   Frameworks/llama.xcframework        llama.cpp b12314 (Metal)
+#   build/payload/                      scripts/build-ipad-bundle.js (+ pyodide, vm)
+name: AIBrowser
+options:
+  deploymentTarget: { iOS: "16.0" }
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "2.0.0"
+    CURRENT_PROJECT_VERSION: "200"
+targets:
+  AIBrowser:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: App
+        excludes: ["Info.plist"]
+      - path: build/payload
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - framework: Frameworks/NodeMobile.xcframework
+        embed: true
+        codeSign: false
+      - framework: Frameworks/llama.xcframework
+        embed: true
+        codeSign: false
+      - sdk: WebKit.framework
+      - sdk: LocalAuthentication.framework
+      - sdk: UserNotifications.framework
+      - sdk: Metal.framework
+      - sdk: Accelerate.framework
+    settings:
+      base:
+        PRODUCT_NAME: AIBrowser
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.felixshine2009.aibrowser.ipad
+        INFOPLIST_FILE: App/Info.plist
+        TARGETED_DEVICE_FAMILY: "2"
+        SWIFT_VERSION: "5.0"
+        SWIFT_OBJC_BRIDGING_HEADER: App/AIBrowser-Bridging-Header.h
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_BITCODE: NO
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        DEAD_CODE_STRIPPING: YES
+        OTHER_LDFLAGS: ["-lc++"]
+        LD_RUNPATH_SEARCH_PATHS: ["$(inherited)", "@executable_path/Frameworks"]
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO

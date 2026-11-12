@@ -735,9 +735,14 @@
     ['dname', 'greeting'].forEach(id => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') saveGreet(); }));
     $('greetreset').onclick = async () => { $('greeting').value = ''; $('dname').value = 'Felix'; preview(); await saveGreet(); };
     const look = document.createElement('div'); look.className = 'form-row';
-    const themes = [['aurora','极光'],['sand','暖沙'],['night','夜色'],['ink','墨黑']];
-    const curTheme = (S.appearance && S.appearance.theme) || 'aurora';
-    look.innerHTML = `<label>主题</label><div class="theme-grid">${themes.map(([id,name]) => `<button type="button" class="theme-combo ${curTheme===id?'on':''}" data-theme="${id}"><b>${name}</b><span class="swatches" data-sw="${id}"></span></button>`).join('')}</div>
+    const TH = window.AIBTheme; const en = I18N.lang === 'en';
+    const A = TH.normAppearance(S.appearance);
+    const modeNames = { system: en ? 'Follow system' : '跟随系统', light: en ? 'Light' : '浅色', dark: en ? 'Dark' : '深色' };
+    const combo = (id, attr, on) => { const th = TH.THEMES[id]; return `<button type="button" class="theme-combo ${on ? 'on' : ''}" ${attr}="${id}" aria-pressed="${on}"><b>${esc(en ? th.en : th.zh)}</b><span class="swatches">${th.swatch.map(c => `<i style="background:${c}"></i>`).join('')}</span></button>`; };
+    look.innerHTML = `<label>${en ? 'Appearance' : '外观'}</label><div class="mode-seg theme-mode" role="radiogroup" id="thmode">${TH.MODES.map(m => `<button type="button" class="seg ${A.mode === m ? 'active' : ''}" role="radio" aria-checked="${A.mode === m}" data-mode="${m}">${modeNames[m]}</button>`).join('')}</div>
+      <div class="hint">${en ? 'Follow system switches between the light and dark theme with the system appearance.' : '「跟随系统」时随系统的浅色 / 深色外观自动切换下面两套主题。'}</div>
+      <label>${en ? 'Dark theme' : '深色主题'}</label><div class="theme-grid" id="thdark">${TH.DARK.map(id => combo(id, 'data-theme', A.theme === id)).join('')}</div>
+      <label>${en ? 'Light theme' : '浅色主题'}</label><div class="theme-grid" id="thlight">${TH.LIGHT.map(id => combo(id, 'data-light', A.light === id)).join('')}</div>
       <label>回答风格</label><select id="astyle"><option value="concise">简洁</option><option value="detailed">详细</option><option value="steps">步骤</option></select>
       <label>思考等级</label><select id="think"><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="max">max</option></select>
       <label>主页布局</label><select id="hlay"><option value="center">居中</option><option value="top">靠上</option></select>
@@ -748,9 +753,11 @@
     look.querySelector('#think').value = S.thinkingLevel || 'medium';
     look.querySelector('#hlay').value = (S.home && S.home.layout) || 'center';
     look.querySelector('#hbg').value = (S.home && S.home.background) || '';
-    const sw = { aurora:['#07111f','#0c1a2e','#e8f1ff','#93a6c2','#3ee0c3','#7aa2ff','#ffb86b'], sand:['#f4ebe0','#efe2d2','#3a2a1c','#8a6f58','#c45c26','#b08968','#d4923a'], night:['#120818','#1a0d28','#f3e9ff','#a894c4','#c9a6ff','#7ec8ff','#ffc48a'], ink:['#111214','#181a1e','#f4f4f5','#9aa0a8','#d7dbe2','#8b939e','#e8c27a'] };
-    look.querySelectorAll('[data-sw]').forEach(el => { el.innerHTML = (sw[el.dataset.sw]||[]).map(c => `<i style="background:${c}"></i>`).join(''); });
-    look.querySelectorAll('[data-theme]').forEach(b => b.onclick = async () => { await window.aib.invoke('settings:patch', { appearance: { theme: b.dataset.theme } }); toast(); renderGeneral(); });
+    const setLook = async (patch) => { S = await window.aib.invoke('settings:patch', { appearance: patch }); toast(); renderGeneral(); };
+    look.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => setLook({ mode: b.dataset.mode }));
+    // picking a palette of the other scheme also switches to it (unless following the system)
+    look.querySelectorAll('[data-theme]').forEach(b => b.onclick = () => setLook(Object.assign({ theme: b.dataset.theme }, A.mode === 'light' ? { mode: 'dark' } : {})));
+    look.querySelectorAll('[data-light]').forEach(b => b.onclick = () => setLook(Object.assign({ light: b.dataset.light }, A.mode === 'dark' ? { mode: 'light' } : {})));
     const saveLook = async () => { await window.aib.invoke('settings:patch', { answerStyle: look.querySelector('#astyle').value, thinkingLevel: look.querySelector('#think').value, home: { layout: look.querySelector('#hlay').value, background: look.querySelector('#hbg').value.trim() } }); toast(); };
     ['astyle','think','hlay','hbg'].forEach(i => look.querySelector('#'+i).addEventListener('change', saveLook));
     look.querySelector('#hbg').addEventListener('change', saveLook);

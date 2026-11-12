@@ -11,18 +11,18 @@
 .ob h1{margin:0 0 6px;font-size:22px}
 .ob .sub{color:var(--muted,#8aa096);margin:0 0 18px;font-size:13px}
 .ob .steps{display:flex;gap:6px;margin:0 0 18px;flex-wrap:wrap}
-.ob .steps span{flex:1;min-width:48px;height:4px;border-radius:2px;background:#1e2c30}
+.ob .steps span{flex:1;min-width:48px;height:4px;border-radius:2px;background:var(--separator)}
 .ob .steps span.on{background:var(--accent,#3d9b6e)}
-.ob .steps span.done{background:#2a5c44}
+.ob .steps span.done{background:color-mix(in srgb, var(--green) 55%, transparent)}
 .ob .form-row{margin:0 0 14px}
 .ob label{display:block;font-size:12px;color:var(--muted,#8aa096);margin:0 0 4px}
-.ob input,.ob select{width:100%;min-height:40px;background:#0b1416;border:1px solid #1e2c30;border-radius:8px;color:#e8f0ea;padding:8px 10px;font:600 14px inherit}
+.ob input,.ob select{width:100%;min-height:40px;background:var(--bg-well);border:1px solid var(--separator);border-radius:8px;color:var(--text-primary);padding:8px 10px;font:600 14px inherit}
 .ob .hint{font-size:12px;color:var(--muted,#8aa096);margin-top:4px}
 .ob .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px;align-items:center}
 .ob .actions .spacer{flex:1}
 .ob .mode-seg{display:flex;gap:6px}
-.ob .mode-seg .seg{flex:1;text-align:center;padding:10px;border:1px solid #1e2c30;border-radius:8px;cursor:pointer;font-weight:600}
-.ob .mode-seg .seg.active{background:var(--accent,#3d9b6e);border-color:var(--accent,#3d9b6e);color:#04140c}
+.ob .mode-seg .seg{flex:1;text-align:center;padding:10px;border:1px solid var(--separator);border-radius:8px;cursor:pointer;font-weight:600}
+.ob .mode-seg .seg.active{background:var(--accent,#3d9b6e);border-color:var(--accent,#3d9b6e);color:var(--on-accent,#fff)}
 .ob .done-icon{font-size:40px;margin:8px 0 12px}
 </style>
 </head>
@@ -39,6 +39,7 @@
     <button type="button" class="btn-primary" id="btnNext"></button>
   </div>
 </div></div>
+<script src="aibrowser://static/theme.js"></script>
 <script src="aibrowser://static/i18n.js"></script>
 <script src="aibrowser://static/onboarding.js"></script>
 </body></html>

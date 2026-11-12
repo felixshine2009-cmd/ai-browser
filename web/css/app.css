@@ -1,7 +1,7 @@
 :root{
   color-scheme:dark;
   --bg:#07100f;--panel:#0b1416;--panel2:#121c1f;--border:#1e2c30;--text:#e8f0ea;--muted:#8aa096;
-  --accent:#3d9b6e;--accent-dim:#163528;--danger:#fca5a5;--disabled:#3a4648;
+  --accent:#3d9b6e;--accent-dim:#163528;--on-accent:#04140c;--well:#0b1416;--solid:#161b1d;--danger:#fca5a5;--disabled:#3a4648;
   --safe-t:env(safe-area-inset-top,0px);--safe-b:env(safe-area-inset-bottom,0px);
   --safe-l:env(safe-area-inset-left,0px);--safe-r:env(safe-area-inset-right,0px);
   --bar-h:52px;--tab-h:40px;--radius:10px;--font:system-ui,-apple-system,"Segoe UI","PingFang SC","Noto Sans SC",sans-serif;
@@ -11,7 +11,7 @@ html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
 body{min-height:100dvh;padding:var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l)}
 #app{display:flex;flex-direction:column;height:100dvh;max-height:100dvh;width:100%;overflow:hidden}
 button,a,.btn{min-height:44px;min-width:44px;font:inherit;font-weight:700;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer;padding:8px 12px}
-button.primary{background:var(--accent);border-color:var(--accent);color:#04140c}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 button:disabled,.disabled{opacity:.45;color:var(--disabled)!important;cursor:not-allowed;filter:grayscale(.4)}
 @media (hover:hover) and (pointer:fine){button:not(:disabled):hover,.btn:not(.disabled):hover{filter:brightness(1.12)}}
 input,select,textarea{font:inherit;font-weight:600;color:var(--text);background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-height:44px;width:100%}
@@ -24,13 +24,13 @@ textarea{min-height:88px;resize:vertical}
 #toolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 #modeseg{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
 #modeseg .seg{border:0;border-radius:0;background:transparent;padding:8px 14px;min-width:64px}
-#modeseg .seg.active{background:var(--accent);color:#04140c}
+#modeseg .seg.active{background:var(--accent);color:var(--on-accent)}
 #addr{flex:1 1 160px;min-width:120px}
 #main{flex:1 1 auto;display:grid;grid-template-columns:1fr;min-height:0;overflow:hidden}
 #chatcol,#panelcol,#sidecol{min-height:0;overflow:auto;padding:12px;-webkit-overflow-scrolling:touch}
 #panelcol,#sidecol{display:none}
 #chatcol{background:var(--bg)}
-.panel-frame{width:100%;height:100%;min-height:280px;border:0;background:#0b1416;border-radius:var(--radius)}
+.panel-frame{width:100%;height:100%;min-height:280px;border:0;background:var(--well);border-radius:var(--radius)}
 #toast{position:fixed;left:50%;top:calc(10px + var(--safe-t));transform:translateX(-50%);background:var(--accent-dim);color:#b7f0cf;padding:10px 16px;border-radius:10px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;z-index:100;max-width:calc(100vw - 24px);text-align:center;word-break:break-word}
 #toast.show{opacity:1}
 #settings{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:50;padding:var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l)}
@@ -111,7 +111,7 @@ select option{background:var(--panel2);color:var(--text)}
 .vk-panel{margin-top:8px;padding:10px;border:1px solid var(--border,#1e2c30);border-radius:12px;background:var(--panel,#121c1f)}
 .vk-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}
 .vk-tab{min-height:32px;padding:4px 10px;border-radius:8px;border:1px solid var(--border,#1e2c30);background:#0b1416;color:var(--muted,#8aa096);cursor:pointer;font:600 12px inherit}
-.vk-tab.on{background:var(--accent,#3d9b6e);border-color:var(--accent,#3d9b6e);color:#04140c}
+.vk-tab.on{background:var(--accent,#3d9b6e);border-color:var(--accent,#3d9b6e);color:var(--on-accent)}
 .vk-row{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 4px}
 .vk-key{min-width:36px;min-height:36px;padding:4px 8px;border-radius:8px;border:1px solid var(--border,#1e2c30);background:#0b1416;color:var(--text,#e8f0ea);cursor:pointer;font:600 13px "Segoe UI Symbol","Noto Sans Symbols",sans-serif}
 .vk-key.wide{min-width:52px;font-size:12px}
@@ -192,3 +192,26 @@ select option{background:var(--panel2);color:var(--text)}
 .pm-empty{padding:14px;color:var(--muted);font-size:13px}
 .pm-add{display:flex;gap:8px;margin:10px 0 6px}
 .pm-add input{flex:1;width:auto}
+
+/* ---- light palettes (js/theme.js sets html[data-scheme]) ---- */
+html[data-scheme="light"]{--on-accent:#ffffff;--well:#ffffff;--solid:#ffffff}
+html[data-scheme="light"] #toast{color:var(--text)}
+html[data-scheme="light"] #settings,html[data-scheme="light"] .cf-ov{background:rgba(40,30,20,.28)}
+html[data-scheme="light"] .vk-tab,html[data-scheme="light"] .vk-key{background:var(--panel2);color:var(--text)}
+html[data-scheme="light"] .vk-key:hover{background:var(--accent-dim)}
+html[data-scheme="light"] .cf-box{background:var(--panel);border-color:var(--border);color:var(--text);box-shadow:0 18px 60px rgba(0,0,0,.18)}
+html[data-scheme="light"] .cf-box h3{color:var(--danger)}
+html[data-scheme="light"] .cf-d{color:var(--muted)}
+html[data-scheme="light"] .cf-btns button{background:var(--panel2);border-color:var(--border);color:var(--text)}
+html[data-scheme="light"] .cf-btns .danger{background:#c62828;border-color:#c62828;color:#fff}
+html[data-scheme="light"] .cf-btns .ok{background:#2563eb;border-color:#2563eb;color:#fff}
+html[data-scheme="light"] #localDisk .mrow{border-top-color:var(--border)}
+html[data-scheme="light"] .run-panel{background:rgba(0,0,0,.02)}
+html[data-scheme="light"] .run-stop{background:rgba(0,0,0,.05)}
+html[data-scheme="light"] .run-stop:hover{background:rgba(0,0,0,.09)}
+html[data-scheme="light"] .run-code,html[data-scheme="light"] .run-out{background:rgba(0,0,0,.05)}
+html[data-scheme="light"] .run-panel[data-state="err"] .run-state,html[data-scheme="light"] .run-err{color:var(--danger)}
+html[data-scheme="light"] .mp{--mp-pop:var(--panel);--mp-bg:rgba(0,0,0,.05);--mp-hover:rgba(0,0,0,.08)}
+html[data-scheme="light"] .pm-status.warn,html[data-scheme="light"] .pm-chip.pm-warn{color:#8a5a00}
+html[data-scheme="light"] .pm-chip.pm-think{color:#17664a}
+html[data-scheme="light"] .vk-ico{color:var(--text)}

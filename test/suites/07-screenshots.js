@@ -22,7 +22,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     await s.click('[data-nav="general"]').catch(() => {});
     await s.click('[data-lang="en"]'); await sleep(500);
     await app.submit('aibrowser://home'); const h = await app.waitPage(u => u.startsWith('aibrowser://home')); await sleep(500);
-    assert((await h.locator('body').innerText()).includes('what would you like to do today'), 'english greeting');
+    assert((await h.locator('body').innerText()).includes('how may I help you'), 'english greeting');
     await app.screenshot(path.join(SH, '01b-home-en.png'));
     await patchSettings(app, { lang: 'zh' }); await sleep(400);
   });

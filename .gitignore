@@ -21,3 +21,9 @@ mobile/ios/App/build
 mobile/ios/DerivedData
 mobile/ios/App/App/public
 vendor-cache/
+
+# iPad native (ipad-v2)
+ipad/build/
+ipad/Frameworks/
+ipad/*.xcodeproj
+ipad/sim/node_modules/

@@ -7,15 +7,15 @@
   const tt = (k, d) => (window.t ? window.t(k) : d);
   const L = () => (window.I18N && I18N.lang === 'en') ? 'en' : 'zh';
   const css = `
-  .aibc-ov{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
-  .aibc-box{width:min(440px,92vw);background:#161b1d;border:1px solid rgba(255,255,255,.16);border-radius:14px;box-shadow:0 18px 60px rgba(0,0,0,.6);padding:20px 22px;color:#f7f7f9;font:14px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
-  .aibc-box h3{margin:0 0 8px;font-size:16px;color:#ff8a8a}
-  .aibc-box .m{white-space:pre-wrap;color:#e6e8ec}.aibc-box .d{margin-top:8px;color:#a9adb6;font-size:12.5px;white-space:pre-wrap}
+  .aibc-ov{position:fixed;inset:0;z-index:99999;background:var(--scrim,rgba(0,0,0,.55));display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+  .aibc-box{width:min(440px,92vw);background:var(--bg-popover,#161b1d);border:1px solid var(--separator,rgba(255,255,255,.16));border-radius:14px;box-shadow:var(--shadow-md,0 18px 60px rgba(0,0,0,.6));padding:20px 22px;color:var(--text-primary,#f7f7f9);font:14px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
+  .aibc-box h3{margin:0 0 8px;font-size:16px;color:var(--danger,#ff8a8a)}
+  .aibc-box .m{white-space:pre-wrap;color:var(--text-secondary,#e6e8ec)}.aibc-box .d{margin-top:8px;color:var(--text-tertiary,#a9adb6);font-size:12.5px;white-space:pre-wrap}
   .aibc-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
-  .aibc-btns button{border-radius:8px;padding:8px 16px;font-size:13.5px;cursor:pointer;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#f7f7f9}
-  .aibc-btns button:focus{outline:2px solid #6cb6ff;outline-offset:2px}
+  .aibc-btns button{border-radius:8px;padding:8px 16px;font-size:13.5px;cursor:pointer;border:1px solid var(--separator,rgba(255,255,255,.2));background:var(--bg-input,rgba(255,255,255,.1));color:var(--text-primary,#f7f7f9)}
+  .aibc-btns button:focus{outline:2px solid var(--text-link,#6cb6ff);outline-offset:2px}
   .aibc-btns .danger{background:#d93b3b;border-color:#d93b3b;color:#fff;font-weight:600}
-  .aibc-btns .ok{background:#3b82f6;border-color:#3b82f6;color:#fff}
+  .aibc-btns .ok{background:var(--accent,#3b82f6);border-color:var(--accent,#3b82f6);color:#fff}
   .aibc-done{position:fixed;top:22px;left:50%;transform:translateX(-50%);z-index:100000;background:#1f7a57;color:#fff;font-size:17px;font-weight:600;padding:12px 26px;border-radius:12px;box-shadow:0 10px 36px rgba(0,0,0,.5);transition:opacity .4s}`;
   function style() { if (document.getElementById('aibc-css')) return; const s = document.createElement('style'); s.id = 'aibc-css'; s.textContent = css; document.head.appendChild(s); }
   function ask(o) {

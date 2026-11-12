@@ -9,7 +9,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/
 #bar{display:flex;gap:6px;align-items:center;padding:6px 8px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
 #apps{display:flex;gap:2px;flex-wrap:wrap}
 #apps button,#acts button{appearance:none;border:1px solid var(--border);background:var(--btn);color:var(--text);border-radius:6px;padding:5px 9px;font:600 12px/1 inherit;cursor:pointer}
-#apps button.active{background:var(--accent);border-color:var(--accent);color:#04140c}
+#apps button.active{background:var(--accent);border-color:var(--accent);color:var(--on-accent,#04140c)}
 #apps button:hover,#acts button:hover{filter:brightness(1.15)}
 #acts{display:flex;gap:4px;margin-left:auto}
 #wrap{flex:1;position:relative;min-height:0}
@@ -19,8 +19,14 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/
 input[type=file]{display:none}
 @media (pointer:coarse){#apps button,#acts button{min-height:44px;min-width:44px}}
 html,body{max-width:100vw}
+
+/* light palettes (data-scheme set by the theme script below) */
+html[data-scheme="light"] #apps button:hover,html[data-scheme="light"] #acts button:hover{background:rgba(0,0,0,.06);border-color:rgba(0,0,0,.22)}
+html[data-scheme="light"] #err{background:color-mix(in srgb,var(--bg) 88%,transparent)}
+html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,.35);color:#14532d}
 </style>
 <script src="ggb/deployggb.js"></script>
+<script>/* AI Browser light / dark theme: the host page posts {aibTheme:{id,scheme,css}} (src/renderer/static/theme.js) */(function(){function ap(t){if(!t||typeof t.css!=='string')return;var h=document.documentElement;h.setAttribute('data-scheme',t.scheme);h.setAttribute('data-theme',t.id);h.style.colorScheme=t.scheme;var e=document.getElementById('aib-theme-vars');if(!e){e=document.createElement('style');e.id='aib-theme-vars';}(document.head||h).appendChild(e);e.textContent=t.css;}window.addEventListener('message',function(ev){var m=ev.data;if(!m||ev.source!==parent)return;if(m.aibTheme)ap(m.aibTheme);});try{if(parent!==window)parent.postMessage({aibThemeHello:true},'*');}catch(e){}})();</script>
 </head><body>
 <div id="chrome">
   <div id="bar">

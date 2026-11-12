@@ -1,18 +1,24 @@
 <!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="aibrowser://static/shared.css">
 <meta name="color-scheme" content="dark"><style>
-html{color-scheme:dark;background:#141b1d;color:#f7f7f9}html,body{width:100%;height:auto;overflow:auto;background:#141b1d;color:#f7f7f9;font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif}
-.list{background:#141b1d;border:1px solid rgba(255,255,255,.22);border-radius:10px;margin:10px 0;overflow:hidden}
-.row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.14);color:#f7f7f9}.row:last-child{border-bottom:0}
-.row .nm{flex:1;min-width:0}.row .nm b{display:block;font-weight:700;font-size:14px;color:#f7f7f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.row .nm small{display:block;color:#d0d3d9;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html{color-scheme:dark;background:var(--panel-solid,#141b1d);color:var(--text,#f7f7f9)}html,body{width:100%;height:auto;overflow:auto;background:var(--panel-solid,#141b1d);color:var(--text,#f7f7f9);font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif}
+.list{background:var(--panel-solid,#141b1d);border:1px solid var(--border,rgba(255,255,255,.22));border-radius:10px;margin:10px 0;overflow:hidden}
+.row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border,rgba(255,255,255,.14));color:var(--text,#f7f7f9)}.row:last-child{border-bottom:0}
+.row .nm{flex:1;min-width:0}.row .nm b{display:block;font-weight:700;font-size:14px;color:var(--text,#f7f7f9);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .nm small{display:block;color:var(--muted,#d0d3d9);font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tg{flex:none;width:40px;height:24px;border-radius:12px;background:#5b6068;position:relative;cursor:pointer;transition:background-color .15s}.tg.on{background:#2fae84}
 .tg::after{content:"";position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left .15s,right .15s}.tg.on::after{left:auto;right:2px}
-button.s{flex:none;width:30px;height:28px;border-radius:6px;background:#2a3336;border:1px solid rgba(255,255,255,.3);color:#f7f7f9;font-weight:700;font-size:14px;cursor:pointer}
-button.s:hover{background:#3a4549}button.s.rm{color:#ff9a9a;border-color:rgba(255,120,120,.55)}
-#prog{display:none;margin:8px 0;font-size:13px;font-weight:600;color:#f7f7f9}#prog .bar{height:8px;border-radius:4px;background:#2a3336;overflow:hidden;margin-top:4px}#prog .bar i{display:block;height:100%;width:0;background:#2fae84;transition:width .2s}
+button.s{flex:none;width:30px;height:28px;border-radius:6px;background:var(--btn,#2a3336);border:1px solid var(--border,rgba(255,255,255,.3));color:var(--text,#f7f7f9);font-weight:700;font-size:14px;cursor:pointer}
+button.s:hover{background:var(--well,#3a4549)}button.s.rm{color:#ff9a9a;border-color:rgba(255,120,120,.55)}
+#prog{display:none;margin:8px 0;font-size:13px;font-weight:600;color:var(--text,#f7f7f9)}#prog .bar{height:8px;border-radius:4px;background:var(--btn,#2a3336);overflow:hidden;margin-top:4px}#prog .bar i{display:block;height:100%;width:0;background:#2fae84;transition:width .2s}
 .row.missing .nm small.warn{color:#ffb4b4}.row .conf{display:flex;gap:6px;align-items:center;font-weight:700;font-size:13px;color:#ffd0d0}.row .conf button{width:auto;padding:0 10px}
 .badge{display:inline-block;font-size:11px;font-weight:700;padding:1px 6px;border-radius:999px;background:#24413a;color:#b9f3dc;margin-left:6px}
-#hint{color:#d0d3d9;font-size:13px;font-weight:600;line-height:1.5}</style></head>
+#hint{color:var(--muted,#d0d3d9);font-size:13px;font-weight:600;line-height:1.5}
+/* light palettes */
+html[data-scheme="light"] button.s.rm{color:#b3261e;border-color:rgba(179,38,30,.45)}
+html[data-scheme="light"] .row.missing .nm small.warn,html[data-scheme="light"] .row .conf{color:#8a1c1c}
+html[data-scheme="light"] .badge{background:#d9f2e6;color:#14532d}
+html[data-scheme="light"] .tg{background:#b9bec6}
+</style></head>
 <body style="padding:0"><div id="hint"></div>
 <div id="list" class="list"></div><button class="btn-primary" id="add" style="cursor:pointer"></button><div id="prog"><span id="progt"></span><div class="bar"><i></i></div></div><div id="msg" style="margin-top:8px;font-size:13px;font-weight:600;color:#d0d3d9"></div>
 <script src="aibext://aib.dictionary/__sdk.js"></script>
@@ -22,7 +28,7 @@ en:{hint:'Import .mdx files (a same-named .mdd in the folder is loaded automatic
 let L='zh';const $=id=>document.getElementById(id);
 const SZ=function(b){return b>=1073741824?(b/1073741824).toFixed(2)+' GB':b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB'};
 const T2={zh:{copied:'已复制到应用数据',ref:'引用原路径',missing:'源文件缺失',del:'删除',confirm:'删除词典及其复制的文件？',yes:'确认删除',no:'取消',copying:'正在复制词典… ',size:'占用 '},en:{copied:'copied to app data',ref:'linked to original path',missing:'source missing',del:'Delete',confirm:'Delete this dictionary and its copied files?',yes:'Delete',no:'Cancel',copying:'Copying dictionary… ',size:'Size '}};
-async function render(){const l=await aibExt.call('list');const el=$('list');el.innerHTML='';if(!l.length){el.innerHTML='<div class="row" style="color:#d0d3d9;font-weight:600">'+S[L].empty+'</div>';}
+async function render(){const l=await aibExt.call('list');const el=$('list');el.innerHTML='';if(!l.length){el.innerHTML='<div class="row" style="color:var(--muted,#d0d3d9);font-weight:600">'+S[L].empty+'</div>';}
 l.forEach((d,i)=>{const r=document.createElement('div');r.className='row'+(d.missing?' missing':'');r.dataset.id=d.id;
 r.innerHTML='<div class="nm"><b></b><small class="path"></small><small class="info"></small></div><button class="s up" title="↑">↑</button><button class="s dn" title="↓">↓</button><div class="tg" role="switch"></div><button class="s rm" title="✕">✕</button>';
 r.querySelector('b').textContent=r.querySelector('b').title=d.name;

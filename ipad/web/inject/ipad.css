@@ -1,0 +1,40 @@
+/* iPad touch adaptation for the desktop pages (injected only into aibrowser: pages). Layout and features stay those of the
+   desktop version; only hit targets, hover-only affordances and window chrome are adjusted for touch. */
+html.aib-ipad { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+html.aib-ipad body { overscroll-behavior: none; }
+html.aib-ipad body.chrome-body, html.aib-ipad button, html.aib-ipad .tb-btn, html.aib-ipad .tab, html.aib-ipad .ticon, html.aib-ipad .seg, html.aib-ipad svg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* no macOS traffic lights on iPad */
+html.aib-ipad { --traffic: 10px; }
+html.aib-ipad .traffic span { display: none; }
+/* window chrome: same 36 + 52 pt as the desktop, larger targets inside */
+html.aib-ipad .tab { height: 32px; font-size: 14px; }
+html.aib-ipad .tab .close-tab { width: 26px; height: 26px; font-size: 15px; opacity: 0.9; margin-right: -6px; }
+html.aib-ipad .tab-add { width: 34px; height: 32px; font-size: 20px; }
+html.aib-ipad .tb-btn { width: 40px; height: 40px; }
+html.aib-ipad .tb-btn svg { width: 19px; height: 19px; }
+html.aib-ipad .ticon { min-width: 40px; min-height: 40px; }
+html.aib-ipad .address { min-height: 38px; }
+html.aib-ipad .address .url { font-size: 16px; } /* >= 16px: iPadOS does not zoom the page when the field is focused */
+html.aib-ipad .mode-seg { height: 40px; }
+html.aib-ipad .mode-seg .seg { min-height: 32px; display: inline-flex; align-items: center; padding-left: 14px; padding-right: 14px; }
+/* general controls */
+@media (pointer: coarse) {
+  html.aib-ipad button, html.aib-ipad .btn, html.aib-ipad .btn-secondary, html.aib-ipad select, html.aib-ipad .seg, html.aib-ipad .chip, html.aib-ipad [role="button"] { min-height: 40px; }
+  html.aib-ipad input[type="text"], html.aib-ipad input[type="search"], html.aib-ipad input[type="url"], html.aib-ipad input[type="password"], html.aib-ipad input[type="number"], html.aib-ipad input:not([type]), html.aib-ipad textarea, html.aib-ipad select { font-size: 16px; }
+  html.aib-ipad input[type="checkbox"], html.aib-ipad input[type="radio"] { min-width: 22px; min-height: 22px; }
+  html.aib-ipad .nav-item, html.aib-ipad .side-nav a, html.aib-ipad .menu-item, html.aib-ipad li.item, html.aib-ipad .row, html.aib-ipad .mp-it { min-height: 44px; }
+  /* hover-only affordances are always shown on touch */
+  html.aib-ipad .tab .close-tab, html.aib-ipad .row .actions, html.aib-ipad .hover-only, html.aib-ipad .item .del, html.aib-ipad .item .actions, html.aib-ipad .msg-actions, html.aib-ipad .copy-btn { opacity: 1 !important; visibility: visible !important; }
+  html.aib-ipad ::-webkit-scrollbar { width: 0; height: 0; }
+  html.aib-ipad .mode-seg .seg { min-height: 32px; } /* inside the 40pt segmented control */
+}
+/* Split View / Slide Over: narrow windows */
+@media (max-width: 700px) {
+  html.aib-ipad .tab { min-width: 72px; }
+  html.aib-ipad .tool-icons { display: none; }
+  html.aib-ipad .mode-seg .seg { padding-left: 8px; padding-right: 8px; }
+}
+@media (max-width: 480px) {
+  html.aib-ipad #toolcluster, html.aib-ipad .siri-btn { display: none; }
+  html.aib-ipad .toolbar { gap: 4px; padding: 0 6px; }
+}
