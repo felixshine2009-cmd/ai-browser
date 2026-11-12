@@ -108,7 +108,7 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
         let seq = m["seq"] as? Int ?? 0
         let id = m["id"] as? Int ?? 0
         let h = hosts[id]
-        let ok: (Any?) -> Void = { r in Host.shared.reply(seq, ok: true, result: r ?? NSNull()) }
+        let ok: (Any?) -> Void = { r in Host.shared.reply(seq, ok: true, result: r ?? (NSNull() as Any)) }
         let fail: (String) -> Void = { e in Host.shared.reply(seq, ok: false, error: e) }
         switch cmd {
         case "wc.create":
@@ -200,7 +200,7 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
             // keeps the OS appearance so "follow system" still sees OS changes (traitCollectionDidChange)
             container.overrideUserInterfaceStyle = style; parking.overrideUserInterfaceStyle = style
         case "menu.app": setAppMenu(m["keys"] as? [[String: Any]] ?? [])
-        case "menu.popup": popupMenu(m["items"] as? [[String: Any]] ?? [], x: num(m["x"]), y: num(m["y"]), wcId: m["wcId"] as? Int ?? 0) { id in ok(["id": id ?? NSNull()]) }
+        case "menu.popup": popupMenu(m["items"] as? [[String: Any]] ?? [], x: num(m["x"]), y: num(m["y"]), wcId: m["wcId"] as? Int ?? 0) { id in ok(["id": (id.map { $0 as Any }) ?? NSNull()]) }
         case "dialog.message":
             let buttons = (m["buttons"] as? [String]) ?? ["确定"]
             let title = m["title"] as? String ?? "", msg = [m["message"] as? String ?? "", m["detail"] as? String ?? ""].filter { !$0.isEmpty }.joined(separator: "\n\n")
