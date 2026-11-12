@@ -505,7 +505,10 @@ enum Keychain {
         let d = Data(bytes)
         let add: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "AIBrowser.safeStorage", kSecAttrAccount as String: "key",
                                   kSecValueData as String: d, kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
-        SecItemDelete(add as CFDictionary); SecItemAdd(add as CFDictionary, nil)
+        SecItemDelete(add as CFDictionary)
+        let st = SecItemAdd(add as CFDictionary, nil)
+        // re-signed builds may lack keychain access: saved secrets then can not be decrypted after a restart
+        StartupLog.log(st == errSecSuccess ? "已在钥匙串中创建加密密钥" : "钥匙串写入失败（OSStatus \(st)），已保存的密码与密钥在重新打开应用后将无法解密")
         return d
     }
 }
