@@ -27,7 +27,42 @@ env:
   VM_RELEASE: v5.6.0
 
 jobs:
+  # nodejs-mobile is Node 18 built without ICU (v8_enable_i18n_support=0): no Intl, TextDecoder only utf-8 / utf-16le.
+  # Official Node builds have full ICU and would hide such failures, so the simulator runs a Node built the same way.
+  node-noicu:
+    # manual re-runs that only attach an IPA to a release skip the Linux jobs
+    if: inputs.release_tag == '' || inputs.release_tag == null
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: ~/node18-noicu
+          key: node-v18.20.4-linux-x64-intl-none-v1
+      - uses: actions/setup-python@v5
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          python-version: '3.12'
+      - name: Build Node 18.20.4 --with-intl=none (cached)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          curl -fsSL https://nodejs.org/dist/v18.20.4/node-v18.20.4.tar.gz | tar -xz -C "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP/node-v18.20.4"
+          pip install setuptools
+          ./configure --with-intl=none --without-npm --without-corepack
+          make -j"$(nproc)"
+          mkdir -p ~/node18-noicu && cp out/Release/node ~/node18-noicu/node
+      - run: ~/node18-noicu/node -p "process.version + ' intl=' + typeof Intl"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: node18-noicu
+          path: ~/node18-noicu/node
+          retention-days: 3
+
   sim-test:
+    needs: node-noicu
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -37,10 +72,15 @@ jobs:
           node-version: '20'
       - name: Install (Electron for the simulator, Playwright core)
         run: npm ci --no-audit --no-fund
-      - name: Node 18 (same major as nodejs-mobile)
+      - uses: actions/download-artifact@v4
+        with:
+          name: node18-noicu
+          path: ${{ runner.temp }}/node18-noicu
+      - name: Node 18 without ICU (same build options as nodejs-mobile)
         run: |
-          curl -fsSL https://nodejs.org/dist/v18.20.4/node-v18.20.4-linux-x64.tar.xz | tar -xJ -C "$RUNNER_TEMP"
-          echo "AIB_NODE=$RUNNER_TEMP/node-v18.20.4-linux-x64/bin/node" >> "$GITHUB_ENV"
+          chmod +x "$RUNNER_TEMP/node18-noicu/node"
+          "$RUNNER_TEMP/node18-noicu/node" -p "process.version + ' intl=' + typeof Intl"
+          echo "AIB_NODE=$RUNNER_TEMP/node18-noicu/node" >> "$GITHUB_ENV"
       - name: System packages
         run: sudo apt-get update && sudo apt-get install -y xvfb ffmpeg libnss3 libasound2t64 libgbm1 || sudo apt-get install -y xvfb ffmpeg libnss3 libgbm1
       - name: Build the iPad payload (+ Pyodide, Linux VM)
@@ -52,6 +92,8 @@ jobs:
           node scripts/fetch-ipad-pyodide.js dist/ipad-bundle --cache "$RUNNER_TEMP/pyodide"
           gh release download "$VM_RELEASE" -p 'linux-vm-x86-v86.tar.gz' -D "$RUNNER_TEMP"
           tar -C dist/ipad-bundle -xzf "$RUNNER_TEMP/linux-vm-x86-v86.tar.gz"
+      - name: Device runtime check (no ICU, no JIT)
+        run: '"$AIB_NODE" --jitless scripts/check-ipad-runtime.js dist/ipad-bundle/nodejs-project --require-no-icu'
       - name: Simulator tests (iPad build) + appearance tests
         env:
           AIB_IPAD_BUNDLE: ${{ github.workspace }}/dist/ipad-bundle
@@ -73,7 +115,15 @@ jobs:
           node-version: '20'
       - name: Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.4.app 2>/dev/null || sudo xcode-select -s "$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)"
+          set -euo pipefail
+          # images differ (macos-15 / -intel / 26): prefer Xcode 16.4, else the newest 16.x, else any installed Xcode
+          ls -d /Applications/Xcode*.app || true
+          X=""
+          for c in /Applications/Xcode_16.4.app $(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V -r) $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V -r); do
+            if [[ -d "$c/Contents/Developer" ]]; then X="$c"; break; fi
+          done
+          if [[ -n "$X" ]]; then sudo xcode-select -s "$X/Contents/Developer"; else echo "no Xcode.app found, keeping $(xcode-select -p)"; fi
+          xcode-select -p
           xcodebuild -version
       - name: Payload (desktop main process + pages + iPad layer)
         run: node scripts/build-ipad-bundle.js ipad/build/aibapp
