@@ -7,7 +7,7 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
     static let nodeSchemes = ["aibrowser", "aibdict", "aibext", "aibzim"]
     static let shared = SchemeHandler()
     private var live = Set<ObjectIdentifier>()
-    private var tasks = [ObjectIdentifier: URLSessionDataTask]()
+    private var tasks = [ObjectIdentifier: Host.SchemeRequest]()
     private let lock = NSLock()
 
     private func isLive(_ t: WKURLSchemeTask) -> Bool { lock.lock(); defer { lock.unlock() }; return live.contains(ObjectIdentifier(t)) }
@@ -19,7 +19,8 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         if url.scheme == "aibres" { serveStatic(url, urlSchemeTask); return }
         var hdrs = [String: String]()
         for (k, v) in urlSchemeTask.request.allHTTPHeaderFields ?? [:] { hdrs[k] = v }
-        let task = Host.shared.scheme(url: url.absoluteString, method: urlSchemeTask.request.httpMethod ?? "GET", headers: hdrs, body: urlSchemeTask.request.httpBody) { [weak self] status, headers, data in
+        let isMain = urlSchemeTask.request.mainDocumentURL == url
+        let task = Host.shared.scheme(url: url.absoluteString, method: urlSchemeTask.request.httpMethod ?? "GET", headers: hdrs, body: SchemeHandler.body(urlSchemeTask.request), mainDocument: isMain) { [weak self] status, headers, data in
             DispatchQueue.main.async {
                 guard let self = self, self.isLive(urlSchemeTask) else { return }
                 var h = headers
@@ -39,6 +40,15 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         let id = ObjectIdentifier(urlSchemeTask)
         lock.lock(); live.remove(id); let t = tasks.removeValue(forKey: id); lock.unlock()
         t?.cancel()
+    }
+    /// WebKit hands POST bodies of fetch() / XHR to scheme handlers as a stream, not as httpBody
+    static func body(_ r: URLRequest) -> Data? {
+        if let b = r.httpBody { return b }
+        guard let s = r.httpBodyStream else { return nil }
+        s.open(); defer { s.close() }
+        var out = Data(); var buf = [UInt8](repeating: 0, count: 64 * 1024)
+        while s.hasBytesAvailable { let n = s.read(&buf, maxLength: buf.count); if n <= 0 { break }; out.append(buf, count: n) }
+        return out
     }
     private func finish(_ t: WKURLSchemeTask) { let id = ObjectIdentifier(t); lock.lock(); live.remove(id); tasks.removeValue(forKey: id); lock.unlock() }
 

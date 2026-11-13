@@ -16,5 +16,5 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationWillTerminate(_ application: UIApplication) { Host.shared.event(["type": "app", "name": "quit"]) }
-    func applicationDidEnterBackground(_ application: UIApplication) { Host.shared.event(["type": "app", "name": "background"]) }
+    func applicationDidEnterBackground(_ application: UIApplication) { Host.shared.didEnterBackground(); Host.shared.event(["type": "app", "name": "background"]) }
 }

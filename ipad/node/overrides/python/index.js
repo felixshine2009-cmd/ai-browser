@@ -23,6 +23,20 @@ function saveUserPkgs(l) { ensureDirs(); fs.writeFileSync(userPkgsFile(), JSON.s
 function bundledPkgs() { try { return JSON.parse(fs.readFileSync(path.join(global.__aibIpad.resources, 'pyodide-packages.json'), 'utf8')); } catch { return { python: '3.13', packages: [] }; } }
 
 // ---------------------------------------------------------------- kernel host (hidden web view)
+// 2.3.0: wait until the helper page has defined its API before calling it. 2.2.2 called it straight after loadURL;
+// on the device the page script then ran in another JavaScript world and the call failed with "window.X is undefined".
+async function waitReady(wc, name, what, ms = 30000) {
+  const t0 = Date.now(); let last = '';
+  while (Date.now() - t0 < ms) {
+    try {
+      const r = await wc.executeJavaScript(`(function(){try{return {t: typeof window.${name}, s: document.readyState, u: location.href}}catch(e){return {t:'error', s:String(e)}}})()`);
+      if (r && r.t === 'object') return;
+      last = r ? `typeof window.${name} = ${r.t}，页面状态 ${r.s}${r.u ? '，' + r.u : ''}` : '';
+    } catch (e) { last = String(e.message || e); }
+    await new Promise((res) => setTimeout(res, 200));
+  }
+  throw new Error(`${what}宿主页面在 ${Math.round(ms / 1000)} 秒内未就绪（${last || '无响应'}）。请重新打开应用；若问题持续，请在“设置 › 关于”中导出日志。`);
+}
 let win = null, booting = null, kinfo = null;
 const sessions = new Map(); // session -> { lastPush, lastUsed }
 async function hostWin() {
@@ -31,6 +45,7 @@ async function hostWin() {
   const w = win;
   booting = (async () => {
     await w.loadURL(HOST_URL);
+    await waitReady(w.webContents, 'pyhost', 'Python ');
     const r = await w.webContents.executeJavaScript(`window.pyhost.boot(${JSON.stringify(userPkgs().map(p => p.spec || p.name))})`);
     kinfo = r || {};
   })();

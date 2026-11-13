@@ -107,6 +107,20 @@ function status() {
 const js = (code, timeoutMs = 900000) => st.win.webContents.executeJavaScript(code, false, { timeoutMs });
 function running() { return st.phase === 'running' && st.win && !st.win.isDestroyed(); }
 
+// 2.3.0: wait until the helper page has defined its API before calling it. 2.2.2 called it straight after loadURL;
+// on the device the page script then ran in another JavaScript world and the call failed with "window.X is undefined".
+async function waitReady(wc, name, what, ms = 30000) {
+  const t0 = Date.now(); let last = '';
+  while (Date.now() - t0 < ms) {
+    try {
+      const r = await wc.executeJavaScript(`(function(){try{return {t: typeof window.${name}, s: document.readyState, u: location.href}}catch(e){return {t:'error', s:String(e)}}})()`);
+      if (r && r.t === 'object') return;
+      last = r ? `typeof window.${name} = ${r.t}，页面状态 ${r.s}${r.u ? '，' + r.u : ''}` : '';
+    } catch (e) { last = String(e.message || e); }
+    await new Promise((res) => setTimeout(res, 200));
+  }
+  throw new Error(`${what}宿主页面在 ${Math.round(ms / 1000)} 秒内未就绪（${last || '无响应'}）。请重新打开应用；若问题持续，请在“设置 › 关于”中导出日志。`);
+}
 async function start() {
   if (running()) return status();
   if (st.starting) return st.starting;
@@ -118,6 +132,7 @@ async function start() {
       setPhase('booting', 'Linux 虚拟机正在启动…');
       st.win = new BrowserWindow({ show: false, width: 640, height: 480, webPreferences: { sandbox: true } });
       await st.win.loadURL(HOST_URL);
+      await waitReady(st.win.webContents, 'vmhost', 'Linux 虚拟机');
       if (fs.existsSync(d.persist)) {
         const buf = fs.readFileSync(d.persist); const n = 4 * 1024 * 1024;
         for (let i = 0; i < buf.length; i += n) await js(`window.vmhost.putRestoreChunk(${JSON.stringify(buf.subarray(i, i + n).toString('base64'))})`);

@@ -28,6 +28,10 @@ final class WebHost: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessa
 
     var isWebPage: Bool { let s = webView.url?.scheme ?? ""; return s == "http" || s == "https" }
     var isInternal: Bool { webView.url?.scheme == "aibrowser" }
+    /// World for executeJavaScript / insertCSS / IPC dispatch: web pages (http/https) run the bridge in an isolated world,
+    /// every app page (aibrowser:, and aibres: helper pages such as the Python and Linux VM hosts) in the page world.
+    /// (2.2.2 used the isolated world for aibres: pages, so window.pyhost / window.vmhost were undefined there.)
+    var scriptWorld: WKContentWorld { isWebPage ? .defaultClient : .page }
 
     static let pool = WKProcessPool()
     static var stores = [String: WKWebsiteDataStore]()
@@ -152,13 +156,12 @@ final class WebHost: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessa
     func dispatch(channel: String, args: Any) {
         guard let data = try? JSONSerialization.data(withJSONObject: ["c": channel, "a": args]), let json = String(data: data, encoding: .utf8) else { return }
         let js = "(function(m){ if (window.__aibDispatch) window.__aibDispatch(m.c, m.a); })(\(json))"
-        let world: WKContentWorld = isInternal ? .page : .defaultClient
-        webView.evaluateJavaScript(js, in: nil, in: world) { _ in }
+        webView.evaluateJavaScript(js, in: nil, in: scriptWorld) { _ in }
     }
 
     /// executeJavaScript: expression first (awaits promises), statement list as fallback
     func exec(_ code: String, completion: @escaping (Bool, Any?, String?) -> Void) {
-        let world: WKContentWorld = isInternal ? .page : .defaultClient
+        let world = scriptWorld
         let wrapped = "return await (async () => (\n" + code + "\n))()"
         webView.callAsyncJavaScript(wrapped, arguments: [:], in: nil, in: world) { [weak self] r in
             switch r {
@@ -182,6 +185,15 @@ final class WebHost: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessa
         if !ua.isEmpty { webView.customUserAgent = ua }
         if kind == "window" { StartupLog.log("主窗口加载 \(s)") }
         lastURL = ""
+        if u.isFileURL {
+            // offline copies (read later): web archives load as data, other files with read access to their folder
+            if u.pathExtension.lowercased() == "webarchive", let d = try? Data(contentsOf: u) {
+                webView.load(d, mimeType: "application/x-webarchive", characterEncodingName: "utf-8", baseURL: u)
+            } else {
+                webView.loadFileURL(u, allowingReadAccessTo: u.deletingLastPathComponent())
+            }
+            return
+        }
         webView.load(URLRequest(url: u))
     }
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) { lastURL = webView.url?.absoluteString ?? ""; emit("navigate", ["url": lastURL, "inPage": false]); navState() }
@@ -202,7 +214,15 @@ final class WebHost: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessa
         if e.code == NSURLErrorCancelled || (e.domain == "WebKitErrorDomain" && e.code == 102) { emit("fail", ["code": -3, "desc": "ERR_ABORTED", "url": webView.url?.absoluteString ?? ""]); return }
         emit("fail", ["code": -(abs(e.code)), "desc": e.localizedDescription, "url": (e.userInfo[NSURLErrorFailingURLStringErrorKey] as? String) ?? webView.url?.absoluteString ?? ""])
     }
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { StartupLog.log("网页进程已终止（\(kind) \(id)），重新加载"); emit("gone"); webView.reload() }
+    private var terminations = [Date]()
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        // WebKit ends a page's content process under memory pressure: reload it (at most 3 times a minute)
+        terminations = terminations.filter { Date().timeIntervalSince($0) < 60 } + [Date()]
+        StartupLog.log("网页进程已终止（\(kind) \(id)，\(webView.url?.absoluteString ?? "")），\(terminations.count <= 3 ? "重新加载" : "暂停自动重新加载")")
+        emit("gone")
+        guard terminations.count <= 3 else { return }
+        if webView.url == nil, !lastURL.isEmpty, let u = URL(string: lastURL) { webView.load(URLRequest(url: u)) } else { webView.reload() }
+    }
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         let u = action.request.url

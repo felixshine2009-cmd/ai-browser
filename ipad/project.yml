@@ -10,8 +10,8 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: "2.2.2"
-    CURRENT_PROJECT_VERSION: "222"
+    MARKETING_VERSION: "2.3.0"
+    CURRENT_PROJECT_VERSION: "230"
 targets:
   AIBrowser:
     type: application
@@ -35,6 +35,10 @@ targets:
       - sdk: UserNotifications.framework
       - sdk: Metal.framework
       - sdk: Accelerate.framework
+      - sdk: Vision.framework
+      - sdk: VisionKit.framework
+      - sdk: AVFoundation.framework
+      - sdk: PDFKit.framework
     settings:
       base:
         PRODUCT_NAME: AIBrowser

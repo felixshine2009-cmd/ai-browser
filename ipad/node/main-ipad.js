@@ -61,7 +61,7 @@ process.env.AIB_USER_DATA = userData;
 for (const d of ['Downloads', '导出']) { try { fs.mkdirSync(path.join(documents, d), { recursive: true }); } catch {} }
 
 host = require('./host');
-host.start({ port: Number(arg('port')), tok: arg('token') });
+host.start({ port: Number(arg('port')), tok: arg('token'), wake: path.join(tmp, 'aib-wake') });
 host.bus.on('event', (m) => { if (m && m.type === 'app' && m.name === 'windowShown') { windowShown = true; console.log('[aib] window shown'); } });
 const electron = require('electron');
 

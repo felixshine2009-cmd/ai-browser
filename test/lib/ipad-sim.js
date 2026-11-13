@@ -58,6 +58,7 @@ async function launchIpad(opts = {}) {
     async tool(name, args) { const r = await fetch(`http://127.0.0.1:${toolsPort}/`, { method: 'POST', body: JSON.stringify({ name, args }) }); const j = await r.json(); if (!j.ok) throw new Error(j.error); return j.result; },
     async invoke(ch, ...a) { const c = await app.chrome(); return c.evaluate(([ch, a]) => window.aib.invoke(ch, ...a), [ch, a]); },
     cmds: () => get(ctl, '/cmds'), state: () => get(ctl, '/state'), event: (m) => get(ctl, '/event', m), menu: (id) => get(ctl, '/menu', { id }), dialog: (response) => get(ctl, '/dialog', { response }),
+    native: (m) => get(ctl, '/native', m), stream: () => get(ctl, '/stream'), dropStream: () => get(ctl, '/drop-stream'), ping: () => get(ctl, '/ping'), wake: () => get(ctl, '/wake'), openPaths: (paths) => get(ctl, '/open-paths', { paths }),
     resize: (w2, h2) => { app.size = [w2, h2]; return get(ctl, '/resize', { w: w2, h: h2 }); },
     async submit(text) { const c = await app.chrome(); await c.focus('#addr'); await sleep(80); await c.fill('#addr', text); await c.press('#addr', 'Enter'); },
     /** Full-window screenshot (all native views composited) from the X display the simulator runs on. */

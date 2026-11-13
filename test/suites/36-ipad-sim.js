@@ -199,6 +199,45 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     for (const c of ['wc.create', 'window.attach', 'view.attach', 'view.bounds', 'view.visible', 'wc.load', 'wc.send', 'theme.set', 'menu.app']) assert(names.has(c), 'host received ' + c);
   });
 
+  await test('桥接自恢复（B1）：SSE 断线后按 Last-Event-ID 补发命令、唤醒后重新监听端口、页面仍可操作', async () => {
+    const h0 = await app.ping(); assert(h0 && h0.ok, 'GET /host/ping: ' + JSON.stringify(h0));
+    const s0 = await app.stream();
+    // drop the stream, then make Node send commands while it is down: they must arrive after the reconnect, once
+    await app.dropStream();
+    const url = `http://127.0.0.1:${web.port}/page/3`;
+    await app.invoke('nav:openUrl', url);
+    await until(async () => (await app.state()).views.some(v => v.url.startsWith(url) && v.attached && v.visible), 15000, 'page opened across the stream drop');
+    const s1 = await app.stream(); assert(s1.connects > s0.connects, 'reconnected: ' + JSON.stringify(s1)); eq(s1.dups, 0, 'no duplicate commands');
+    const h1 = await app.ping(); assert(h1.stats.reconnects >= 2, JSON.stringify(h1.stats));
+    // iOS reclaims listening sockets of suspended apps: the wake signal makes Node open the port again
+    await app.wake();
+    await until(async () => { const h = await app.ping(); return h && h.stats && h.stats.relistens >= 1; }, 10000, 'relisten after wake');
+    const t = await app.invoke('tabs:state'); assert(t && t.tabs.length > 0, 'IPC works after relisten');
+    await app.invoke('nav:openUrl', `http://127.0.0.1:${web.port}/page/1`);
+    await until(async () => (await tabs()).tabs.find(x => x.active).url.includes('/page/1'), 10000, 'navigation after relisten');
+  }, { timeout: 60000 });
+
+  await test('长时间运行（B1 soak）：数百次 IPC 与标签开关后，待答命令、缓冲与内存保持有界', async () => {
+    const before = await app.ping();
+    for (let i = 0; i < 300; i++) await app.invoke('tabs:state');
+    for (let i = 0; i < 12; i++) {
+      const n0 = (await tabs()).tabs.length;
+      await app.invoke('tab:new'); await until(async () => (await tabs()).tabs.length === n0 + 1, 5000, 'new tab ' + i);
+      const tl = (await tabs()).tabs; await app.invoke('tab:close', tl[tl.length - 1].id);
+      await until(async () => (await tabs()).tabs.length === n0, 5000, 'close tab ' + i);
+    }
+    for (let k = 0; k < 3; k++) { await app.dropStream(); await sleep(300); }
+    await sleep(1500);
+    const after = await app.ping();
+    assert(after.waiting <= 3, 'pending native calls bounded: ' + after.waiting);
+    assert(after.ring <= 4000 && after.ringBytes <= 32 * 1024 * 1024, 'replay buffer bounded: ' + after.ring + ' / ' + after.ringBytes);
+    eq(after.backlog, 0, 'no unread stream backlog');
+    assert(after.stats.inflight <= 6, 'no stuck HTTP requests: ' + after.stats.inflight);
+    assert(after.heapUsed < before.heapUsed + 80 * 1024 * 1024, `heap growth bounded: ${before.heapUsed} -> ${after.heapUsed}`);
+    eq((await app.stream()).dups, 0, 'no duplicate commands after repeated reconnects');
+    const st = await app.state(); eq(st.views.filter(v => v.kind === 'view' && !v.attached).length <= 2, true, 'closed tab views released');
+  }, { timeout: 120000 });
+
   await test('启动诊断：Node 无 JIT 运行（与 iPad 相同），日志写入 Documents/日志，主窗口显示后通知原生层', async () => {
     const st = await app.state();
     assert(st.windowShown > 0, 'window shown reported');

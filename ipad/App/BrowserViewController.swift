@@ -64,7 +64,11 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
             let code = n.userInfo?["code"] as? Int ?? -1
             self.nodeExitCode = code
             if self.windowShown {
-                self.alert(title: "AI 浏览器", message: "内部运行时意外退出（退出码 \(code)），请重新打开应用。", buttons: ["好"]) { _ in }
+                // nodejs-mobile can not be started twice in one process: show the diagnostics panel (logs, close app)
+                self.windowShown = false
+                self.overlay.alpha = 1
+                if self.overlay.superview == nil { self.overlay.frame = self.view.bounds; self.view.addSubview(self.overlay) }
+                self.showDiagnostics("内部运行时意外退出（退出码 \(code)）。请关闭应用后重新打开；已打开的页面与设置均已保存。")
             } else {
                 self.showDiagnostics("内部运行时已退出（退出码 \(code)）")
             }
@@ -228,7 +232,7 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
         case "wc.css":
             guard let w = h else { fail("no such web contents"); break }
             let css = (try? JSONSerialization.data(withJSONObject: [m["css"] as? String ?? ""])).flatMap { String(data: $0, encoding: .utf8) } ?? "[\"\"]"
-            w.webView.evaluateJavaScript("(function(c){var s=document.createElement('style');s.textContent=c[0];(document.head||document.documentElement).appendChild(s);return true})(\(css))", in: nil, in: w.isInternal ? .page : .defaultClient) { _ in ok(true) }
+            w.webView.evaluateJavaScript("(function(c){var s=document.createElement('style');s.textContent=c[0];(document.head||document.documentElement).appendChild(s);return true})(\(css))", in: nil, in: w.scriptWorld) { _ in ok(true) }
         case "wc.focus": if let w = h { _ = w.webView.becomeFirstResponder(); focus(w) }
         case "wc.close":
             if let w = hosts.removeValue(forKey: id) { w.close(); Host.shared.event(["type": "wc", "id": id, "name": "closed"]) }
@@ -249,9 +253,9 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
             let op = m["op"] as? String ?? ""
             if op == "paste", let s = UIPasteboard.general.string, let w = h {
                 let j = (try? JSONSerialization.data(withJSONObject: [s])).flatMap { String(data: $0, encoding: .utf8) } ?? "[\"\"]"
-                w.webView.evaluateJavaScript("document.execCommand('insertText',false,\(j)[0])", in: nil, in: w.isInternal ? .page : .defaultClient) { _ in }
+                w.webView.evaluateJavaScript("document.execCommand('insertText',false,\(j)[0])", in: nil, in: w.scriptWorld) { _ in }
             } else if let w = h {
-                w.webView.evaluateJavaScript("document.execCommand('\(op)')", in: nil, in: w.isInternal ? .page : .defaultClient) { _ in }
+                w.webView.evaluateJavaScript("document.execCommand('\(op)')", in: nil, in: w.scriptWorld) { _ in }
             }
         case "wc.snapshot":
             guard let w = h else { fail("no such web contents"); break }
@@ -319,8 +323,21 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
         case "idle": UIApplication.shared.isIdleTimerDisabled = (m["off"] as? Bool) ?? false
         case "ext.load": ok(["ok": false, "error": "iPad 上的 WebKit 不能运行 Chrome 扩展（.crx）；内置拓展与 AI 编写的拓展可用。"])
         case "ext.remove": break
+        case "wc.archive":
+            guard let w = h else { fail("no such web contents"); break }
+            let dest = URL(fileURLWithPath: m["path"] as? String ?? "")
+            w.webView.createWebArchiveData { r in
+                switch r {
+                case .success(let d):
+                    do { try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true); try d.write(to: dest); ok(["bytes": d.count]) }
+                    catch { fail(error.localizedDescription) }
+                case .failure(let e): fail(e.localizedDescription)
+                }
+            }
         default:
-            if cmd.hasPrefix("llama.") {
+            if cmd.hasPrefix("native.") {
+                if !NativeServices.shared.handle(cmd, m, vc: self, top: topController, ok: ok, fail: fail), seq > 0 { fail("unsupported command \(cmd)") }
+            } else if cmd.hasPrefix("llama.") {
                 LlamaBridge.shared.handle(m, reply: { success, result, err in
                     DispatchQueue.main.async { success ? ok(result) : fail(err ?? "llama.cpp error") }
                 }, partial: { p in Host.shared.partial(seq, p) })

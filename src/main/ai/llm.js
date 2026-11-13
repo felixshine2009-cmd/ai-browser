@@ -1,4 +1,5 @@
 'use strict';
+const sampling = require('./sampling');
 // Unified LLM interface: OpenAI-compatible (SSE + tool calling), Anthropic, local (node-llama-cpp).
 // All network calls happen in the main process. API keys are never logged.
 const store = require('../store');
@@ -112,8 +113,17 @@ async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, sig
   if (tools && tools.length) { body.tools = tools.map(t => ({ type: 'function', function: t })); body.tool_choice = 'auto'; }
   const headers = { 'Content-Type': 'application/json' };
   if (key) headers.Authorization = 'Bearer ' + key;
-  const res = await fetch(joinUrl(cfg.baseUrl, '/chat/completions'), { method: 'POST', headers, body: JSON.stringify(body), signal });
-  if (!res.ok) throw await httpError(res);
+  // per provider / model sampling rules; a 400 naming a sampling parameter is retried once without it
+  const sctx = { provider: cfg.preset, preset: cfg.preset, model: cfg.model, baseUrl: cfg.baseUrl, format: cfg.format };
+  sampling.apply(body, sctx);
+  let res = await fetch(joinUrl(cfg.baseUrl, '/chat/completions'), { method: 'POST', headers, body: JSON.stringify(body), signal });
+  if (!res.ok) {
+    const err = await httpError(res);
+    if (!sampling.learn(sctx, err, body)) throw err;
+    sampling.apply(body, sctx);
+    res = await fetch(joinUrl(cfg.baseUrl, '/chat/completions'), { method: 'POST', headers, body: JSON.stringify(body), signal });
+    if (!res.ok) throw await httpError(res);
+  }
   let content = '';
   const calls = [];
   const ct = res.headers.get('content-type') || '';
@@ -222,11 +232,19 @@ async function chatAnthropic(cfg, key, { messages, tools, temperature, onDelta, 
   if (system) body.system = system;
   if (tools?.length) body.tools = tools.map(t => ({ name: t.name, description: t.description, input_schema: t.parameters }));
   const base = cfg.baseUrl.replace(/\/+$/, '').replace(/\/v1$/, '');
-  const res = await fetch(base + '/v1/messages', {
+  const post = () => fetch(base + '/v1/messages', {
     method: 'POST', signal, body: JSON.stringify(body),
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' }
   });
-  if (!res.ok) throw await httpError(res);
+  let res = await post();
+  if (!res.ok) {
+    const err = await httpError(res);
+    // e.g. "temperature and top_p cannot both be specified" or a model that pins sampling: retry once without them
+    if (!(sampling.isSamplingError(err) && (body.temperature !== undefined || body.top_p !== undefined) && !think.thinking)) throw err;
+    delete body.temperature; delete body.top_p;
+    res = await post();
+    if (!res.ok) throw await httpError(res);
+  }
   let content = '';
   const calls = {};
   for await (const line of sseLines(res, signal)) {
@@ -448,4 +466,4 @@ async function testConnection(override) {
   }
 }
 
-module.exports = { prepImages, toAnthropic, withModel, activeSource, activeModel, modelCaps, localLabel, chat, complete, completeJson, events, hasRole, roleOf, extractJson, testConnection, fetchModels, friendly, maskSecrets, PRESETS };
+module.exports = { prepImages, toAnthropic, withModel, activeSource, activeModel, modelCaps, localLabel, chat, complete, completeJson, events, hasRole, roleOf, extractJson, testConnection, fetchModels, friendly, maskSecrets, PRESETS, _chatOpenAI: chatOpenAI, _chatAnthropic: chatAnthropic };

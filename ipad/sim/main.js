@@ -16,6 +16,7 @@ const BUNDLE = path.resolve(process.env.AIB_BUNDLE || path.join(__dirname, '..',
 const NP = path.join(BUNDLE, 'nodejs-project');
 const UD = process.env.AIB_SIM_UD || fs.mkdtempSync(path.join(os.tmpdir(), 'aib-ipad-ud-'));
 const DOCS = path.join(UD, '..', path.basename(UD) + '-docs');
+const TMP = path.join(UD, '..', path.basename(UD) + '-tmp'); fs.mkdirSync(TMP, { recursive: true });
 let [W, H] = String(process.env.AIB_SIM_SIZE || '1180x820').split('x').map(Number);
 const log = (...a) => { if (process.env.AIB_SIM_VERBOSE) console.log('[sim]', ...a); };
 const NODE_SCHEMES = ['aibrowser', 'aibdict', 'aibext', 'aibzim'];
@@ -40,22 +41,35 @@ const postJson = async (p, m) => { const r = await post(p, m); try { return JSON
 const event = async (m) => { const r = await postJson('/host/event', m); return r && r.answer; };
 const reply = (seq, ok, result, error) => { if (seq) postJson('/host/reply', { seq, ok, result: result === undefined ? null : result, error }); };
 
+// Same protocol as Host.swift 2.3.0: commands carry SSE ids, the client sends Last-Event-ID when it reconnects so that
+// Node replays what was sent while the stream was down, and drops duplicates.
+const stream = { lastId: 0, res: null, connects: 0, dups: 0, received: 0 };
 function connectStream(onCmd) {
   const go = () => {
-    const req = http.get({ host: '127.0.0.1', port, path: '/host/events', headers: { 'X-AIB-Token': token } }, (res) => {
+    const headers = { 'X-AIB-Token': token };
+    if (stream.lastId > 0) headers['Last-Event-ID'] = String(stream.lastId);
+    const req = http.get({ host: '127.0.0.1', port, path: '/host/events', headers }, (res) => {
       if (res.statusCode !== 200) { res.resume(); return setTimeout(go, 150); }
       let buf = '';
+      stream.res = res; stream.connects++;
       onConnected();
       res.setEncoding('utf8');
       res.on('data', (d) => {
         buf += d; let i;
         while ((i = buf.indexOf('\n\n')) >= 0) {
           const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
-          const data = chunk.split('\n').filter(l => l.startsWith('data: ')).map(l => l.slice(6)).join('');
-          if (data) { try { onCmd(JSON.parse(data)); } catch (e) { console.error('[sim] bad cmd', e.message); } }
+          const lines = chunk.split('\n');
+          const idl = lines.find(l => l.startsWith('id: '));
+          const id = idl ? Number(idl.slice(4)) : 0;
+          const data = lines.filter(l => l.startsWith('data: ')).map(l => l.slice(6)).join('');
+          if (!data) continue;
+          if (id) { if (id <= stream.lastId) { stream.dups++; continue; } stream.lastId = id; }
+          stream.received++;
+          try { onCmd(JSON.parse(data)); } catch (e) { console.error('[sim] bad cmd', e.message); }
         }
       });
-      res.on('end', () => setTimeout(go, 500));
+      const again = () => { if (stream.res === res) { stream.res = null; setTimeout(go, 150); } };
+      res.on('end', again); res.on('close', again); res.on('error', again);
     });
     req.on('error', () => setTimeout(go, 150));
   };
@@ -203,6 +217,20 @@ async function onCmd(m) {
       case 'notify': case 'idle': break;
       case 'ext.load': ok({ ok: false, error: 'Chrome 扩展需要 Safari Web Extension 格式（模拟器不支持）' }); break;
       case 'ext.remove': break;
+      // native services (Native.swift): camera / Vision OCR / QR scanner / PDFKit / web archives; the simulator answers with fixtures
+      case 'native.caps': ok({ camera: true, dataScanner: true, ocr: true, pdf: true }); break;
+      case 'native.camera': sim.lastCamera = m; { const f = sim.cameraImage; if (!f) return ok({ cancelled: true }); const out = { b64: f.b64, w: f.w || 0, h: f.h || 0, mime: f.mime || 'image/png' }; if (m.ocr) { out.text = f.text || ''; out.lines = []; } ok(out); } break;
+      case 'native.ocr': ok({ text: (sim.cameraImage && sim.cameraImage.text) || '', lines: [] }); break;
+      case 'native.qrscan': sim.lastScan = m; { const t = sim.qrText; sim.qrText = null; ok(t ? { text: t } : { cancelled: true }); } break;
+      case 'native.qrimage': ok({ codes: sim.qrText ? [sim.qrText] : [] }); break;
+      case 'native.pdftext': ok(sim.pdfText || { pages: [], pageCount: 0, title: '' }); break;
+      case 'wc.archive': {
+        if (!h) return err('no such view');
+        // WKWebView.createWebArchiveData on the device; the simulator stores the serialized DOM (same file name and index)
+        const html = await h.view.webContents.executeJavaScript('"<!doctype html>" + document.documentElement.outerHTML', true);
+        fs.mkdirSync(path.dirname(m.path), { recursive: true }); fs.writeFileSync(m.path, html); ok({ bytes: Buffer.byteLength(html) });
+        break;
+      }
       default:
         if (/^llama\./.test(m.cmd)) return err('模拟器没有 llama.cpp（设备上由 Metal 原生运行）');
         log('unhandled', m.cmd); if (m.seq) err('unsupported: ' + m.cmd);
@@ -254,7 +282,7 @@ app.whenReady().then(async () => {
   nativeTheme.on('updated', () => event({ type: 'theme', dark: nativeTheme.shouldUseDarkColors }));
   const nodeBin = process.env.AIB_NODE || 'node';
   // like nodejs-mobile on iOS: V8 without a JIT, hence no WebAssembly (AIB_SIM_JIT=1 turns the JIT back on)
-  const child = spawn(nodeBin, [...(process.env.AIB_SIM_JIT === '1' ? [] : ['--jitless']), path.join(NP, 'main-ipad.js'), '--port', String(port), '--token', token, '--userdata', UD, '--documents', DOCS, '--tmp', os.tmpdir(), '--resources', BUNDLE], { cwd: NP, stdio: ['ignore', 'pipe', 'pipe'], env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '' }) });
+  const child = spawn(nodeBin, [...(process.env.AIB_SIM_JIT === '1' ? [] : ['--jitless']), path.join(NP, 'main-ipad.js'), '--port', String(port), '--token', token, '--userdata', UD, '--documents', DOCS, '--tmp', TMP, '--resources', BUNDLE], { cwd: NP, stdio: ['ignore', 'pipe', 'pipe'], env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '' }) });
   child.stdout.on('data', d => process.stdout.write('[node] ' + d)); child.stderr.on('data', d => process.stderr.write('[node] ' + d));
   child.on('exit', (c) => { console.log('[sim] node exited', c); app.quit(); });
   app.on('before-quit', () => { try { child.kill(); } catch {} });
@@ -268,6 +296,12 @@ app.whenReady().then(async () => {
     else if (req.url === '/event') out = await event(body);
     else if (req.url === '/menu') { sim.menuChoice = body && body.id; out = true; }
     else if (req.url === '/dialog') { sim.dialogChoice = body && body.response; out = true; }
+    else if (req.url === '/native') { Object.assign(sim, body || {}); out = true; }
+    else if (req.url === '/stream') out = { lastId: stream.lastId, connects: stream.connects, dups: stream.dups, received: stream.received };
+    else if (req.url === '/ping') out = await new Promise((resolve) => { http.get({ host: '127.0.0.1', port, path: '/host/ping', headers: { 'X-AIB-Token': token } }, (r) => { const c = []; r.on('data', d => c.push(d)); r.on('end', () => { try { resolve(JSON.parse(Buffer.concat(c).toString())); } catch { resolve(null); } }); }).on('error', (e) => resolve({ error: e.message })); });
+    else if (req.url === '/wake') { const f = path.join(TMP, 'aib-wake'); fs.writeFileSync(f, String(Date.now())); const t = new Date(Date.now() + 2000); fs.utimesSync(f, t, t); out = true; }
+    else if (req.url === '/drop-stream') { const r = stream.res; if (r) r.destroy(); out = !!r; }
+    else if (req.url === '/open-paths') { sim.openPaths.push(...((body && body.paths) || [])); out = true; }
     else if (req.url === '/state') out = { diag: sim.diag, windowShown: sim.windowShown, lastMenu: sim.lastMenu || null, lastDialog: sim.lastDialog || null, lastShell: sim.lastShell || null, appKeys: (sim.appKeys || []).length, themeSource: nativeTheme.themeSource, views: Array.from(hosts.values()).map(h => ({ id: h.id, kind: h.kind, url: h.view.webContents.getURL(), attached: h.attached, visible: h.visible, bounds: h.id === winHostId ? { x: 0, y: 0, width: W, height: H } : h.bounds })) };
     else if (req.url === '/resize') { const b = body || {}; win.setContentSize(b.w, b.h); W = b.w; H = b.h; for (const h of hosts.values()) layoutHost(h); out = await event({ type: 'window', w: b.w, h: b.h }); }
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(out));
