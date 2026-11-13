@@ -72,6 +72,13 @@ AIB_IPAD_BUNDLE=/tmp/ipad-bundle AIB_NODE=/path/to/node18/bin/node node scripts/
 - nodejs-mobile runs V8 without a JIT on iOS, so Node has no native WebAssembly. `ipad/node/wasm-shim.js` installs
   polywasm before anything else; without it Node's fetch / Headers / Response (undici) throw and no `aibrowser:` page
   loads. The simulator runs Node with `--jitless` (set `AIB_SIM_JIT=1` to turn the JIT back on) so tests see the same.
+- nodejs-mobile is also built without ICU (`v8_enable_i18n_support=0`, like `configure --with-intl=none`): there is no
+  `Intl`, `localeCompare` / `toLocaleString` ignore locales, and `TextDecoder` only knows utf-8 / utf-16le and rejects
+  `fatal`. `ipad/node/encoding-shim.js` (loaded second) decodes every other encoding (big5, gb18030, gbk, shift_jis,
+  euc-kr, utf-16be, windows-125x, iso-8859-x …) with iconv-lite; main-process code must not use `Intl`. CI builds a
+  Node 18 `--with-intl=none` (job `node-noicu`, cached), runs `scripts/check-ipad-runtime.js` with it under
+  `--jitless`, and runs the simulator on it. Locally: build Node 18.20.4 with `./configure --with-intl=none` and set
+  `AIB_NODE` to it.
 - The app writes `Documents/日志/startup.log` (native stages, bridge errors, Node exit code, first window shown) and
   `Documents/日志/node.log` (Node console). In the Files app: On My iPad › AI 浏览器 › 日志.
 - If no window is shown within 25 s, Node exits, or main.js fails to load (Node sends `app.diag`), the startup overlay

@@ -10,8 +10,8 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: "2.2.1"
-    CURRENT_PROJECT_VERSION: "221"
+    MARKETING_VERSION: "2.2.2"
+    CURRENT_PROJECT_VERSION: "222"
 targets:
   AIBrowser:
     type: application
