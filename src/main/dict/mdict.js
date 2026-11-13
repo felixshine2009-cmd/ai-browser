@@ -4,7 +4,15 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { MDX, MDD } = require('js-mdict');
+// js-mdict is loaded on first use: an optional parser that fails to load (e.g. a runtime without some text decoder)
+// must only disable dictionaries, never the app's main process.
+let mdictLib = null;
+function jsMdict() {
+  if (!mdictLib) {
+    try { mdictLib = require('js-mdict'); } catch (e) { throw new Error('词典解析模块加载失败：' + (e && e.message || e)); }
+  }
+  return mdictLib;
+}
 const store = require('../store');
 let electronApp = null; try { electronApp = require('electron').app; } catch {}
 const { lemmaCandidates } = require('../classify');
@@ -26,6 +34,7 @@ function openDict(d) {
   const c = loaded.get(d.id);
   if (c && c.mtime === st && c.mdxPath === d.mdx) return c;
   if (!st) throw new Error('文件不存在: ' + d.mdx);
+  const { MDX, MDD } = jsMdict();
   const mdx = new MDX(d.mdx);
   const mdds = [];
   for (const p of d.mdd || []) { try { mdds.push(new MDD(p)); } catch (e) { console.error('mdd open failed', p, e.message); } }

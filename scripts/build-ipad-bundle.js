@@ -25,7 +25,8 @@ fs.mkdirSync(NP, { recursive: true });
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 delete pkg.devDependencies; delete pkg.scripts; delete pkg.build;
 pkg.main = 'main-ipad.js';
-pkg.dependencies = Object.assign({}, pkg.dependencies, { jsdom: '22.1.0' });
+// iconv-lite: TextDecoder fallback for encodings nodejs-mobile (no ICU) lacks (ipad/node/encoding-shim.js)
+pkg.dependencies = Object.assign({}, pkg.dependencies, { jsdom: '22.1.0', 'iconv-lite': '0.6.3' });
 delete pkg.dependencies['node-llama-cpp'];
 fs.writeFileSync(path.join(NP, 'package.json'), JSON.stringify(pkg, null, 2));
 
@@ -45,7 +46,7 @@ const IP = path.join(ROOT, 'ipad', 'node');
 fs.copyFileSync(path.join(IP, 'main-ipad.js'), path.join(NP, 'main-ipad.js'));
 fs.copyFileSync(path.join(IP, 'host.js'), path.join(NP, 'host.js'));
 fs.copyFileSync(path.join(IP, 'ipad-extra.js'), path.join(NP, 'ipad-extra.js'));
-for (const f of ['wasm-shim.js', 'polywasm.js']) fs.copyFileSync(path.join(IP, f), path.join(NP, f));
+for (const f of ['wasm-shim.js', 'polywasm.js', 'encoding-shim.js']) fs.copyFileSync(path.join(IP, f), path.join(NP, f));
 for (const m of ['electron', 'node-llama-cpp']) { fs.rmSync(path.join(NP, 'node_modules', m), { recursive: true, force: true }); cp(path.join(IP, m), path.join(NP, 'node_modules', m)); }
 // module overrides: platform services that iPadOS provides differently (no child processes, no Virtualization.framework)
 cp(path.join(IP, 'overrides'), path.join(NP, 'src', 'main'));
@@ -73,7 +74,7 @@ fs.writeFileSync(path.join(W, 'inject', 'runtime.js'), rtOut);
 try { new Function(rtOut); } catch (e) { throw new Error('assembled runtime.js does not parse: ' + e.message); }
 
 // ---- sanity checks
-for (const f of ['main-ipad.js', 'src/main/main.js', 'src/renderer/pages/chrome.html', 'src/renderer/pages/home.html', 'node_modules/electron/index.js', 'node_modules/node-llama-cpp/index.js']) {
+for (const f of ['main-ipad.js', 'src/main/main.js', 'src/renderer/pages/chrome.html', 'src/renderer/pages/home.html', 'node_modules/electron/index.js', 'node_modules/node-llama-cpp/index.js', 'encoding-shim.js'].concat(NO_NPM ? [] : ['node_modules/iconv-lite/package.json'])) {
   if (!fs.existsSync(path.join(NP, f))) throw new Error('missing in bundle: ' + f);
 }
 console.log('iPad bundle ready:', OUT);

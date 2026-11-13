@@ -5,6 +5,10 @@
 // First: WebAssembly for Node's fetch / Response on iOS (no JIT there, so no native WebAssembly). See wasm-shim.js.
 let wasmShimError = null;
 try { require('./wasm-shim.js'); } catch (e) { wasmShimError = e; }
+// Second: nodejs-mobile has no ICU, so its TextDecoder only knows utf-8 / utf-16le (js-mdict creates BIG5 / GB18030
+// decoders when it loads). See encoding-shim.js.
+let encodingShimError = null;
+try { require('./encoding-shim.js'); } catch (e) { encodingShimError = e; }
 const path = require('path');
 const fs = require('fs');
 
@@ -42,6 +46,8 @@ process.on('uncaughtException', (e) => { console.error('uncaught', e && e.stack 
 process.on('unhandledRejection', (e) => { console.error('unhandled rejection', e && e.stack || e); if (!windowShown) diag('unhandled', e, false); });
 { const W = globalThis.WebAssembly; console.log('[aib] start', process.version, process.platform, process.arch, 'webassembly:', W ? (W.__aibPolyfill ? 'polywasm (no JIT)' : 'native') : 'none'); }
 if (wasmShimError) console.error('wasm shim failed', wasmShimError && wasmShimError.stack || wasmShimError);
+console.log('[aib] intl:', typeof Intl === 'undefined' ? 'none' : 'icu', 'textdecoder:', globalThis.TextDecoder && globalThis.TextDecoder.__aibPolyfill ? 'iconv-lite fallback' : 'native');
+if (encodingShimError) console.error('encoding shim failed', encodingShimError && encodingShimError.stack || encodingShimError);
 
 let version = '0.0.0';
 try { version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version; } catch {}
