@@ -118,12 +118,12 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     await patchSettings(app, { lang: 'zh' });
     await until(async () => (await h2.locator('#greet').innerText()) === 'Felix，请问需要什么帮助？', 5000, 'back to zh');
   });
-  await test('右上角四方格按钮打开溢出菜单，含全部 11 项（中文）', async () => {
+  await test('右上角四方格按钮打开溢出菜单，含全部 12 项（中文）', async () => {
     const ch = await app.chrome();
     await ch.click('#menu');
     const m = await app.waitPage('aibrowser://menu');
     const labels = await m.$$eval('.omi', els => els.map(e => e.querySelector('span').innerText));
-    eq(labels, ['新建隐身标签页', '历史记录', '下载内容', '拓展', '密码', '书签', '在页面上查找', '打印…', '缩放', '检查', '设置']);
+    eq(labels, ['新建隐身标签页', '历史记录', '对话记录', '下载内容', '拓展', '密码', '书签', '在页面上查找', '打印…', '缩放', '检查', '设置']);
     await m.keyboard.press('Escape').catch(() => {});
     await until(() => !app.pages().some(p => p.url().startsWith('aibrowser://menu')), 4000, 'menu closed');
   });
