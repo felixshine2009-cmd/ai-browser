@@ -273,7 +273,12 @@ BUILTIN.push(
   { name: 'page_screenshot', group: 'browser', description: 'Take a screenshot of a tab (default: active) and look at it (returned as an image).',
     parameters: obj({ id: { type: 'number' } }),
     run: async (a) => {
-      const t = needTab(a.id); const img = await t.wc.capturePage();
+      const t = needTab(a.id); let img;
+      // a tab behind a tool view is not painted: capture it hidden (Electron keeps it rendering while capturing)
+      for (let i = 0; i < 4 && !img; i++) {
+        try { img = await t.wc.capturePage(undefined, { stayHidden: true }); } catch (e) { if (i === 3) throw new Error('截图失败：' + (e && e.message || e)); await new Promise(r => setTimeout(r, 250 * (i + 1))); }
+      }
+      if (!img || (img.isEmpty && img.isEmpty())) throw new Error('截图失败：页面当前不可见，请先切换到该标签页');
       const sz = img.getSize ? img.getSize() : {}; const scaled = sz.width > 1280 && img.resize ? img.resize({ width: 1280 }) : img;
       const url = 'data:image/png;base64,' + scaled.toPNG().toString('base64');
       return { ok: true, tab: tabRow(t), size: sz, images: [{ name: 'tab.png', dataUrl: url }], modelImages: [url] };
@@ -317,7 +322,7 @@ function summarize(name, args, result) {
   const j = (v) => String(typeof v === 'string' ? v : JSON.stringify(v));
   const a = args || {};
   const firstLine = (c) => String(c || '').split('\n').map(x => x.trim()).filter(x => x && !x.startsWith('#') && !/^(import|from) /.test(x))[0] || String(c || '').split('\n')[0];
-  const key = (a.code && firstLine(a.code)) || a.command || (Array.isArray(a.packages) && a.packages.join(' ')) || a.path || a.url || a.query || a.word || a.page || a.text || a.sentence || a.id || (a.commands && a.commands.length + ' cmd') || (a.scene && 'scene') || '';
+  const key = (a.code && firstLine(a.code)) || a.command || a.tool || (a.action && [a.action, a.id || a.name || a.query || ''].filter(Boolean).join(' ')) || a.mode || a.kind || (Array.isArray(a.packages) && a.packages.join(' ')) || a.path || a.url || a.query || a.word || a.page || a.text || a.sentence || a.id || (a.commands && a.commands.length + ' cmd') || (a.scene && 'scene') || '';
   let tail = '';
   if (result && result.error) tail = ' ✕ ' + j(result.error).split('\n').filter(Boolean).slice(-1)[0].slice(0, 80);
   else if (result && typeof result.exitCode === 'number' && result.exitCode !== 0) tail = ' ✕ exit ' + result.exitCode;
@@ -340,7 +345,7 @@ const LABELS = {
   chat_models_list: '对话模型列表', chat_models_refresh: '刷新模型列表', chat_model_use: '切换对话模型',
   tool_open: '打开工具', tool_close: '关闭工具', split_view: '分屏', spaces: '空间', readlater: '稍后阅读', page_assistant: '页面助手', page_screenshot: '页面截图',
   appearance_set: '外观', snap_solve: '拍题即解', scan_qr: '扫码',
-  python_run: '运行 Python', python_install: '安装 Python 包', vm_shell: '虚拟机命令', vm_read_file: '读取虚拟机文件', vm_write_file: '写入虚拟机文件', vm_pkg: '虚拟机软件包', vm_control: '虚拟机控制', vm_upload: '上传到虚拟机', vm_download: '从虚拟机下载', vm_status: '虚拟机状态', vm_click: '虚拟机点击', vm_desktop: '虚拟机桌面', vm_drag: '虚拟机拖动', vm_key: '虚拟机按键', vm_screenshot: '虚拟机截图', vm_scroll: '虚拟机滚动', vm_type: '虚拟机输入',
+  python_run: '运行 Python', python_install: '安装 Python 包', vm_shell: '虚拟机命令', vm_read_file: '读取虚拟机文件', vm_write_file: '写入虚拟机文件', vm_pkg: '虚拟机软件包', vm_control: '虚拟机控制', vm_upload: '上传到虚拟机', vm_download: '从虚拟机下载', vm_status: '虚拟机状态', vm_click: '虚拟机点击', vm_desktop: '虚拟机桌面', vm_drag: '虚拟机拖动', vm_key: '虚拟机按键', vm_screenshot: '虚拟机截图', vm_scroll: '虚拟机滚动', vm_type: '虚拟机输入', vm_view: '查看虚拟机文件', vm_edit: '编辑虚拟机文件', vm_apply_patch: '应用补丁', vm_search: '搜索虚拟机文件', vm_list: '列出虚拟机目录', vm_bg: '后台命令', vm_service: '虚拟机服务', vm_git: '虚拟机 Git',
   hs_calc: '计算器', wiki_search: '百科搜索', wiki_translate: '百科翻译', collab_note: '协作笔记', browser_click: '点击页面元素', browser_type: '在页面中输入', kernel_check: '运行环境检查',
   ggb_eval: 'GeoGebra 作图', ggb_clear: '清空 GeoGebra', ggb_export_png: '导出 GeoGebra 图片', ggb_set_app: '切换 GeoGebra 应用', ggb_save: '保存 GeoGebra 文件', ggb_load: '载入 GeoGebra 文件', ggb_keyboard: 'GeoGebra 键盘', ggb_state: 'GeoGebra 对象',
   phys_load: '载入物理场景', phys_play: '播放仿真', phys_pause: '暂停仿真', phys_step: '单步仿真', phys_state: '仿真状态', phys_validate: '检查物理场景', phys_reset: '重置仿真', phys_set_speed: '仿真速度', phys_list_examples: '物理示例列表', phys_load_example: '载入物理示例', phys_set_param: '设置物理参数', phys_update: '更新物理场景', phys_list_params: '物理参数列表', phys_add_element: '添加物理元件', phys_update_element: '修改物理元件', phys_remove_element: '删除物理元件', phys_list_element_types: '物理元件类型', phys_define_custom_element: '自定义物理元件', phys_new_scene: '新建物理场景', phys_get_elements: '物理场景元件'
