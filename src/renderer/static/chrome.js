@@ -167,7 +167,7 @@
       const gb = document.createElement('button');
       gb.type = 'button'; gb.id = 'toolglass'; gb.className = 'tb-btn tool-glass';
       gb.title = '工具：解题、拍题、GeoGebra、物理、百科、词典、代码、稍后读、扫码'; gb.setAttribute('aria-label', '工具'); gb.setAttribute('aria-haspopup', 'dialog');
-      gb.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.4"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.4"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.4"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.4"/></svg><span class="tg-label">工具</span>';
+      gb.innerHTML = '<svg class="tg-dots" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="3" r="1.35"/><circle cx="8" cy="3" r="1.35"/><circle cx="13" cy="3" r="1.35"/><circle cx="3" cy="8" r="1.35"/><circle cx="8" cy="8" r="1.35"/><circle cx="13" cy="8" r="1.35"/><circle cx="3" cy="13" r="1.35"/><circle cx="8" cy="13" r="1.35"/><circle cx="13" cy="13" r="1.35"/></svg><span class="tg-label">工具</span>';
       cluster.appendChild(gb);
       let open = false;
       gb.onclick = async () => {

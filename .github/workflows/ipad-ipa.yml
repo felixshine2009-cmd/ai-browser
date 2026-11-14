@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
     inputs:
       runner:
-        description: macOS runner label (macos-15-intel when arm64 capacity is short)
-        default: macos-15
+        description: macOS runner label (macos-26 has Xcode 26 for Liquid Glass; macos-15 builds the material fallback)
+        default: macos-26
       release_tag:
         description: attach the IPA to this ipad-v* release (optional)
         default: ''
@@ -106,7 +106,7 @@ jobs:
           path: shots/ipad2
 
   build:
-    runs-on: ${{ inputs.runner || 'macos-15' }}
+    runs-on: ${{ inputs.runner || 'macos-26' }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -116,10 +116,11 @@ jobs:
       - name: Xcode
         run: |
           set -euo pipefail
-          # images differ (macos-15 / -intel / 26): prefer Xcode 16.4, else the newest 16.x, else any installed Xcode
+          # v3: prefer the newest Xcode 26.x (iPadOS 26 SDK: UIGlassEffect / Liquid Glass chrome), else Xcode 16.4 / 16.x
+          # (the Swift code compiles its material fallback there), else any installed Xcode
           ls -d /Applications/Xcode*.app || true
           X=""
-          for c in /Applications/Xcode_16.4.app $(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V -r) $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V -r); do
+          for c in $(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -v -i beta | sort -V -r) /Applications/Xcode_16.4.app $(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V -r) $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V -r); do
             if [[ -d "$c/Contents/Developer" ]]; then X="$c"; break; fi
           done
           if [[ -n "$X" ]]; then sudo xcode-select -s "$X/Contents/Developer"; else echo "no Xcode.app found, keeping $(xcode-select -p)"; fi
