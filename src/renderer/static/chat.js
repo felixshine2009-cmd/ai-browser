@@ -123,7 +123,7 @@
     if (e.key === 'Escape' || ((e.metaKey || e.ctrlKey) && e.key === '.')) { e.preventDefault(); stop(); }
   });
   // the address stays on the newest turn, so reopening the tab (or a restart) shows the whole thread again
-  function setUrl(id) { try { if (new URLSearchParams(location.search).get('sid') !== id) history.replaceState(null, '', '?sid=' + encodeURIComponent(id)); } catch (e) { console.warn('replaceState', e && e.message); } }
+  function setUrl(id) { try { if (new URLSearchParams(location.search).get('sid') !== id) { const u = new URLSearchParams(location.search); u.set('sid', id); history.replaceState(null, '', '?' + u.toString()); } } catch (e) { console.warn('replaceState', e && e.message); } }
   async function sendFollow() {
     const v = fq.value.trim(); if (!v) return;
     fq.value = ''; fq.style.height = '';

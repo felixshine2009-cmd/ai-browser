@@ -123,6 +123,9 @@ print(w, h, img.size[0], img.size[1])
       let cmd;
       if (ev.type === 'click') cmd = `xdotool mousemove --sync ${x} ${y} click ${ev.double ? '--repeat 2 --delay 120 ' : ''}${BTN[ev.button] || 1}`;
       else if (ev.type === 'scroll') cmd = `xdotool mousemove --sync ${x} ${y} click --repeat ${Math.max(1, Math.min(10, Number(ev.amount) || 3))} ${ev.dy < 0 ? 4 : 5}`;
+      // touch trackpad (v3.0.1): pointer moves and a held button for dragging
+      else if (ev.type === 'move') cmd = `xdotool mousemove ${x} ${y}`;
+      else if (ev.type === 'down' || ev.type === 'up') cmd = `xdotool mousemove --sync ${x} ${y} ${ev.type === 'down' ? 'mousedown' : 'mouseup'} ${BTN[ev.button] || 1}`;
       else if (ev.type === 'type') cmd = `xdotool type --delay 10 -- ${q(String(ev.text || ''))}`;
       else if (ev.type === 'key') { if (!/^[A-Za-z0-9_+\-]+$/.test(String(ev.key || ''))) throw new Error('bad key'); cmd = `xdotool key ${ev.key}`; }
       else throw new Error('bad event');

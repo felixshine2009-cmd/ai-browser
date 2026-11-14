@@ -1,0 +1,15 @@
+/* OALD-style fixture: senses stay hidden until the dictionary's own script has prepared the entry */
+@font-face { font-family: "OALD Icons"; src: url("fonts/oald-icons.woff2") format("woff2"); }
+.entry { font-family: Georgia, serif; }
+.top-container { background: #f2f6fb; border: 1px solid #c9d6e8; border-radius: 10px; padding: 10px 14px; }
+.headword { font-size: 26px; color: rgb(0, 40, 120); font-weight: 600; }
+.pos { font-style: italic; color: #b00; margin-left: 8px; }
+.phon-icon { font-family: "OALD Icons"; }
+.senses_multiple, .idioms { display: none; }
+body.oald-ready .senses_multiple, body.oald-ready .idioms { display: block; }
+.sense { margin: 14px 0; }
+.def { color: rgb(20, 20, 20); }
+.chn { color: rgb(0, 102, 51); display: block; }
+.examples li { margin: 6px 0; color: #444; }
+.unbox .body { display: none; }
+.unbox.is-open .body { display: block; }

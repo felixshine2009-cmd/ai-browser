@@ -390,8 +390,17 @@ function registerIpc() {
   handle('vm:removeImage', async (e, id) => { try { return { ok: true, status: await vmMod().removeImage(id) }; } catch (err) { return { ok: false, error: String(err.message || err), status: vmMod().status() }; } });
   handle('vm:openDesktop', () => { tabsMod.openInternal('vmdesktop'); return { ok: true }; });
   // in-app viewer of the graphical VM desktop (polls screenshots, forwards clicks / keys)
+  // test-only: AIB_VM_GUI_FAKE=1 serves a fixed 1024×768 picture and records viewer input (touch trackpad tests)
+  if (process.env.AIB_VM_GUI_FAKE === '1') {
+    const fakeLog = [];
+    const png = 'data:image/svg+xml;base64,' + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="768"><rect width="1024" height="768" fill="#2b4a6f"/></svg>').toString('base64');
+    handle('vm:guiShot', async () => ({ ok: true, screen: { width: 1024, height: 768 }, dataUrl: png }));
+    handle('vm:guiInput', async (e, ev) => { fakeLog.push(ev); return { ok: true }; });
+    handle('vm:guiFakeLog', async (e, clear) => { const r = fakeLog.slice(); if (clear) fakeLog.length = 0; return r; });
+  } else {
   handle('vm:guiShot', async () => { try { const s = vmMod().status(); if (!s.gui) return { ok: false, needGui: true }; await vmMod().ensure(); return Object.assign({ ok: true }, await require('./ai/compute-tools').gui().viewerShot()); } catch (err) { return { ok: false, error: String(err.message || err) }; } });
   handle('vm:guiInput', async (e, ev) => { try { return await require('./ai/compute-tools').gui().viewerInput(ev || {}); } catch (err) { return { ok: false, error: String(err.message || err) }; } });
+  }
   handle('vm:ping', async () => { try { return { ok: true, info: await vmMod().ping() }; } catch (err) { return { ok: false, error: String(err.message || err) }; } });
   try { vmMod().events.on('state', (s) => broadcast('vm:state', s)); } catch (err) { console.error('vm events', err.message); }
   handle('chat:rerun', (e, sid, queries) => chat.rerun(sid, queries));

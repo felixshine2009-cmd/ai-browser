@@ -57,5 +57,21 @@
     }
     container.innerHTML = h;
   }
+  // Entry frames report their content height (mdict.js); the frame is sized to the whole entry and the result area
+  // scrolls, so long entries (OALDPE and similar, whose scripts expand the senses after load) are never clipped to the
+  // first screen, and scrolling does not depend on scrolling inside a frame (iPad).
+  if (!window.__aibDictSize) {
+    window.__aibDictSize = true;
+    window.addEventListener('message', (ev) => {
+      const m = ev.data; if (!m || !m.aibDictHeight) return;
+      for (const f of document.querySelectorAll('iframe.dict-frame')) {
+        if (f.contentWindow !== ev.source) continue;
+        const h = Math.max(60, Math.min(200000, Math.ceil(Number(m.aibDictHeight) || 0)));
+        f.style.height = h + 'px';
+        const wrap = f.closest('.dict-frame-wrap'); if (wrap) wrap.classList.add('autosize');
+        f.dataset.contentHeight = String(h);
+      }
+    });
+  }
   window.DictView = { render, renderAiEntry };
 })();

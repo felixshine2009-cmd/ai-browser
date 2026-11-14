@@ -2138,3 +2138,7 @@ body.codepage { overflow: hidden; }
 .tool-cluster > .tb-btn.tool-glass { width: auto; min-width: 64px; height: 30px; white-space: nowrap; display: inline-flex; align-items: center; flex-shrink: 0; }
 .tb-btn.tool-glass svg { width: 15px; height: 15px; flex-shrink: 0; }
 .tb-btn.tool-glass svg.tg-dots circle { fill: currentColor; stroke: none; }
+
+/* v3.0.1: dictionary entry frames are sized to their content (dictview.js); the result area scrolls */
+.dict-body.dict-frame-wrap.autosize { overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.dict-body.dict-frame-wrap.autosize > .dict-frame { position: static !important; display: block; width: 100%; min-height: 60px; }

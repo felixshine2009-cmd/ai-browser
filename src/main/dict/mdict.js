@@ -228,7 +228,7 @@ function suggest(prefix, limit = 12) {
   return [...out].slice(0, limit).map(String);
 }
 
-const INJECT = (id) => `<script>(function(){
+const INJECT = (id, missing) => `<script>(function(){
 var ID=${JSON.stringify(id)};
 document.addEventListener('click',function(ev){
   var a=ev.target.closest&&ev.target.closest('a[href]'); if(!a) return;
@@ -239,7 +239,22 @@ document.addEventListener('click',function(ev){
     try{if(window.__aud)window.__aud.pause();window.__aud=new Audio('aibdict://'+ID+'/'+p.replace(/^\\//,''));window.__aud.play();}catch(e){}}
   else if(/^https?:/i.test(h)){ev.preventDefault();window.open(h,'_blank');}
 },true);
-window.addEventListener('load',function(){try{parent.postMessage({aibDictHeight:document.documentElement.scrollHeight,id:ID},'*')}catch(e){}});
+var last=0,tm=0;
+function rep(){try{var b=document.body;if(!b)return;var cs=getComputedStyle(b),mt=parseFloat(cs.marginTop)||0,mb=parseFloat(cs.marginBottom)||0;
+  var h=Math.ceil(Math.max(b.scrollHeight+mt+mb,b.getBoundingClientRect().bottom+(window.scrollY||0)+mb));
+  if(Math.abs(h-last)>2){last=h;parent.postMessage({aibDictHeight:h,id:ID},'*')}}catch(e){}}
+function q(){if(tm)return;tm=setTimeout(function(){tm=0;rep()},60)}
+function watch(){q();try{new ResizeObserver(q).observe(document.body)}catch(e){}try{new MutationObserver(q).observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true})}catch(e){}}
+if(document.body)watch();else document.addEventListener('DOMContentLoaded',watch);
+window.addEventListener('load',function(){q();setTimeout(q,300);setTimeout(q,1200)});
+try{document.fonts&&document.fonts.ready.then(q)}catch(e){}
+document.addEventListener('click',function(){setTimeout(q,50);setTimeout(q,400)});
+document.addEventListener('load',function(e){if(e.target&&e.target.tagName==='IMG')q()},true);
+var MISSING=${JSON.stringify(missing || []).replace(/</g, '\\u003c')};
+if(MISSING.length){var show=function(){var d=document.createElement('div');d.className='aib-dict-missing';d.setAttribute('role','note');
+  d.style.cssText='font:13px/1.5 -apple-system,"PingFang SC",sans-serif;color:#7a5b00;background:#fff8e1;border:1px solid #f0d58a;border-radius:8px;padding:6px 10px;margin:0 0 10px';
+  d.textContent='此词典的部分资源未找到（'+MISSING.join('、')+'），词条的样式或展开功能可能不完整。请重新导入词典，并同时选择同名的 .mdd 文件或整个词典文件夹。';
+  document.body.insertBefore(d,document.body.firstChild);q()};if(document.body)show();else document.addEventListener('DOMContentLoaded',show)}
 })();</script>`;
 
 // Runs before the entry's own scripts. Entry scripts of large dictionaries (OALDPE and similar) keep settings in
@@ -252,11 +267,13 @@ function mem(){var d={};return{getItem:function(k){return Object.prototype.hasOw
 window.addEventListener('error',function(e){try{console.warn('[dict] entry script error',e.message)}catch(x){}});
 window.addEventListener('load',function(){setTimeout(function(){
   var b=document.body;if(!b)return;
-  if((b.innerText||'').replace(/\\s+/g,'').length>0)return;
-  if((b.textContent||'').replace(/\\s+/g,'').length===0)return;
+  var nw=function(t){return String(t||'').replace(/\\s+/g,'').length},bn=b.querySelector('.aib-dict-missing'),bl=bn?nw(bn.textContent):0;
+  var vis=nw(b.innerText)-bl,all=nw(b.textContent)-bl;
+  if(all===0)return;
+  if(vis>0&&!(vis<80&&all>vis*6&&all>300))return;
   var st=document.createElement('style');st.textContent='body,body *{visibility:visible!important;opacity:1!important}body [style*="display:none"],body [style*="display: none"],body .hidden,body .hide{display:block!important}';
   document.head?document.head.appendChild(st):b.appendChild(st);
-  if((b.innerText||'').replace(/\\s+/g,'').length===0){var all=b.querySelectorAll('*');for(var i=0;i<all.length;i++){if(getComputedStyle(all[i]).display==='none'&&!/^(SCRIPT|STYLE|TEMPLATE|HEAD|META|LINK)$/.test(all[i].tagName))all[i].style.setProperty('display','block','important')}}
+  if(nw(b.innerText)-bl<80){var els=b.querySelectorAll('*');for(var i=0;i<els.length;i++){if(getComputedStyle(els[i]).display==='none'&&!/^(SCRIPT|STYLE|TEMPLATE|HEAD|META|LINK)$/.test(els[i].tagName))els[i].style.setProperty('display','block','important')}}
 },600)});
 })();</script>`;
 
@@ -278,13 +295,29 @@ function entryDocument(id, key) {
   }
   if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, m => m + '<meta charset="utf-8">' + base + PRELUDE);
   else html = '<meta charset="utf-8">' + base + PRELUDE + html;
-  return `<!doctype html>${BASE_CSS}${html}${INJECT(id)}`;
+  return `<!doctype html>${BASE_CSS}${html}${INJECT(id, missingResources(id, rec, d, html))}`;
+}
+
+// stylesheets and scripts the entry refers to that neither the .mdd files nor the dictionary folder provide
+// (typically: the .mdd was not selected together with the .mdx when importing); cached per dictionary
+const missingCache = new Map();
+function missingResources(id, rec, d, html) {
+  const refs = new Set();
+  const re = /<(?:link[^>]*?\shref|script[^>]*?\ssrc)\s*=\s*["']?([^"' >]+)/gi;
+  let m; while ((m = re.exec(html))) { const r = m[1]; if (!/^(https?:|data:|blob:|aibdict:|\/\/)/i.test(r)) refs.add(r.replace(/[?#].*$/, '')); }
+  const out = [];
+  let c = missingCache.get(id); if (!c || c.mtime !== rec.mtime) { c = { mtime: rec.mtime, hit: new Map() }; missingCache.set(id, c); }
+  for (const r of refs) {
+    if (!c.hit.has(r)) { let ok = false; try { ok = !!resource(id, r); } catch {} c.hit.set(r, ok); }
+    if (!c.hit.get(r)) out.push(path.basename(r));
+  }
+  return out;
 }
 
 function mddLocate(rec, p) {
   const tries = new Set();
   let dp = p; try { dp = decodeURIComponent(p); } catch {}
-  for (const x of [dp, p]) {
+  for (const x of [dp, p, dp.toLowerCase()]) {
     const n = x.replace(/^\/+/, '');
     tries.add('\\' + n.replace(/\//g, '\\'));
     tries.add('\\' + n);
@@ -307,8 +340,19 @@ function resource(id, relPath) {
   if (buf) return { data: buf, mime: mimeOf(relPath) };
   // loose files next to the .mdx (common for user-supplied css/js)
   try {
-    const f = path.join(path.dirname(d.mdx), decodeURIComponent(relPath).replace(/^\/+/, ''));
-    if (f.startsWith(path.dirname(d.mdx)) && fs.existsSync(f) && fs.statSync(f).isFile()) return { data: fs.readFileSync(f), mime: mimeOf(f) };
+    const root = path.dirname(d.mdx);
+    const rel = decodeURIComponent(relPath).replace(/\\/g, '/').replace(/^\/+/, '');
+    const f = path.join(root, rel);
+    if (f.startsWith(root) && fs.existsSync(f) && fs.statSync(f).isFile()) return { data: fs.readFileSync(f), mime: mimeOf(f) };
+    // case-insensitive match (dictionaries made on Windows refer to OALDPE.css while the file is oaldpe.css)
+    let cur = root; let ok = true;
+    for (const part of rel.split('/').filter(Boolean)) {
+      let names = []; try { names = fs.readdirSync(cur); } catch { ok = false; break; }
+      const hit = names.find(n => n.toLowerCase() === part.toLowerCase());
+      if (!hit) { ok = false; break; }
+      cur = path.join(cur, hit);
+    }
+    if (ok && cur !== root && cur.startsWith(root) && fs.statSync(cur).isFile()) return { data: fs.readFileSync(cur), mime: mimeOf(cur) };
   } catch {}
   return null;
 }

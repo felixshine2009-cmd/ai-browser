@@ -6,6 +6,16 @@
   document.title = titles[id] || '工具';
   const params = new URLSearchParams(location.search);
   const ext = id === 'geogebra' ? 'aib.geogebra' : id === 'physics' ? 'aib.physics' : '';
+  // the result view is kept in the page address (q = query, a / at = open wiki article), so a reload of the tool view
+  // reopens the result and runs the query again instead of returning to the tool's home page
+  const keepState = (set) => {
+    try {
+      const u = new URL(location.href);
+      for (const [k, v] of Object.entries(set)) { if (v == null || v === '') u.searchParams.delete(k); else u.searchParams.set(k, v); }
+      for (const k of ['snap', 'auto']) u.searchParams.delete(k); // one-shot hand-overs are not repeated by a reload
+      if (u.href !== location.href) history.replaceState(history.state, '', u.href);
+    } catch {}
+  };
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   // Collaboration notes sidebar: per-tool open/closed state, persisted in settings.toolNotes.
@@ -208,6 +218,7 @@
       main.classList.add('wiki-reading');
       reader.hidden = false;
       artTitle.textContent = title || item.title || item.path || '';
+      keepState({ a: articlePath || '~', at: title || item.title || '' });
       frame.src = item.url;
       return true;
     }
@@ -231,6 +242,7 @@
       return st;
     }
     const run = async () => {
+      keepState({ q: qInput.value.trim(), a: '', at: '' });
       const r = await window.aib.invoke('wiki:search', qInput.value);
       const list = (r && r.hits) || [], saved = (r && r.saved) || [];
       main.classList.remove('wiki-reading'); reader.hidden = true;
@@ -289,7 +301,12 @@
         await openArticle(art.dataset.path, art.dataset.title);
       }
     };
-    paintZim().then(st => { if (params.get('q')) { qInput.value = params.get('q'); run(); } else if (st && st.open) openArticle('', st.name); });
+    paintZim().then(async st => {
+      const art = params.get('a');
+      if (params.get('q')) { qInput.value = params.get('q'); await run(); }
+      if (art && st && st.open) { await openArticle(art === '~' ? '' : art, params.get('at') || ''); return; }
+      if (!params.get('q') && st && st.open) openArticle('', st.name);
+    });
     qInput.focus();
   }
 
@@ -308,6 +325,7 @@
       const val = (word || wInput.value).trim();
       if (!val) { wInput.focus(); return; }
       wInput.value = val;
+      keepState({ q: val });
       main.classList.add('dict-reading');
       out.hidden = false;
       out.innerHTML = '<div class="lk-msg">正在查询…</div>';
@@ -332,6 +350,7 @@
     document.getElementById(formId).addEventListener('submit', (e) => {
       e.preventDefault();
       const val = document.getElementById(inputId).value.trim();
+      keepState({ q: val });
       const existed = !!main.querySelector('.tool-frame');
       if (!existed) openExtFrame();
       const frame = main.querySelector('.tool-frame');
@@ -341,7 +360,8 @@
         else frame.addEventListener('load', send, { once: true });
       }
     });
-    document.getElementById(inputId).focus();
+    if (params.get('q')) { document.getElementById(inputId).value = params.get('q'); document.getElementById(formId).requestSubmit(); }
+    else document.getElementById(inputId).focus();
   }
 
   if (id === 'solve' || (!ext && id !== 'wiki' && id !== 'dict')) {
