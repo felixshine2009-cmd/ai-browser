@@ -84,7 +84,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     await sleep(400); await shot('03-chat');
   });
 
-  await test('Chat 对话串（v3.0.0）：追问追加在下方、思考过程折叠、停止按钮保留部分回答并标记“已中止”', async () => {
+  await test('Chat 对话串（v3.0.0）：追问追加在下方、思考过程折叠、停止按钮保留部分回答并标记“已中止”、对话记录列表', async () => {
     llm.state.script = ({ system, lastUser }) => {
       if (!/web-research agent/.test(system)) return null;
       if (/IPADQ2/.test(lastUser)) return { reasoning: '分析第二个问题。', text: ('IPADSLOW-').repeat(400), delay: 60 };
@@ -106,6 +106,13 @@ module.exports = async ({ test, group, assert, eq, until }) => {
       await until(async () => /已中止/.test(await cp.locator('.chat-turn').nth(1).locator('.turn-meta').innerText().catch(() => '')), 5000, 'stopped');
       assert(/IPAD-ANSWER-1/.test(await cp.locator('.chat-turn').nth(0).innerText()), 'first turn still shown');
       await sleep(300); await shot('03b-chat-thread');
+      // conversation list (drawer)
+      await cp.click('#histbtn');
+      await until(async () => (await cp.locator('.thread-item').count()) >= 1, 5000, 'thread list');
+      assert(/IPADQ1/.test(await cp.locator('.thread-item.current').innerText()), 'current thread highlighted');
+      assert(/2 轮/.test(await cp.locator('.thread-item.current').innerText()), 'turn count');
+      await shot('03c-chat-list');
+      await cp.click('#drawerclose');
     } finally { llm.state.script = null; }
   });
 

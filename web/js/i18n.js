@@ -1,6 +1,6 @@
 export const STR = {
   zh: {
-    appName:'AI 浏览器（网页版）', chat:'聊天', search:'搜索', settings:'设置', send:'发送', stop:'停止', newChat:'新对话',
+    appName:'AI 浏览器（网页版）', chat:'聊天', search:'搜索', settings:'设置', send:'发送', stop:'停止', newChat:'新对话', chats:'对话记录',
     greetingDefault:'{name}，您好', displayName:'显示名称', greeting:'问候语', save:'保存', saved:'已保存',
     lang:'语言', provider:'服务商', apiBase:'API Base URL', apiKey:'API Key', apiModel:'模型', testConn:'测试连接',
     corsHint:'若浏览器拦截跨域请求，请换用支持浏览器 CORS 的提供商，或自建反向代理。',
@@ -18,7 +18,7 @@ export const STR = {
     localPause:'暂停', localResume:'继续', diskTitle:'存储占用', diskFiles:'模型文件', diskCache:'缓存', diskClearCache:'清理缓存', diskDelete:'删除模型', diskEstimate:'浏览器存储', diskEmpty:'暂无已下载的模型', kbClearTitle:'清空知识库？', kbClearMsg:'将删除知识库中的 {n} 条内容。', cleared:'已清除 {n} 条',
   },
   en: {
-    appName:'AI Browser (Web)', chat:'Chat', search:'Search', settings:'Settings', send:'Send', stop:'Stop', newChat:'New chat',
+    appName:'AI Browser (Web)', chat:'Chat', search:'Search', settings:'Settings', send:'Send', stop:'Stop', newChat:'New chat', chats:'Chats',
     greetingDefault:'Hello, {name}', displayName:'Display name', greeting:'Greeting', save:'Save', saved:'Saved',
     lang:'Language', provider:'Provider', apiBase:'API Base URL', apiKey:'API Key', apiModel:'Model', testConn:'Test connection',
     corsHint:'If the browser blocks cross-origin requests, switch to a provider that allows browser CORS, or use your own reverse proxy.',

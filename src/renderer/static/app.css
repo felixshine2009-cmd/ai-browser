@@ -580,3 +580,28 @@ html[data-scheme="light"] .mp { --mp-bg: rgba(0, 0, 0, 0.05); --mp-hover: rgba(0
 .chat-new { margin-left: auto; }
 @media (max-width: 700px) { .chat-turn .ai-query-bar, .chat-user { padding-left: 16px; padding-right: 16px; } }
 .chat-turns { width: 100%; max-width: 1180px; margin: 0 auto; }
+
+/* v3.0.0 conversation list (drawer in the chat page) */
+.chat-shell { height: 100%; display: flex; min-height: 0; position: relative; }
+.chat-shell > .chat-app { flex: 1; min-width: 0; }
+.chat-head { flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 0.5px solid var(--separator-light); }
+.chat-title { font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.chat-drawer { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-right: 0.5px solid var(--separator-light); background: var(--bg-shade); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); min-height: 0; }
+.chat-drawer[hidden] { display: none; }
+.drawer-head { display: flex; align-items: center; justify-content: space-between; font-size: 14px; }
+.chat-drawer input[type=search] { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 8px; border: 0.5px solid var(--separator-light); background: var(--bg-elev, rgba(255,255,255,.06)); color: inherit; font: inherit; font-size: 13px; outline: none; }
+.chat-drawer input[type=search]:focus { border-color: var(--accent); }
+.thread-list { flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+.thread-item { display: flex; gap: 8px; padding: 8px 10px; border-radius: 10px; cursor: pointer; }
+.thread-item:hover, .thread-item.current { background: var(--bg-input); }
+.thread-item.current { outline: 1px solid var(--separator-light); }
+.ti-main { flex: 1; min-width: 0; }
+.ti-title { font-size: 13.5px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ti-sub { font-size: 12px; color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.ti-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.ti-time { font-size: 11px; color: var(--text-tertiary); }
+.ti-acts { display: flex; gap: 2px; opacity: 0.0; transition: opacity .12s; }
+.thread-item:hover .ti-acts, .thread-item.current .ti-acts, .aib-ipad .ti-acts { opacity: 1; }
+.ti-acts button { padding: 0 5px; font-size: 12px; min-height: 0; }
+.ti-input { width: 100%; font-size: 13px; }
+@media (max-width: 760px) { .chat-drawer { position: absolute; z-index: 20; top: 0; bottom: 0; left: 0; box-shadow: 0 8px 30px rgba(0,0,0,.35); } }

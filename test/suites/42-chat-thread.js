@@ -153,6 +153,36 @@ module.exports = async ({ test, group, assert, eq, until }) => {
       await p.click('#newchat');
       await until(() => app.pages().some(x => x.url().startsWith('aibrowser://home')), 5000, 'home');
     });
+    await test('对话记录：列出全部对话（当前高亮），可搜索、打开、重命名、删除；菜单“对话记录”打开列表页', async () => {
+      await app.submit('THREADQ7 另一个新问题？');
+      await until(async () => { for (const x of chats()) if (/ANSWER-7/.test(await x.locator('#turns').innerText().catch(() => ''))) { p = x; return true; } return false; }, 20000, 'second thread');
+      eq(await turnCount(), 1, 'a new conversation starts empty');
+      await p.click('#histbtn');
+      await until(async () => (await p.locator('.thread-item').count()) === 2, 5000, 'two threads');
+      const items = p.locator('.thread-item');
+      assert(/THREADQ7/.test(await items.nth(0).innerText()) && /1 轮/.test(await items.nth(0).innerText()), 'newest first');
+      assert(/6 轮/.test(await items.nth(1).innerText()), 'older thread with 6 turns: ' + await items.nth(1).innerText());
+      eq(await p.locator('.thread-item.current').count(), 1);
+      await p.fill('#threadq', 'ANSWER-3'); // search also looks into answers
+      await until(async () => (await p.locator('.thread-item').count()) === 0, 3000, 'no match for ANSWER-3 (it was stopped as SLOW3)');
+      await p.fill('#threadq', 'THREADQ1');
+      await until(async () => (await p.locator('.thread-item').count()) === 1, 3000, 'search');
+      await p.locator('.thread-item .ti-ren').first().click();
+      await p.fill('.ti-input', '悬链线讨论'); await p.press('.ti-input', 'Enter');
+      await until(async () => /悬链线讨论/.test(await p.locator('.thread-item').first().innerText()), 3000, 'renamed');
+      await p.locator('.thread-item .ti-main').first().click();
+      await until(async () => (await turnCount()) === 6 && /悬链线讨论/.test(await p.locator('#chattitle').innerText()), 10000, 'opened the older thread');
+      // delete the newer thread from here
+      await p.click('#histbtn'); await until(async () => (await p.locator('.thread-item').count()) === 2, 5000, 'list');
+      await p.locator('.thread-item').filter({ hasText: 'THREADQ7' }).locator('.ti-del').click();
+      await p.click('#aibc-ok');
+      await until(async () => (await p.locator('.thread-item').count()) === 1, 5000, 'deleted');
+      await p.screenshot({ path: path.join(ROOT, 'shots', '42-chat-list.png') });
+      // menu → 对话记录
+      await (await app.chrome()).evaluate(() => window.aib.invoke('menu:action', 'chats'));
+      const lp = await app.waitPage(u => u.startsWith('aibrowser://chat') && u.includes('list=1'), 10000);
+      await until(async () => !(await lp.locator('#drawer').isHidden()) && (await lp.locator('.thread-item').count()) === 1, 8000, 'list page');
+    });
   } finally { await app.close().catch(() => {}); }
 
   group('对话串（网页版）：追问追加 / 思考过程 / 停止生成（按钮与 Esc）/ 刷新后保留 / 新对话');
@@ -213,6 +243,15 @@ module.exports = async ({ test, group, assert, eq, until }) => {
         await until(async () => (await wfrozen().count()) === 1, 20000, 'new thread');
         assert(!lastReq(/THREADQ6/).messages.some(m => /THREADQ1/.test(String(m.content))), 'no old context');
         await wp.screenshot({ path: path.join(ROOT, 'shots', '42-web-thread.png') });
+        await wp.click('#btnThreads');
+        await until(async () => (await wp.locator('.tp-item').count()) === 2, 4000, 'web list');
+        assert(/THREADQ6/.test(await wp.locator('.tp-item').first().innerText()), 'newest first');
+        await wp.fill('#tpQ', 'THREADQ1'); await until(async () => (await wp.locator('.tp-item').count()) === 1, 3000, 'web search');
+        await wp.locator('.tp-item .tp-main').first().click();
+        await until(async () => (await wfrozen().count()) === 5, 4000, 'web opened older thread');
+        wp.once('dialog', d => d.accept());
+        await wp.click('#btnThreads'); await wp.fill('#tpQ', ''); await wp.locator('.tp-item').filter({ hasText: 'THREADQ6' }).locator('.tp-del').click();
+        await until(async () => (await wp.locator('.tp-item').count()) === 1, 3000, 'web delete');
       });
     } finally { await wapp.close().catch(() => {}); srv.close(); }
   }

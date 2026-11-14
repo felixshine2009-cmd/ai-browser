@@ -9,7 +9,8 @@
   const esc = MD.esc;
   const freshState = () => ({ kind: null, input: '', answer: '', sources: [], cites: {}, tools: [], queries: [], pages: [], done: false, error: null, direct: false, phase: 'init', pngs: [], think: '', thinkStart: 0, thinkEnd: 0 });
   let st = freshState();
-  root.innerHTML = '<div class="chat-app"><div class="chat-scroll" id="chatscroll"><div class="chat-turns" id="turns"></div></div><div id="followhost"></div></div>';
+  root.innerHTML = '<div class="chat-shell"><aside class="chat-drawer" id="drawer" hidden><div class="drawer-head"><b id="drawertitle"></b><button type="button" class="btn-ghost" id="drawerclose">✕</button></div><input type="search" id="threadq" spellcheck="false"/><div class="thread-list" id="threadlist"></div></aside>'
+    + '<div class="chat-app"><div class="chat-head"><button type="button" class="chip" id="histbtn"></button><span class="chat-title" id="chattitle"></span></div><div class="chat-scroll" id="chatscroll"><div class="chat-turns" id="turns"></div></div><div id="followhost"></div></div></div>';
   const turnsEl = document.getElementById('turns'), scroller = document.getElementById('chatscroll');
   let live = null; // container of the turn being rendered
   function newTurn(input, kind) {
@@ -120,11 +121,13 @@
   // the address stays on the newest turn, so reopening the tab (or a restart) shows the whole thread again
   function setUrl(id) { try { if (new URLSearchParams(location.search).get('sid') !== id) history.replaceState(null, '', '?sid=' + encodeURIComponent(id)); } catch (e) { console.warn('replaceState', e && e.message); } }
   async function sendFollow() {
-    const v = fq.value.trim(); if (!v || !sid) return;
+    const v = fq.value.trim(); if (!v) return;
     fq.value = ''; fq.style.height = '';
     const nsid = await window.aib.invoke('chat:follow', sid, v);
     if (!nsid) return;
     freeze();
+    if (!turnsEl.querySelector('.chat-turn')) turnsEl.innerHTML = '';
+    if (!curThread) curThread = nsid;
     sid = nsid;
     setUrl(nsid);
     await startLive(nsid, v);
@@ -190,7 +193,7 @@
       case 'translation-delta': st.translation = (st.translation || '') + ev.text; renderTranslation(); break;
       case 'error': showError(ev); break;
       case 'stopped': st.stopped = true; break;
-      case 'done': st.done = true; st.thinkDone = true; setStatus(''); if (st.kind === 'question') finalizeQuestion(); renderThinking(ev.thinkMs); renderMeta(ev); setBusy(false); break;
+      case 'done': st.done = true; st.thinkDone = true; setStatus(''); if (st.kind === 'question') finalizeQuestion(); renderThinking(ev.thinkMs); renderMeta(ev); setBusy(false); if (!replaying && !drawer.hidden) setTimeout(renderList, 300); break;
     }
   }
   // ----- thinking (collapsed by default; streams while expanded) and tool steps
@@ -438,11 +441,62 @@
     if (st.kind === 'question') { renderAnswer(); if (els.q) els.q.textContent = tn.input; }
     freeze();
   }
+
+  // ----- conversation list (drawer): every stored thread, newest first; open, search, rename, delete
+  const drawer = document.getElementById('drawer'), listEl = document.getElementById('threadlist'), tq = document.getElementById('threadq');
+  let curThread = null;
+  const fmtTime = (ms) => { const d = new Date(ms), now = new Date(); const same = d.toDateString() === now.toDateString(); return same ? d.toLocaleTimeString(I18N.lang === 'en' ? 'en-US' : 'zh-CN', { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString(I18N.lang === 'en' ? 'en-US' : 'zh-CN'); };
+  function paintHead() {
+    const en = I18N.lang === 'en';
+    document.getElementById('histbtn').textContent = en ? '☰ Chats' : '☰ 对话记录';
+    document.getElementById('drawertitle').textContent = en ? 'Chats' : '对话记录';
+    tq.placeholder = en ? 'Search chats' : '搜索对话';
+  }
+  async function renderList() {
+    const rows = await window.aib.invoke('chat:list', tq.value).catch(() => []);
+    const en = I18N.lang === 'en';
+    listEl.innerHTML = rows.length ? '' : `<div class="empty">${esc(tq.value ? (en ? 'No matching chats' : '没有匹配的对话') : (en ? 'No chats yet' : '还没有对话'))}</div>`;
+    for (const r of rows) {
+      const it = el('div', 'thread-item' + (r.id === curThread ? ' current' : ''));
+      it.dataset.id = r.id;
+      it.innerHTML = `<div class="ti-main"><div class="ti-title"></div><div class="ti-sub"></div></div><div class="ti-side"><span class="ti-time">${esc(fmtTime(r.updated || Date.now()))}</span><span class="ti-acts"><button type="button" class="btn-ghost ti-ren" title="${esc(en ? 'Rename' : '重命名')}">✎</button><button type="button" class="btn-ghost ti-del" title="${esc(en ? 'Delete' : '删除')}">✕</button></span></div>`;
+      it.querySelector('.ti-title').textContent = r.title || r.preview || (en ? 'Chat' : '对话');
+      it.querySelector('.ti-sub').textContent = (en ? `${r.turns} turns · ` : `${r.turns} 轮 · `) + (r.preview || '');
+      it.onclick = (e) => { if (e.target.closest('button')) return; if (r.id === curThread) { drawer.hidden = true; return; } location.href = 'aibrowser://chat?sid=' + encodeURIComponent(r.lastSid); };
+      it.querySelector('.ti-ren').onclick = async () => {
+        const tEl = it.querySelector('.ti-title'); const inp = document.createElement('input'); inp.value = r.title || ''; inp.className = 'ti-input'; tEl.replaceWith(inp); inp.focus(); inp.select();
+        const done = async (save) => { if (save && inp.value.trim()) await window.aib.invoke('chat:renameThread', r.id, inp.value.trim()); renderList(); if (r.id === curThread && save) document.getElementById('chattitle').textContent = inp.value.trim(); };
+        inp.onkeydown = (e) => { if (e.key === 'Enter') done(true); else if (e.key === 'Escape') done(false); };
+        inp.onblur = () => done(true);
+      };
+      it.querySelector('.ti-del').onclick = async () => {
+        const ok = await window.AIBConfirm.ask({ title: en ? 'Delete this chat?' : '删除这段对话？', message: (en ? 'All turns of “' : '将删除“') + (r.title || r.preview || '') + (en ? '” will be removed.' : '”中的全部内容。'), detail: en ? 'This cannot be undone.' : '此操作无法撤销。', confirmText: en ? 'Delete' : '删除', danger: true });
+        if (!ok) return;
+        await window.aib.invoke('chat:deleteThread', r.id);
+        if (r.id === curThread) { location.href = 'aibrowser://home'; return; }
+        renderList();
+      };
+      listEl.appendChild(it);
+    }
+  }
+  document.getElementById('histbtn').onclick = () => { drawer.hidden = !drawer.hidden; if (!drawer.hidden) { renderList(); tq.focus(); } };
+  document.getElementById('drawerclose').onclick = () => { drawer.hidden = true; };
+  let tqT = 0; tq.oninput = () => { clearTimeout(tqT); tqT = setTimeout(renderList, 150); };
+  window.aib.on('chats:changed', () => { if (!drawer.hidden) renderList(); });
+  paintHead(); I18N.onChange(paintHead);
   buildFollow();
+  if (!sid) {
+    // 对话记录 (menu): the list is open and a question typed below starts a new conversation
+    drawer.hidden = false; renderList(); setBusy(false);
+    turnsEl.innerHTML = `<div class="empty">${esc(I18N.lang === 'en' ? 'Pick a chat on the left, or ask something below to start a new one.' : '从左侧选择一段对话，或在下方输入问题开始新的对话。')}</div>`;
+    window.__AIB_CHAT__ = { sid: () => sid, busy, stop };
+    return;
+  }
   const th = await window.aib.invoke('chat:thread', sid).catch(() => null);
   if (th && th.turns) for (const tn of th.turns) replayTurn(tn);
   if (th && th.title) document.title = th.title;
-  if (th && th.liveSid) { sid = th.liveSid; setUrl(sid); const ok = await startLive(sid, ''); if (ok && !th.turns.length) document.title = st.input.slice(0, 60) || document.title; }
+  if (th) { curThread = th.threadId; document.getElementById('chattitle').textContent = th.title || ''; }
+  if (th && th.liveSid) { sid = th.liveSid; setUrl(sid); const ok = await startLive(sid, ''); if (ok && !th.turns.length) { document.title = st.input.slice(0, 60) || document.title; document.getElementById('chattitle').textContent = document.title; } }
   else if (!th || !th.turns.length) turnsEl.innerHTML = `<div class="empty">${esc(t('chat.expired'))}</div>`;
   else { sid = th.turns[th.turns.length - 1].sid || sid; setUrl(sid); setBusy(false); }
   toBottom(true);

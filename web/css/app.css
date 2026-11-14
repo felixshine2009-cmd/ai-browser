@@ -233,3 +233,13 @@ html[data-scheme="light"] .vk-ico{color:var(--text)}
 .turn-meta:empty{display:none}
 .turn-meta.stopped{color:#d97706}
 #btnSend.stop{background:var(--ink, #111);color:var(--paper, #fff)}
+.threads-panel{border:1px solid color-mix(in srgb,var(--muted) 25%,transparent);border-radius:12px;padding:10px;margin:8px 0;display:flex;flex-direction:column;gap:8px;background:color-mix(in srgb,var(--paper) 85%,transparent)}
+.threads-panel[hidden]{display:none}
+.tp-head{display:flex;justify-content:space-between;align-items:center}
+.tp-list{display:flex;flex-direction:column;gap:2px;max-height:50vh;overflow:auto}
+.tp-item{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px}
+.tp-item:hover,.tp-item.current{background:color-mix(in srgb,var(--muted) 14%,transparent)}
+.tp-main{flex:1;min-width:0;cursor:pointer}
+.tp-t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tp-s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tp-item button{padding:2px 6px;font-size:12px}

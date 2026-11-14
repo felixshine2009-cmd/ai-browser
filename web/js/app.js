@@ -337,6 +337,7 @@ function wire(){
     await threads.ask(q);
   });
   bindClick('btnNewChat', () => threads.newChat());
+  bindClick('btnThreads', () => threads.toggleList());
   const qEl = document.getElementById('q');
   if (qEl) qEl.addEventListener('keydown', ev=>{ if(ev.key==='Enter'&&!ev.shiftKey&&!ev.isComposing){ ev.preventDefault(); if (!threads.busy()) document.getElementById('btnSend')?.click(); }});
   bindClick('btnClosePanel', closeOverlay);

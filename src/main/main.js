@@ -294,6 +294,7 @@ function registerIpc() {
     const t = tabsMod.activeTab();
     switch (name) {
       case 'history': case 'downloads': case 'bookmarks': case 'extensions': case 'settings': tabsMod.closeOverlay('menu'); tabsMod.openInternal(name); break;
+      case 'chats': tabsMod.closeOverlay('menu'); tabsMod.openInternal('chat?list=1'); break;
       case 'incognito': tabsMod.closeOverlay('menu'); tabsMod.createIncognitoTab(); break;
       case 'find': tabsMod.closeOverlay('menu'); setTimeout(() => tabsMod.showFind(), 50); break;
       case 'print': tabsMod.closeOverlay('menu'); setTimeout(() => global.__aibPrint.printActive(), 50); break;
@@ -545,7 +546,15 @@ function registerIpc() {
 
   const v36 = require('./v36/v36');
   handle('chat:follow', (e, sid, text, extra) => chat.follow(sid, String(text || ''), extra || {}));
-  handle('chat:list', () => store.listChats().map(r => ({ id: r.id, title: r.title, preview: r.preview, updated: r.updated, turns: Array.isArray(r.turns) ? r.turns.length : 0, kind: r.kind })));
+  // conversation threads for the list in the chat page (newest first; optional search over titles and questions)
+  handle('chat:list', (e, q) => {
+    const needle = String(q || '').trim().toLowerCase();
+    return store.listChats().filter(r => Array.isArray(r.turns) && r.turns.length)
+      .filter(r => !needle || String(r.title || '').toLowerCase().includes(needle) || r.turns.some(t => String(t.input || '').toLowerCase().includes(needle) || String(t.answer || '').toLowerCase().includes(needle)))
+      .sort((a, b) => (b.updated || 0) - (a.updated || 0))
+      .map(r => ({ id: r.id, title: r.title, preview: String(r.turns[r.turns.length - 1].input || '').slice(0, 80), updated: r.updated, turns: r.turns.length, lastSid: r.turns[r.turns.length - 1].sid }));
+  });
+  handle('chat:renameThread', (e, id, title) => { const row = store.getChat(String(id || '')); if (!row) return false; store.upsertChat({ id: row.id, title: String(title || '').trim().slice(0, 60) || row.title }); broadcast('chats:changed'); return true; });
   handle('chat:title', async (e, sid) => {
     const s = chat.get(sid); if (!s) return '';
     let title = v36.fallbackTitle(s.input);
