@@ -85,7 +85,13 @@ enum UITest {
             tools.leadingAnchor.constraint(equalTo: vc.view.safeAreaLayoutGuide.leadingAnchor, constant: 8),
             tools.bottomAnchor.constraint(equalTo: vc.view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
         ])
-        Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { _ in Task { @MainActor in UITest.toolState() } }
+        // keep the test controls above the native web views and tool views added later (tabs, tool panes)
+        Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { [weak panel, weak tools, weak vc] _ in
+            Task { @MainActor in
+                if let v = vc?.view { if let p = panel { v.bringSubviewToFront(p) }; if let t = tools { v.bringSubviewToFront(t) } }
+                UITest.toolState()
+            }
+        }
         // ready once the Node core answers an invoke
         func probe(_ n: Int) {
             Host.shared.invoke(["wcId": vc.windowHostId, "channel": "tabs:state", "args": [Any](), "url": "aibrowser://chrome/"]) { r in

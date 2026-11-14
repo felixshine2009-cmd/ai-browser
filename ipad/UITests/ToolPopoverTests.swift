@@ -37,7 +37,10 @@ final class ToolPopoverTests: XCTestCase {
     private func openPopover() -> Bool {
         let open = app.buttons["uitest.tools.open"]
         XCTAssertTrue(open.waitForExistence(timeout: 20))
-        open.tap()
+        // the test controls are brought to the front every 0.7 s; wait until the button can take a real tap
+        let end = Date().addingTimeInterval(10)
+        while !open.isHittable && Date() < end { Thread.sleep(forTimeInterval: 0.4) }
+        if open.isHittable { open.tap() } else { open.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
         return app.otherElements["tools.popover"].waitForExistence(timeout: 15) || app.buttons["tools.expand"].waitForExistence(timeout: 5)
     }
 
