@@ -175,6 +175,7 @@ function setEnabled(id, v) {
 function active() { return [...exts.values()].filter(r => r.enabled && r.module && !r.error); }
 
 async function withTimeout(p, ms, label) {
+  if (!ms) return p;
   let t;
   try { return await Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(label + ' 超时（' + Math.round(ms / 1000) + ' 秒）')), ms); })]); } finally { clearTimeout(t); }
 }
@@ -225,7 +226,9 @@ async function rpc(extId, name, args, ctx) {
   if (!r || !r.enabled || !r.module) throw new Error('扩展未启用: ' + extId);
   const fn = r.module.rpc && r.module.rpc[name];
   if (typeof fn !== 'function') throw new Error('未知 RPC: ' + name);
-  return withTimeout(Promise.resolve(fn(args, ctx)), 30000, 'rpc ' + name);
+  // RPCs that open a file picker wait for the user (browsing Files can take minutes); a time limit here made the
+  // dictionary import silently fail when the user tapped Open after 30 seconds (2.3.1)
+  return withTimeout(Promise.resolve(fn(args, ctx)), /^pick/i.test(name) ? 0 : 30000, 'rpc ' + name);
 }
 
 function fileFor(extId, rel) {

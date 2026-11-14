@@ -213,6 +213,7 @@ async function onCmd(m) {
       case 'dialog.open': {
         // like the Swift host: picked items are copied into tmp/picked/<id>/ before Node sees them
         sim.lastOpen = { title: m.title || '', properties: m.properties || [], filters: m.filters || [] }; sim.opens = (sim.opens || 0) + 1;
+        if (sim.openDelay) { const d = sim.openDelay; sim.openDelay = 0; await new Promise(r => setTimeout(r, d)); } // the user browsing Files
         const src = sim.openPaths.splice(0);
         if (!src.length) { ok({ paths: [] }); break; }
         const base = path.join(require('os').tmpdir(), 'aib-sim-picked', 'picked', Math.random().toString(16).slice(2, 10));
@@ -320,7 +321,7 @@ app.whenReady().then(async () => {
     else if (req.url === '/ping') out = await new Promise((resolve) => { http.get({ host: '127.0.0.1', port, path: '/host/ping', headers: { 'X-AIB-Token': token } }, (r) => { const c = []; r.on('data', d => c.push(d)); r.on('end', () => { try { resolve(JSON.parse(Buffer.concat(c).toString())); } catch { resolve(null); } }); }).on('error', (e) => resolve({ error: e.message })); });
     else if (req.url === '/wake') { const f = path.join(TMP, 'aib-wake'); fs.writeFileSync(f, String(Date.now())); const t = new Date(Date.now() + 2000); fs.utimesSync(f, t, t); out = true; }
     else if (req.url === '/drop-stream') { const r = stream.res; if (r) r.destroy(); out = !!r; }
-    else if (req.url === '/open-paths') { sim.openPaths.push(...((body && body.paths) || [])); out = true; }
+    else if (req.url === '/open-paths') { sim.openPaths.push(...((body && body.paths) || [])); sim.openDelay = Number(body && body.delayMs) || 0; out = true; }
     else if (req.url === '/state') out = { diag: sim.diag, windowShown: sim.windowShown, lastMenu: sim.lastMenu || null, lastDialog: sim.lastDialog || null, lastShell: sim.lastShell || null, lastOpen: sim.lastOpen || null, opens: sim.opens || 0, appKeys: (sim.appKeys || []).length, themeSource: nativeTheme.themeSource, views: Array.from(hosts.values()).map(h => ({ id: h.id, kind: h.kind, url: h.view.webContents.getURL(), attached: h.attached, visible: h.visible, bounds: h.id === winHostId ? { x: 0, y: 0, width: W, height: H } : h.bounds })) };
     else if (req.url === '/resize') { const b = body || {}; win.setContentSize(b.w, b.h); W = b.w; H = b.h; for (const h of hosts.values()) layoutHost(h); out = await event({ type: 'window', w: b.w, h: b.h }); }
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(out));

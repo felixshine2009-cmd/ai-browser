@@ -92,20 +92,23 @@ final class ImportTests: XCTestCase {
     func testRealFilesPickerOpensDictionary() throws {
         launch(autofeed: false)
         app.buttons["uitest.import.dictFiles"].tap()
-        if let c = find("选择文件", timeout: 10) { c.tap() } else { shot("real-nosheet") }
-        Thread.sleep(forTimeInterval: 2)
+        if let c = find("选择文件", timeout: 15) { c.tap() } else { shot("real-nosheet") }
+        // the Files picker can take several seconds to appear on a cold simulator
+        XCTAssertNotNil(find("Recents", timeout: 45) ?? find("Browse", timeout: 5) ?? find("Cancel", timeout: 5), "Files picker not presented")
         shot("real-01-picker")
-        XCTAssertTrue(label(app.staticTexts["uitest.events"]).contains("picker:files") || find("Cancel", timeout: 5) != nil, "Files picker not presented")
-        if let b = find("Browse", timeout: 4) { b.tap() }
+        let br = app.buttons["Browse"].firstMatch
+        if br.exists && br.isHittable { br.tap() }
         for step in ["On My iPad", "AI 浏览器", "uitest", "realdict"] {
-            guard let e = find(step, timeout: 12) else { shot("real-missing-\(step)"); XCTFail("Files picker: \(step) not found"); return }
-            e.tap(); Thread.sleep(forTimeInterval: 1)
+            guard let e = find(step, timeout: 15) else { shot("real-missing-\(step)"); XCTFail("Files picker: \(step) not found"); return }
+            e.tap(); Thread.sleep(forTimeInterval: 1.5)
         }
         shot("real-02-folder")
-        guard let f = find("oald-test", timeout: 12) else { shot("real-missing-file"); XCTFail("file not listed"); return }
-        f.tap()
+        guard let f = find("oald-test", timeout: 15) else { shot("real-missing-file"); XCTFail("file not listed"); return }
+        f.tap(); Thread.sleep(forTimeInterval: 1)
+        let open = app.buttons["Open"].firstMatch
+        if open.exists && !open.isEnabled, let sel = find("Select", timeout: 3) { sel.tap(); Thread.sleep(forTimeInterval: 1); find("oald-test", timeout: 5)?.tap() }
         shot("real-03-selected")
-        if let open = find("Open", timeout: 8) { open.tap() }
+        if open.waitForExistence(timeout: 5) && open.isEnabled { open.tap() } else if open.exists { XCTFail("Open stays disabled after selecting the file") }
         let v = waitLabel(app.staticTexts["uitest.result"], timeout: 120) { $0.hasPrefix("PASS dictFiles") || $0.hasPrefix("FAIL dictFiles") }
         shot("real-04-done")
         XCTAssertTrue(v.hasPrefix("PASS dictFiles"), v)

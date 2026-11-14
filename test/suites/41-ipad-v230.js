@@ -153,8 +153,9 @@ module.exports = async ({ test, group, assert, eq, until }) => {
       const pickedRoot = path.join(os.tmpdir(), 'aib-sim-picked', 'picked');
       const opened = async (expectProps) => { const s = await app.state(); assert(s.lastOpen && expectProps.every(p => s.lastOpen.properties.includes(p)), JSON.stringify(s.lastOpen)); return s.lastOpen; };
       const before = (await rpc('list')).length;
-      // dictionary: files (.mdx with its .mdd and style picked together)
-      await app.openPaths([F('test.mdx'), F('test.mdd'), F('test.css'), F('logo.png')]);
+      const oldPicked = new Set(fs.existsSync(pickedRoot) ? fs.readdirSync(pickedRoot) : []);
+      // dictionary: files (.mdx with its .mdd and style picked together); the user browses Files for more than 30 s
+      await app.openPaths([F('test.mdx'), F('test.mdd'), F('test.css'), F('logo.png')], 32000);
       let r = await rpc('pickAndAdd');
       assert(r.added.length === 1 && !r.errors.length, JSON.stringify(r));
       const lo = await opened(['openFile', 'openDirectory']);
@@ -206,7 +207,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
       r = await app.invoke('camera:capture', { source: 'library' });
       assert(r && (r.cancelled || /^data:image/.test(r.dataUrl || '')), JSON.stringify(r).slice(0, 200));
       // dictionary copies taken from Files are removed after import
-      const left = fs.existsSync(pickedRoot) ? fs.readdirSync(pickedRoot).filter(n => fs.readdirSync(path.join(pickedRoot, n)).some(x => /\.md[xd]$/.test(x) || x === '测试词典包')) : [];
+      const left = fs.existsSync(pickedRoot) ? fs.readdirSync(pickedRoot).filter(n => !oldPicked.has(n)).filter(n => fs.readdirSync(path.join(pickedRoot, n)).some(x => /\.md[xd]$/.test(x) || x === '测试词典包')) : [];
       eq(left.length, 0, 'dictionary copies removed: ' + left.join(','));
       eq((await app.state()).opens >= 9, true);
     });
