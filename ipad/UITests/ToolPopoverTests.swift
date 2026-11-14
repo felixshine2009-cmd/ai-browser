@@ -27,14 +27,18 @@ final class ToolPopoverTests: XCTestCase {
             try? s.pngRepresentation.write(to: URL(fileURLWithPath: shotsDir).appendingPathComponent("tools-\(name).png"))
         }
     }
-    /// dismisses system alerts and sheets left by the camera / scanner (no camera in the Simulator)
+    /// dismisses system alerts, sheets and the photo picker left by the camera / scanner (no camera in the Simulator),
+    /// until the test controls are reachable again
     private func clearModals() {
-        for _ in 0..<3 {
+        let open = app.buttons["uitest.tools.open"]
+        let end = Date().addingTimeInterval(20)
+        while Date() < end {
             let alert = app.alerts.firstMatch
-            if alert.exists { (alert.buttons.allElementsBoundByIndex.last ?? alert.buttons.firstMatch).tap(); Thread.sleep(forTimeInterval: 0.6); continue }
+            if alert.exists { (alert.buttons.allElementsBoundByIndex.last ?? alert.buttons.firstMatch).tap(); Thread.sleep(forTimeInterval: 0.8); continue }
+            if open.exists && open.isHittable { return }
             let cancel = app.buttons.matching(NSPredicate(format: "label IN %@", ["取消", "Cancel", "关闭", "Close", "完成", "Done"])).firstMatch
-            if cancel.exists && cancel.isHittable { cancel.tap(); Thread.sleep(forTimeInterval: 0.6); continue }
-            break
+            if cancel.exists && cancel.isHittable { cancel.tap(); Thread.sleep(forTimeInterval: 0.8); continue }
+            Thread.sleep(forTimeInterval: 0.5)
         }
     }
     private func openPopover() -> Bool {
@@ -84,7 +88,10 @@ final class ToolPopoverTests: XCTestCase {
             wait(events, 10) { $0.contains("tile:\(id)") }
             switch id {
             case "scan": wait(events, 15) { $0.contains("cmd:native.qrscan") }
-            case "snap": wait(events, 15) { $0.contains("cmd:native.camera") || $0.contains("cmd:native.caps") }
+            case "snap":
+                wait(events, 15) { $0.contains("cmd:native.camera") || $0.contains("cmd:native.caps") }
+                // no camera in the Simulator: the photo picker comes up instead; wait for it so clearModals can close it
+                _ = app.buttons.matching(NSPredicate(format: "label IN %@", ["取消", "Cancel"])).firstMatch.waitForExistence(timeout: 10)
             default:
                 wait(app.staticTexts["uitest.tool"], 20) { $0 == "tool:\(id)" }
             }
