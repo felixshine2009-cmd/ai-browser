@@ -196,8 +196,17 @@ function registerIpc() {
     return out;
   });
   handle('models:local', async (e, force) => { if (force) await modelsM().detectFw(true); return modelsM().localList(); });
+  let fwSig = null;
   handle('models:picker', async (e, sid) => {
-    modelsM().detectFw(false).then((l) => { if (l && l.some(f => f.up)) broadcast('models:changed', {}); }).catch(() => {});
+    // v6.0.1: tell the pages only when the local frameworks CHANGED. 6.0.0 broadcast 'models:changed' whenever one was
+    // running (Ollama, LM Studio …); every page then refreshed its model picker, which called models:picker again — an
+    // endless IPC loop that kept CPU and GPU at 100% while the home page was open.
+    modelsM().detectFw(false).then((l) => {
+      const sig = JSON.stringify((l || []).map(f => [f.id, !!f.up, (f.models || []).map(m => m.id || m.name || m).join(',')]));
+      if (sig === fwSig) return;
+      const before = fwSig; fwSig = sig;
+      if (before !== null || (l && l.some(f => f.up))) broadcast('models:changed', {});
+    }).catch(() => {});
     const s = sid ? chat.get(sid) : null;
     return modelsM().picker({ threadId: s ? (s.threadId || s.sid) : (sid || '') });
   });
