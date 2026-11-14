@@ -111,13 +111,22 @@ async function resHandler(req) {
   let f2 = f, root2 = root;
   // graphical VM image: blobs that are not in the bundled base image were downloaded to userData/vm-gui/fs/ (SchemeHandler.swift)
   if (u.host !== 'data' && /^vm\/fs\//.test(rel) && !fs.existsSync(f)) { f2 = path.join(UD, 'vm-gui', 'fs', path.basename(rel)); root2 = UD; }
-  return serveFile(f2, root2);
+  return serveFile(f2, root2, req.headers.get('range'));
 }
-function serveFile(f, root) {
+function serveFile(f, root, range) {
   if (!f.startsWith(root) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return new Response('not found', { status: 404 });
   const ext = path.extname(f).toLowerCase();
   const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm', '.png': 'image/png', '.svg': 'image/svg+xml' }[ext] || 'application/octet-stream';
-  return new Response(fs.readFileSync(f), { headers: { 'Content-Type': mime, 'Access-Control-Allow-Origin': '*' } });
+  // HTTP Range (same as SchemeHandler.swift): disk images are read in pieces by the emulator
+  const m = range && /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+  if (m) {
+    const size = fs.statSync(f).size; let a = m[1] === '' ? size - Number(m[2]) : Number(m[1]); let b = m[1] === '' || m[2] === '' ? size - 1 : Math.min(size - 1, Number(m[2]));
+    if (a < 0) a = 0;
+    if (a > b || a >= size) return new Response('', { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
+    const buf = Buffer.alloc(b - a + 1); const fd = fs.openSync(f, 'r'); try { fs.readSync(fd, buf, 0, buf.length, a); } finally { fs.closeSync(fd); }
+    return new Response(buf, { status: 206, headers: { 'Content-Type': mime, 'Content-Range': `bytes ${a}-${b}/${size}`, 'Content-Length': String(buf.length), 'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'Content-Range, Content-Length' } });
+  }
+  return new Response(fs.readFileSync(f), { headers: { 'Content-Type': mime, 'Accept-Ranges': 'bytes', 'Content-Length': String(fs.statSync(f).size), 'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'Content-Range, Content-Length' } });
 }
 const emit = (h, name, extra) => event(Object.assign({ type: 'wc', id: h.id, name }, extra || {}));
 function navState(h) { const wc = h.view.webContents; if (wc.isDestroyed()) return; emit(h, 'navstate', { url: wc.getURL(), title: wc.getTitle(), canBack: wc.navigationHistory.canGoBack(), canForward: wc.navigationHistory.canGoForward(), loading: wc.isLoading() }); }

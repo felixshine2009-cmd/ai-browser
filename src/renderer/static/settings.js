@@ -831,6 +831,7 @@
       <div class="form-row"><label>${esc(T('状态', 'Status'))}</label><div id="vmstat" class="hint">…</div></div>
       <div class="form-row" id="vmimgrow" hidden><label>${esc(T('系统镜像', 'System image'))}</label><div class="inline"><select id="vmimg" style="flex:1"></select><button class="btn-secondary" id="vmdesk">${esc(T('打开桌面', 'Open desktop'))}</button><button class="btn-secondary" id="vmimgrm">${esc(T('删除图形镜像', 'Remove graphical image'))}</button></div><div class="hint" id="vmimghint"></div></div>
       <div class="inline" id="vmbtns"><button class="btn-primary" id="vmstart">${esc(T('启动', 'Start'))}</button><button class="btn-secondary" id="vmstop">${esc(T('关闭', 'Stop'))}</button><button class="btn-secondary" id="vmshare">${esc(T('打开共享文件夹', 'Open shared folder'))}</button><button class="btn-danger" id="vmreset">${esc(T('重置虚拟机', 'Reset VM'))}</button></div><div id="vmres"></div>
+      <div class="form-row"><label>${esc(T('自定义系统镜像', 'Custom system images'))}</label><div class="inline"><button class="btn-secondary" id="vmcustom">${esc(T('管理自定义镜像…', 'Manage custom images…'))}</button></div><div class="hint">${esc(T('导入 ISO、IMG 或 QCOW2 镜像并启动其他操作系统。', 'Import ISO, IMG or QCOW2 images and boot other operating systems.'))}</div></div>
       <div class="form-row"><label>${esc(T('内存', 'Memory'))}：<b id="vmmemv">${vmS.memoryMB} MB</b></label><input type="range" id="vmmem" min="1024" max="8192" step="256" value="${vmS.memoryMB}"/></div>
       <div class="form-row"><label>${esc(T('处理器核心', 'CPU cores'))}：<b id="vmcpuv">${vmS.cpus}</b></label><input type="range" id="vmcpu" min="1" max="8" step="1" value="${vmS.cpus}"/></div>
       <div class="form-row"><label>${esc(T('磁盘上限（GB）', 'Disk limit (GB)'))}：<b id="vmdiskv">${vmS.diskGB}</b></label><input type="range" id="vmdisk" min="8" max="128" step="4" value="${vmS.diskGB}"/><div class="hint">${esc(T('内存、核心与磁盘设置在下次启动虚拟机时生效；磁盘只会按需占用实际空间。', 'Memory, cores and disk take effect at the next VM start; the disk only uses space as needed.'))}</div></div>`;
@@ -890,6 +891,7 @@
     $('vmstop').onclick = async () => { const r = await window.aib.invoke('vm:stop'); showVm(r.status); notice($('vmres'), 'ok', T('Linux 虚拟机已关闭', 'The Linux VM has stopped')); };
     $('vmreset').onclick = async () => { const r = await window.aib.invoke('vm:reset'); if (r.declined) return; showVm(r.status); notice($('vmres'), 'ok', T('虚拟机已重置', 'The VM has been reset')); };
     $('vmshare').onclick = () => window.aib.invoke('vm:openShare');
+    { const vc = $('vmcustom'); if (vc) vc.onclick = () => window.aib.invoke('vmimg:open'); }
     $('vmimg').onchange = async (e) => { e.target.disabled = true; notice($('vmres'), 'ok', T('正在切换镜像…', 'Switching image…'), { sticky: true }); const r = await window.aib.invoke('vm:setImage', e.target.value); e.target.disabled = false; showVm(r.status); notice($('vmres'), r.ok ? 'ok' : 'bad', r.ok ? T('已切换系统镜像', 'System image switched') : (r.error || T('切换失败', 'Switch failed'))); };
     $('vmdesk').onclick = () => window.aib.invoke('vm:openDesktop');
     $('vmimgrm').onclick = async () => {

@@ -2,7 +2,9 @@
   await I18N.init();
   const id = new URLSearchParams(location.search).get('id') || 'solve';
   const root = document.getElementById('root');
-  const titles = { geogebra: 'GeoGebra', physics: '物理', solve: '解题', wiki: '离线百科', dict: '词典' };
+  const titles = { geogebra: 'GeoGebra', physics: '物理实验', solve: '解题', wiki: '离线百科', dict: '词典' };
+  document.title = titles[id] || '工具';
+  const params = new URLSearchParams(location.search);
   const ext = id === 'geogebra' ? 'aib.geogebra' : id === 'physics' ? 'aib.physics' : '';
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -31,7 +33,7 @@
         <form class="solve-composer" id="${formId}" autocomplete="off">
           <div class="solve-input-row">${control}${goBtn}</div>
         </form>
-        ${chips ? `<div class="solve-chips">${chips}</div>` : ''}
+        <div class="solve-chips"><span class="solve-model" id="toolmodel"></span>${chips || ''}<button type="button" class="solve-chip ask-ai" id="askai" title="将输入内容交给 AI 处理，结果在本工具视图中显示"><span>交给 AI</span></button></div>
         ${extra || ''}
       </div>
     </div>`;
@@ -104,10 +106,11 @@
     main.classList.add('solve-main');
     main.innerHTML = homePage({
       title: '词典',
-      subtitle: '请输入英文或中文词汇。查询结果将以词条窗口弹出；若本地词典未收录该词，仍可查看 AI 生成词条。',
+      subtitle: '请输入英文或中文词汇。查询结果在本页显示；若本地词典未收录该词，仍可查看 AI 释义。',
       inputId: 'w',
       placeholder: '请输入英文或中文词汇，例如 serendipity',
-      formId: 'dictForm'
+      formId: 'dictForm',
+      extra: '<section id="dictResult" class="dict-result" hidden aria-label="查询结果"></section>'
     });
   } else {
     main.classList.add('solve-main');
@@ -164,15 +167,16 @@
     try {
       const S = await window.aib.invoke('settings:get') || {};
       const toolNotes = Object.assign({}, S.toolNotes || {}, { [id]: notesOpen });
-      await window.aib.invoke('settings:set', { toolNotes });
+      await window.aib.invoke('settings:patch', { toolNotes });
     } catch {}
   }
   closeEl.onclick = () => persistNotes(false);
   paintNotes();
 
   async function notes() {
-    const list = await window.aib.invoke('collab:list', id);
-    document.getElementById('notes').innerHTML = (list || []).map(n => `<div class="note ${esc(n.who)}"><b>${esc(n.who === 'ai' ? 'AI' : '我')}</b><p>${esc(n.text)}</p></div>`).join('');
+    let list = [];
+    try { const c = await window.aib.invoke('collab:get', id); list = (c && c.notes) || []; } catch {}
+    document.getElementById('notes').innerHTML = list.map(n => `<div class="note ${esc(n.who)}"><b>${esc(n.who === 'ai' ? 'AI' : '我')}</b><p>${esc(n.text)}</p></div>`).join('');
   }
   const noteInput = document.getElementById('note');
   async function submitNote() {
@@ -228,10 +232,12 @@
     }
     const run = async () => {
       const r = await window.aib.invoke('wiki:search', qInput.value);
-      const list = (r && r.hits) || [];
-      hitsEl.innerHTML = list.length
+      const list = (r && r.hits) || [], saved = (r && r.saved) || [];
+      main.classList.remove('wiki-reading'); reader.hidden = true;
+      hitsEl.innerHTML = (list.length
         ? list.map(h => `<article data-title="${esc(h.title)}"${h.path ? ` data-path="${esc(h.path)}"` : ''}><h4>${esc(h.title)}</h4><p>${esc(h.text || h.path || '')}</p>${h.path ? '<button type="button" data-open="1">阅读</button>' : ''}<button type="button" data-tr="${esc(h.title)}">全文翻译</button></article>`).join('')
-        : (qInput.value.trim() ? '<p class="hint">未找到匹配词条。</p>' : '');
+        : (qInput.value.trim() ? '<p class="hint">离线百科中未找到匹配词条。</p>' : ''))
+        + (saved.length ? '<h4 class="hits-sec">稍后阅读中保存的网页</h4>' + saved.map(h => `<article class="saved-hit"><h4>${esc(h.title)}</h4><p>${esc(h.snippet)}</p><button type="button" data-saved="${esc(h.id)}">离线阅读</button></article>`).join('') : '');
     };
     document.getElementById('wikiForm').addEventListener('submit', (e) => { e.preventDefault(); run(); });
     if (window.aib && window.aib.on) window.aib.on('wiki:progress', (p) => {
@@ -269,6 +275,8 @@
       run();
     };
     hitsEl.onclick = async (e) => {
+      const sv = e.target.closest('button[data-saved]');
+      if (sv) { window.aib.invoke('readlater:open', sv.dataset.saved); return; }
       const tr = e.target.closest('button[data-tr]');
       if (tr) {
         const sid = await window.aib.invoke('nav:submit', '翻译离线百科：' + tr.dataset.tr);
@@ -281,20 +289,39 @@
         await openArticle(art.dataset.path, art.dataset.title);
       }
     };
-    paintZim().then(st => { if (st && st.open) openArticle('', st.name); });
+    paintZim().then(st => { if (params.get('q')) { qInput.value = params.get('q'); run(); } else if (st && st.open) openArticle('', st.name); });
     qInput.focus();
   }
 
   if (id === 'dict') {
     const wInput = document.getElementById('w');
-    const lookup = () => {
-      const val = wInput.value.trim();
+    const out = document.getElementById('dictResult');
+    const aiEntry = (target, word) => {
+      target.innerHTML = '<div class="lk-msg">正在生成 AI 释义…</div>';
+      window.aib.invoke('chat:aiEntry', word).then(entry => {
+        target.innerHTML = '<span class="ai-note">以下释义由 AI 生成，仅供参考。</span>';
+        const inner = document.createElement('div'); target.appendChild(inner); target.style.overflow = 'auto';
+        DictView.renderAiEntry(inner, entry);
+      }).catch(e => { target.innerHTML = `<div class="lk-msg">${esc(e.message)}</div>`; });
+    };
+    const lookup = async (word) => {
+      const val = (word || wInput.value).trim();
       if (!val) { wInput.focus(); return; }
-      const box = document.getElementById('dictForm').getBoundingClientRect();
-      window.aib.invoke('lookup:show', val, { x: Math.round(box.left + 24), y: Math.round(box.bottom) });
+      wInput.value = val;
+      main.classList.add('dict-reading');
+      out.hidden = false;
+      out.innerHTML = '<div class="lk-msg">正在查询…</div>';
+      try {
+        const r = await window.aib.invoke('lookup:run', val);
+        if (r && r.type === 'dictionary') {
+          if (!Array.isArray(r.results)) r.results = [];
+          const wrap = document.createElement('div'); wrap.className = 'dict-page'; out.innerHTML = ''; out.appendChild(wrap);
+          DictView.render(wrap, r, { ai: (t) => aiEntry(t, val), manage: () => window.aib.invoke('nav:openUrl', 'aibrowser://settings#dict'), onSuggest: (w) => lookup(w) });
+        } else { out.innerHTML = ''; const d = document.createElement('div'); d.className = 'dict-ai-only'; out.appendChild(d); aiEntry(d, val); }
+      } catch (e) { out.innerHTML = `<div class="lk-msg">${esc(e.message)}</div>`; }
     };
     document.getElementById('dictForm').addEventListener('submit', (e) => { e.preventDefault(); lookup(); });
-    wInput.focus();
+    if (params.get('q')) lookup(params.get('q')); else wInput.focus();
   }
 
   if (id === 'geogebra' || id === 'physics') {
@@ -408,9 +435,45 @@
       const text = prob.value.trim();
       if (!text && !image) { prob.focus(); return; }
       const sid = await window.aib.invoke('chat:follow', '', text || '请根据图片解答题目', { kind: 'solve', refs, images: image ? [{ dataUrl: image }] : [] });
-      if (sid) location.href = 'aibrowser://chat?sid=' + sid;
+      if (sid) location.href = 'aibrowser://chat?sid=' + sid + '&tool=solve';
     });
+    // 拍题即解 (F1): text and photo handed over by the native camera flow
+    const snapId = params.get('snap');
+    if (snapId) {
+      window.aib.invoke('snap:get', snapId).then((sn) => {
+        if (!sn) return;
+        if (sn.text) { prob.value = sn.text; grow(); }
+        if (sn.dataUrl) { image = sn.dataUrl; paintImage('已附加拍摄的题目照片'); }
+        if (params.get('auto') === '1' && (sn.text || sn.dataUrl)) $('solveForm').requestSubmit();
+      }).catch(() => {});
+    }
+    // camera capture wherever images are accepted (F1)
+    if (window.aib && window.aib.ipad) {
+      const cam = document.createElement('button'); cam.type = 'button'; cam.className = 'solve-chip'; cam.id = 'cam'; cam.title = '用相机拍摄题目'; cam.setAttribute('aria-label', '拍照');
+      cam.innerHTML = (window.AIB_ICONS ? AIB_ICONS.svg('camera') : '') + '<span>拍照</span>';
+      $('img').after(cam);
+      cam.onclick = async () => {
+        const r = await window.aib.invoke('camera:capture', { ocr: true }).catch(() => null);
+        if (!r || r.cancelled || !r.dataUrl) return;
+        image = r.dataUrl; paintImage('已附加拍摄的照片');
+        if (r.text && !prob.value.trim()) { prob.value = r.text; grow(); }
+      };
+      const ph = $('phone'); if (ph) ph.hidden = true; // the iPad has its own camera
+    }
     prob.focus();
+  }
+  // 交给 AI (U4): every tool home can hand its input to the AI; the answer opens in this tool view with the chat renderer
+  const askBtn = document.getElementById('askai');
+  if (askBtn) {
+    const INPUT = { geogebra: 'ggbCmd', physics: 'physQ', wiki: 'q', dict: 'w' };
+    const PREFIX = { geogebra: '请使用 GeoGebra 作图并说明：', physics: '请用物理实验台演示并讲解：', wiki: '请结合离线百科回答：', dict: '请详细解释以下词语的含义、用法与例句：' };
+    askBtn.onclick = async () => {
+      const el = document.getElementById(INPUT[id] || '');
+      const v = el ? el.value.trim() : '';
+      if (!v) { if (el) el.focus(); return; }
+      const sid = await window.aib.invoke('chat:follow', '', (PREFIX[id] || '') + v, {});
+      if (sid) location.href = 'aibrowser://chat?sid=' + sid + '&tool=' + encodeURIComponent(id);
+    };
   }
   // model switcher on tool pages that send to the AI (solve)
   const mpHost = document.getElementById('toolmodel');
@@ -419,6 +482,7 @@
       lang: () => (window.I18N && I18N.lang === 'en' ? 'en' : 'zh'),
       load: () => window.aib.invoke('models:picker'),
       select: (ref) => window.aib.invoke('models:select', ref),
+      thinking: { load: () => window.aib.invoke('models:thinking'), select: (lv) => window.aib.invoke('models:setThinking', lv) },
       onManage: () => window.aib.invoke('nav:openUrl', 'aibrowser://settings#ai')
     });
     window.__AIB_MP__ = mp;

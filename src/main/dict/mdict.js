@@ -242,6 +242,24 @@ document.addEventListener('click',function(ev){
 window.addEventListener('load',function(){try{parent.postMessage({aibDictHeight:document.documentElement.scrollHeight,id:ID},'*')}catch(e){}});
 })();</script>`;
 
+// Runs before the entry's own scripts. Entry scripts of large dictionaries (OALDPE and similar) keep settings in
+// localStorage; in a sandboxed frame without storage that throws and the script stops before it reveals the entry,
+// which left the page blank on iPad (B3). Storage falls back to memory, and if the entry still shows no text after
+// it loaded, hidden blocks are revealed.
+const PRELUDE = `<script>(function(){
+function mem(){var d={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null},setItem:function(k,v){d[k]=String(v)},removeItem:function(k){delete d[k]},clear:function(){d={}},key:function(i){return Object.keys(d)[i]||null},get length(){return Object.keys(d).length}}}
+['localStorage','sessionStorage'].forEach(function(n){var ok=false;try{var s=window[n];s.setItem('__aib','1');s.removeItem('__aib');ok=true}catch(e){}if(!ok){try{Object.defineProperty(window,n,{value:mem(),configurable:true})}catch(e){}}});
+window.addEventListener('error',function(e){try{console.warn('[dict] entry script error',e.message)}catch(x){}});
+window.addEventListener('load',function(){setTimeout(function(){
+  var b=document.body;if(!b)return;
+  if((b.innerText||'').replace(/\\s+/g,'').length>0)return;
+  if((b.textContent||'').replace(/\\s+/g,'').length===0)return;
+  var st=document.createElement('style');st.textContent='body,body *{visibility:visible!important;opacity:1!important}body [style*="display:none"],body [style*="display: none"],body .hidden,body .hide{display:block!important}';
+  document.head?document.head.appendChild(st):b.appendChild(st);
+  if((b.innerText||'').replace(/\\s+/g,'').length===0){var all=b.querySelectorAll('*');for(var i=0;i<all.length;i++){if(getComputedStyle(all[i]).display==='none'&&!/^(SCRIPT|STYLE|TEMPLATE|HEAD|META|LINK)$/.test(all[i].tagName))all[i].style.setProperty('display','block','important')}}
+},600)});
+})();</script>`;
+
 const BASE_CSS = `<style>html{color-scheme:light}body{margin:0;padding:14px 18px;font:15px/1.6 -apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif;background:#fff;color:#111}</style>`;
 
 function entryDocument(id, key) {
@@ -255,8 +273,11 @@ function entryDocument(id, key) {
   if (!e) return `<!doctype html><meta charset="utf-8">${BASE_CSS}<p style="color:#888">未找到：${String(key).replace(/[<&>]/g, '')}</p>`;
   // keep entry's own <head>/<link>; inject base + our script
   let html = e.html;
-  if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, m => m + '<meta charset="utf-8">' + base);
-  else html = '<meta charset="utf-8">' + base + html;
+  if (!String(html).replace(/<[^>]*>/g, '').trim() && !/<(img|svg|audio|iframe)\b/i.test(html)) {
+    return `<!doctype html><meta charset="utf-8">${BASE_CSS}<p style="color:#888">词条“${String(e.key || key).replace(/[<&>]/g, '')}”的内容为空，或无法按该词典声明的编码解码。</p>`;
+  }
+  if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, m => m + '<meta charset="utf-8">' + base + PRELUDE);
+  else html = '<meta charset="utf-8">' + base + PRELUDE + html;
   return `<!doctype html>${BASE_CSS}${html}${INJECT(id)}`;
 }
 

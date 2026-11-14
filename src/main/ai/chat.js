@@ -80,7 +80,8 @@ async function run0(s) {
     if (r) { emit(s, { type: 'kind', kind: 'word' }); emit(s, { type: 'handler-result', extId: r.extId, result: r.result, word: cl.word }); return finish(s); }
     cl = /\?|^(what|why|how|when|where|who|which)\b/i.test(cl.word) ? { kind: 'question' } : { kind: 'sentence' };
   }
-  emit(s, { type: 'kind', kind: cl.kind === 'task' ? 'question' : cl.kind });
+  // solve answers use exactly the chat question renderer (U7); the solver prompt still follows kindOverride
+  emit(s, { type: 'kind', kind: (cl.kind === 'task' || cl.kind === 'solve') ? 'question' : cl.kind });
   if (cl.kind === 'task') { await runTask(s); return finish(s); }
   switch (cl.kind) {
     case 'word': await runWord(s, cl.word, ctx); break;

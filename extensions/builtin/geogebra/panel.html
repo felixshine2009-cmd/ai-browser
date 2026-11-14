@@ -95,7 +95,8 @@ html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,
       showKeyboardOnFocus: false, allowUpscale: false, autoHeight: false,
       enableFileFeatures: false, showZoomButtons: true,
       appletOnLoad: function (api) {
-        applet = api; readyRes(api);
+        applet = api; readyRes(api); ready = Promise.resolve(api);
+        try { var er = document.getElementById('err'); if (er) er.style.display = 'none'; } catch (e) {}
         syncSize(true);
         setTimeout(function () { syncSize(true); }, 80);
         setTimeout(function () { syncSize(true); }, 260);
@@ -115,11 +116,14 @@ html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,
     a.setHTML5Codebase(codebaseFor(app));
     a.inject('ggb');
     setTimeout(function () {
-      if (!applet) {
+      if (!applet && currentApp === app) {
         var e = document.getElementById('err'); e.style.display = 'flex';
-        e.textContent = 'GeoGebra 加载超时 (' + app + ')'; readyRej(new Error('GeoGebra load timeout'));
+        e.textContent = 'GeoGebra 加载较慢，仍在继续加载（' + app + '）';
+        // fail the calls waiting now with a clear message, but keep a fresh promise so a late load still serves later calls
+        var rej = readyRej; ready = new Promise(function (a, b) { readyRes = a; readyRej = b; });
+        rej(new Error('GeoGebra 组件尚未加载完成，请稍后重试'));
       }
-    }, 60000);
+    }, 100000);
   }
   function focusInput() {
     var sels = [
@@ -221,8 +225,10 @@ html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,
       prevW = cw;
       prevH = ch;
     }
+    // rAF does not fire in a hidden / off-screen WebKit iframe, so poll with a timer too and give up waiting after ~2 s
     if (stableCount >= 2 || n > 36) inject('graphing');
-    else requestAnimationFrame(function () { waitSize(n + 1); });
+    else { var done = false; var next = function () { if (!done) { done = true; waitSize(n + 1); } };
+      requestAnimationFrame(next); setTimeout(next, 60); }
   })(0);
 })();
 </script></body></html>

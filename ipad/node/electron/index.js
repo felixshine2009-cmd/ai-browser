@@ -557,5 +557,10 @@ module.exports = {
   app, protocol, ipcMain, BrowserWindow, WebContentsView, View, webContents, session, dialog, shell, clipboard, Menu, MenuItem, nativeImage,
   safeStorage, systemPreferences, nativeTheme, screen, powerSaveBlocker, net, Notification,
   contextBridge: undefined, ipcRenderer: undefined, crashReporter: { start() {} }, globalShortcut: { register: () => false, unregister() {}, unregisterAll() {} },
-  __ipad: { init, state, WebContents, allWc, invokeHandlers }
+  __ipad: {
+    init, state, WebContents, allWc, invokeHandlers,
+    // native services of the Swift host (Native.swift): camera, Vision OCR, QR scanner, PDFKit text, web archives
+    native: (name, args, timeoutMs) => host.call('native.' + name, args || {}, timeoutMs == null ? (/^(camera|qrscan)$/.test(name) ? 0 : 120000) : timeoutMs),
+    archive: (wcId, file) => host.call('wc.archive', { id: wcId, path: file }, 120000)
+  }
 };

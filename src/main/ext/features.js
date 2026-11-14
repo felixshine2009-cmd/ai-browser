@@ -176,7 +176,7 @@ function active() { return [...exts.values()].filter(r => r.enabled && r.module 
 
 async function withTimeout(p, ms, label) {
   let t;
-  try { return await Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(label + ' 超时')), ms); })]); } finally { clearTimeout(t); }
+  try { return await Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(label + ' 超时（' + Math.round(ms / 1000) + ' 秒）')), ms); })]); } finally { clearTimeout(t); }
 }
 
 // Input handlers: first enabled handler (by priority) matching the kind that returns a non-null result wins.
@@ -212,7 +212,10 @@ async function callTool(name, args, ctx) {
   for (const r of active()) {
     const decl = (r.manifest.contributes?.tools || []).find(t => t.name === name);
     if (decl && typeof r.module.tools?.[name] === 'function') {
-      return withTimeout(Promise.resolve(r.module.tools[name](args, ctx)), 30000, 'tool ' + name);
+      // panel-backed tools (GeoGebra, physics lab) wait for a heavy offline applet to load on first use: on an iPad
+      // that alone can take well over 30 s, which used to surface as a false "超时" while the drawing still appeared.
+      const ms = Number(decl.timeoutMs) || ((r.manifest.permissions || []).includes('panels') ? 120000 : 30000);
+      return withTimeout(Promise.resolve(r.module.tools[name](args, ctx)), ms, '工具 ' + name + ' 执行');
     }
   }
   throw new Error('未知工具: ' + name);

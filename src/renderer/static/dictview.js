@@ -16,7 +16,8 @@
       const it = items[i];
       if (it.kind === 'dict') {
         const f = document.createElement('iframe');
-        f.className = 'dict-frame'; f.setAttribute('sandbox', 'allow-scripts allow-popups'); f.src = it.url; f.dataset.dictId = it.id;
+        f.className = 'dict-frame'; f.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups'); f.title = it.label; // aibdict: is its own origin
+        f.src = it.url; f.dataset.dictId = it.id;
         body.appendChild(f);
       } else opts.ai(body);
     }

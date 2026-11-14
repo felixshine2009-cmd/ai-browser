@@ -466,4 +466,31 @@ async function testConnection(override) {
   }
 }
 
-module.exports = { prepImages, toAnthropic, withModel, activeSource, activeModel, modelCaps, localLabel, chat, complete, completeJson, events, hasRole, roleOf, extractJson, testConnection, fetchModels, friendly, maskSecrets, PRESETS, _chatOpenAI: chatOpenAI, _chatAnthropic: chatAnthropic };
+
+// Thinking levels the current model accepts (U5): the same request mapping as chat requests, deduplicated, so the
+// switcher only offers levels that change the request. Labels are the app's four levels.
+const THINKING_LABELS = { low: '轻度', medium: '标准', high: '深入', max: '最大' };
+function thinkingInfo() {
+  const v36 = require('../v36/v36');
+  const level = v36.normThinking(store.getSettings().thinkingLevel);
+  const c = currentConfig();
+  const base = { current: level, labels: THINKING_LABELS };
+  if (c.source === 'local') return Object.assign(base, { supported: false, adjustable: false, levels: [], note: '本地模型不支持调节思考等级' });
+  const a = c.api || {};
+  if (!a.model) return Object.assign(base, { supported: false, adjustable: false, levels: [], note: '尚未选择模型' });
+  const ctx = { provider: a.preset, preset: a.preset, model: a.model, baseUrl: a.baseUrl, format: a.format, caps: a.caps || modelCaps(a.preset, a.model) };
+  const seen = new Map();
+  for (const id of v36.THINKING) {
+    let f = {}; try { f = v36.reasoningFields(id, ctx) || {}; } catch {}
+    const k = JSON.stringify(f);
+    if (!seen.has(k)) seen.set(k, { id, ids: [id], empty: !Object.keys(f).length }); else seen.get(k).ids.push(id);
+  }
+  const groups = [...seen.values()];
+  if (groups.length === 1 && groups[0].empty) return Object.assign(base, { supported: false, adjustable: false, levels: [], note: '当前模型不支持调节思考等级' });
+  if (groups.length === 1) return Object.assign(base, { supported: true, adjustable: false, levels: [], note: '当前模型始终进行思考，不可调节' });
+  const levels = groups.map(g => ({ id: g.id, ids: g.ids, label: g.empty ? '关闭' : g.ids.map(x => THINKING_LABELS[x]).join(' / ') }));
+  const cur = groups.find(g => g.ids.includes(level));
+  return Object.assign(base, { supported: true, adjustable: true, levels, current: cur ? cur.id : level, provider: v36.detectProviderId(ctx), model: a.model });
+}
+
+module.exports = { thinkingInfo, THINKING_LABELS, prepImages, toAnthropic, withModel, activeSource, activeModel, modelCaps, localLabel, chat, complete, completeJson, events, hasRole, roleOf, extractJson, testConnection, fetchModels, friendly, maskSecrets, PRESETS, _chatOpenAI: chatOpenAI, _chatAnthropic: chatAnthropic };

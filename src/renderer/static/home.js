@@ -9,16 +9,12 @@
     const name = (st.displayName || '').trim();
     return name ? tpl.split('{name}').join(name) : tpl.replace(/\{name\}[，,、:：\s]*/g, '').trim();
   };
-  const tools = [
-    ['geogebra', 'GeoGebra', '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 13.5h12M2.5 14V2"/><path d="M3 11.5c2.2-6 4.8-6 7-1.5s2.5 1.5 3.5-3"/><circle cx="6.5" cy="7" r="1.3"/><circle cx="11.5" cy="9.5" r="1.3"/></svg>'],
-    ['physics', '物理', '<svg viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="8" rx="6.5" ry="2.6" transform="rotate(-30 8 8)"/><ellipse cx="8" cy="8" rx="6.5" ry="2.6" transform="rotate(30 8 8)"/><circle cx="8" cy="8" r="1.2"/></svg>'],
-    ['solve', '解题', '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2" width="11" height="12" rx="2"/><path d="M5.2 6.2l1.6 1.6 3.8-3.4"/><path d="M5.2 10.8h5.6"/></svg>'],
-    ['wiki', '百科', '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="2.6" ry="6"/><path d="M2.3 6h11.4M2.3 10h11.4"/></svg>'],
-    ['dict', '词典', '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5c1.8-.6 4.2-.6 6 .5 1.8-1.1 4.2-1.1 6-.5v9.2c-1.8-.6-4.2-.6-6 .5-1.8-1.1-4.2-1.1-6-.5z"/><path d="M8 4v9.2"/></svg>']
-  ];
+  // tools (U8): the same hand-drawn icons and Chinese captions as the toolbar; each tool opens in its own view (U1)
+  const IC = window.AIB_ICONS;
+  const tools = ['solve', 'geogebra', 'physics', 'wiki', 'dict', 'code', 'readlater'];
   const host = document.getElementById('hometools');
-  host.innerHTML = tools.map(([id, label, svg]) => `<button type="button" class="ticon" data-tool="${id}" title="${label}" aria-label="${label}">${svg}</button>`).join('');
-  host.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => window.aib.invoke('nav:openUrl', 'aibrowser://tool?id=' + b.dataset.tool));
+  host.innerHTML = tools.map(id => `<button type="button" class="ticon labeled" data-tool="${id}" title="${IC ? IC.tip(id) : id}" aria-label="${IC ? IC.label(id) : id}">${IC ? IC.svg(id) : ''}<span class="ticon-label">${IC ? IC.label(id) : id}</span></button>`).join('');
+  host.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => window.aib.invoke('tool:open', b.dataset.tool));
   const paintWork = () => document.querySelectorAll('#workswitch button').forEach(b => b.classList.toggle('on', b.dataset.work === (S.workMode || 'chat')));
   document.querySelectorAll('#workswitch button').forEach(b => b.onclick = async () => { S = await window.aib.invoke('settings:patch', { workMode: b.dataset.work }); paintWork(); });
   const set = () => {
@@ -35,6 +31,7 @@
       lang: () => (S.lang === 'en' ? 'en' : 'zh'),
       load: () => window.aib.invoke('models:picker'),
       select: (ref) => window.aib.invoke('models:select', ref),
+      thinking: { load: () => window.aib.invoke('models:thinking'), select: (lv) => window.aib.invoke('models:setThinking', lv) },
       onManage: () => window.aib.invoke('nav:openUrl', 'aibrowser://settings#ai')
     });
     window.__AIB_MP__ = mp;

@@ -1,4 +1,6 @@
 // Tiny safe Markdown renderer (escape first, then a small subset) with [n] citation links.
+// 2.3.0: TeX math ($$…$$, \[…\], \(…\), $…$) is rendered with the bundled offline KaTeX (+ mhchem for \ce{…}) when
+// the page loaded vendor/katex; otherwise it stays as escaped source. Math inside code is left alone.
 (function () {
   const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   function inline(s, cites) {
@@ -12,7 +14,41 @@
     });
     return s;
   }
+  // ---- math
+  const PH = (i) => '\u0001' + i + '\u0002';
+  function katexOf() { return (typeof window !== 'undefined' && window.katex && typeof window.katex.renderToString === 'function') ? window.katex : null; }
+  function texHtml(tex, display) {
+    const k = katexOf();
+    if (k) { try { return k.renderToString(tex, { displayMode: display, throwOnError: false, strict: 'ignore', trust: false, output: 'html' }); } catch {} }
+    return `<span class="math-raw${display ? ' display' : ''}">${esc(display ? '$$' + tex + '$$' : '$' + tex + '$')}</span>`;
+  }
+  // replaces math outside code with placeholders; returns { text, math: [{tex, display}] }
+  function extractMath(text) {
+    const math = [];
+    const parts = text.split(/(^\s*```[\s\S]*?^\s*```[^\n]*$)/m); // fenced code blocks stay untouched
+    for (let i = 0; i < parts.length; i += 2) {
+      let seg = parts[i];
+      const codes = [];
+      seg = seg.replace(/`[^`\n]+`/g, (m) => { codes.push(m); return '\u0003' + (codes.length - 1) + '\u0004'; });
+      const put = (tex, display) => { math.push({ tex: tex.trim(), display }); return display ? '\n\n' + PH(math.length - 1) + '\n\n' : PH(math.length - 1); };
+      seg = seg.replace(/\$\$([\s\S]+?)\$\$/g, (m, t) => put(t, true));
+      seg = seg.replace(/\\\[([\s\S]+?)\\\]/g, (m, t) => put(t, true));
+      seg = seg.replace(/\\\(([\s\S]+?)\\\)/g, (m, t) => put(t, false));
+      // inline $…$: no space just inside the dollars, not a price such as "$5 and $6"
+      // (no look-behind: older iPadOS WebKit cannot parse it)
+      seg = seg.replace(/(^|[^\\$\w])\$(?!\s)([^$\n]{1,400}?)\$(?![\w$])/g, (m, pre, t) => (/[\s\\]$/.test(t) || /^\d+(?:[.,]\d+)?$/.test(t) ? m : pre + put(t, false)));
+      seg = seg.replace(/\u0003(\d+)\u0004/g, (m, n) => codes[Number(n)]);
+      parts[i] = seg;
+    }
+    return { text: parts.join(''), math };
+  }
   function render(text, cites) {
+    const ex = extractMath(String(text || '').replace(/\r/g, ''));
+    const html = renderBlocks(ex.text, cites);
+    if (!ex.math.length) return html;
+    return html.replace(/\u0001(\d+)\u0002/g, (m, n) => { const x = ex.math[Number(n)]; return x ? texHtml(x.tex, x.display) : ''; });
+  }
+  function renderBlocks(text, cites) {
     const lines = String(text || '').replace(/\r/g, '').split('\n');
     const out = []; let list = null, para = [];
     const flushPara = () => { if (para.length) { out.push('<p>' + inline(para.join('<br>'), cites).replace(/&lt;br&gt;/g, '<br>') + '</p>'); para = []; } };
@@ -32,5 +68,5 @@
     flushPara(); flushList();
     return out.join('');
   }
-  window.MD = { render, esc };
+  window.MD = { render, esc, extractMath, texHtml, hasKatex: () => !!katexOf() };
 })();

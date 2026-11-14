@@ -473,14 +473,16 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
         let props = (m["properties"] as? [String]) ?? ["openFile"]
         let dirs = props.contains("openDirectory")
         var types = [UTType]()
-        if dirs { types = [.folder] }
+        if dirs && !props.contains("openFile") { types = [.folder] }
         else {
             for f in (m["filters"] as? [[String: Any]]) ?? [] {
                 for e in (f["extensions"] as? [String]) ?? [] where e != "*" { if let t = UTType(filenameExtension: e) { types.append(t) } }
             }
             if types.isEmpty { types = [.item] }
+            if dirs { types.append(.folder) } // files and folders (e.g. a dictionary folder with .mdx, .mdd and styles)
         }
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: !dirs)
+        // opened in place (security-scoped) and copied below: one folder per pick keeps companion files together
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: false)
         picker.allowsMultipleSelection = props.contains("multiSelections")
         picker.delegate = self
         pickerReply = completion
@@ -490,14 +492,18 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
         let fm = FileManager.default
         let base = Paths.tmp.appendingPathComponent("picked/\(UUID().uuidString.prefix(8))", isDirectory: true)
         try? fm.createDirectory(at: base, withIntermediateDirectories: true)
-        var out = [String]()
-        for u in urls {
-            let scoped = u.startAccessingSecurityScopedResource()
-            defer { if scoped { u.stopAccessingSecurityScopedResource() } }
-            let dest = base.appendingPathComponent(u.lastPathComponent)
-            do { try fm.copyItem(at: u, to: dest); out.append(dest.path) } catch { NSLog("[aib] pick copy failed: \(error)") }
+        let reply = pickerReply; pickerReply = nil
+        // copied off the main thread: system images and dictionaries can be several GB
+        DispatchQueue.global(qos: .userInitiated).async {
+            var out = [String]()
+            for u in urls {
+                let scoped = u.startAccessingSecurityScopedResource()
+                defer { if scoped { u.stopAccessingSecurityScopedResource() } }
+                let dest = base.appendingPathComponent(u.lastPathComponent)
+                do { try fm.copyItem(at: u, to: dest); out.append(dest.path) } catch { NSLog("[aib] pick copy failed: \(error)") }
+            }
+            DispatchQueue.main.async { reply?(false, out) }
         }
-        pickerReply?(false, out); pickerReply = nil
     }
     func documentPickerWasCancelled(_ c: UIDocumentPickerViewController) { pickerReply?(true, []); pickerReply = nil }
 

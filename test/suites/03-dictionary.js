@@ -42,7 +42,8 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     eq(await p.locator('.dict-tabs .dt').first().innerText(), 'Test Dict');
     const f = await dictFrame(p);
     await until(async () => (await f.locator('.hw').count()) === 1, 8000, 'entry rendered');
-    eq(await p.locator('.dict-frame').getAttribute('sandbox'), 'allow-scripts allow-popups');
+    // 2.3.0: entries get their own aibdict: origin (storage for dictionary scripts); still cross-origin to the app pages
+    eq(await p.locator('.dict-frame').getAttribute('sandbox'), 'allow-scripts allow-same-origin allow-popups');
     await app.screenshot(path.join(__dirname, '..', '..', 'shots', '03-dictionary-word.png'));
   });
   await test('词典资源：MDD 中的 CSS 生效、图片加载、音频可取', async () => {

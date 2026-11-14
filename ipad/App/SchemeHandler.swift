@@ -68,6 +68,10 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
             let alt = Paths.userData.appendingPathComponent("vm-gui/fs").appendingPathComponent(file.lastPathComponent).standardizedFileURL.path
             if FileManager.default.fileExists(atPath: alt) { std = alt; okRoot = Paths.userData.standardizedFileURL.path }
         }
+        // HTTP Range: the VM reads user disk images (several GB) in pieces instead of mapping the whole file
+        if let range = task.request.value(forHTTPHeaderField: "Range"), std.hasPrefix(okRoot) {
+            serveRange(url, task, std, range); return
+        }
         DispatchQueue.global(qos: .userInitiated).async {
             let data = std.hasPrefix(okRoot) ? (try? Data(contentsOf: URL(fileURLWithPath: std), options: .alwaysMapped)) : nil
             DispatchQueue.main.async {
@@ -76,7 +80,43 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
                 let body = data ?? Data("Not found".utf8)
                 let resp = HTTPURLResponse(url: url, statusCode: code, httpVersion: "HTTP/1.1", headerFields: [
                     "Content-Type": data == nil ? "text/plain" : SchemeHandler.mime(std), "Content-Length": String(body.count),
-                    "Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache",
+                    "Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache", "Accept-Ranges": "bytes",
+                    "Access-Control-Expose-Headers": "Content-Range, Content-Length",
+                    "Cross-Origin-Resource-Policy": "cross-origin"])!
+                task.didReceive(resp); task.didReceive(body); task.didFinish()
+                self.finish(task)
+            }
+        }
+    }
+
+    private func serveRange(_ url: URL, _ task: WKURLSchemeTask, _ path: String, _ range: String) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            var status = 416; var body = Data(); var cr = ""
+            let size = ((try? FileManager.default.attributesOfItem(atPath: path)[.size]) as? NSNumber)?.int64Value ?? -1
+            let spec = range.trimmingCharacters(in: .whitespaces)
+            if size >= 0, spec.hasPrefix("bytes="), !spec.contains(",") {
+                let parts = spec.dropFirst(6).split(separator: "-", omittingEmptySubsequences: false).map(String.init)
+                if parts.count == 2 {
+                    var a: Int64, b: Int64
+                    if parts[0].isEmpty { a = max(0, size - (Int64(parts[1]) ?? 0)); b = size - 1 }
+                    else { a = Int64(parts[0]) ?? 0; b = parts[1].isEmpty ? size - 1 : min(size - 1, Int64(parts[1]) ?? (size - 1)) }
+                    if a <= b, a < size, let fh = FileHandle(forReadingAtPath: path) {
+                        // at most 64 MB per response
+                        b = min(b, a + 64 * 1024 * 1024 - 1)
+                        try? fh.seek(toOffset: UInt64(a))
+                        body = (try? fh.read(upToCount: Int(b - a + 1))) ?? Data()
+                        try? fh.close()
+                        status = 206; cr = "bytes \(a)-\(a + Int64(body.count) - 1)/\(size)"
+                    }
+                }
+            }
+            if status == 416 { cr = "bytes */\(max(size, 0))" }
+            DispatchQueue.main.async {
+                guard self.isLive(task) else { return }
+                let resp = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: [
+                    "Content-Type": SchemeHandler.mime(path), "Content-Length": String(body.count), "Content-Range": cr,
+                    "Accept-Ranges": "bytes", "Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache",
+                    "Access-Control-Expose-Headers": "Content-Range, Content-Length",
                     "Cross-Origin-Resource-Policy": "cross-origin"])!
                 task.didReceive(resp); task.didReceive(body); task.didFinish()
                 self.finish(task)

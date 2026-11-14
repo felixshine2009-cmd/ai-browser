@@ -4,6 +4,9 @@
 const http = require('http');
 const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
+// under the device-like Node (no ICU, --jitless) the same shims as on iPad are needed for fetch / TextDecoder
+if (typeof globalThis.WebAssembly === 'undefined') require(path.join(ROOT, 'ipad/node/wasm-shim.js'));
+try { new TextDecoder('gb18030'); } catch { try { require(path.join(ROOT, 'ipad/node/encoding-shim.js')); } catch {} }
 
 module.exports = async ({ test, group, assert, eq }) => {
   group('2.3.0 单元检查：采样参数规则、思考等级、公式渲染');
@@ -52,5 +55,40 @@ module.exports = async ({ test, group, assert, eq }) => {
       try { await fn(cfg2, 'k', { messages: [{ role: 'user', content: 'x' }] }); } catch (e) { failed = e.status === 400; }
       srv2.close(); assert(failed, 'error propagated'); eq(seen.length, n + 1, 'no retry for unrelated 400');
     } finally { srv.close(); }
+  });
+
+  await test('公式渲染（B7）：离线 KaTeX + mhchem 渲染 $…$、$$…$$、\\(…\\)、\\[…\\]，代码与价格不误判', () => {
+    const vm = require('vm'), fs = require('fs');
+    const D = path.join(ROOT, 'src/renderer/static/');
+    const ctx = vm.createContext({}); ctx.window = ctx; ctx.self = ctx;
+    for (const f of ['vendor/katex/katex.min.js', 'vendor/katex/contrib/mhchem.min.js', 'md.js']) vm.runInContext(fs.readFileSync(D + f, 'utf8'), ctx, { filename: f });
+    const r = ctx.MD.render('解：$x^2+1=0$\n$$\\frac{a}{b}$$\n价格 $5 和 $6，\\(\\ce{H2O}\\)\n`$code$`\n```\n$$no$$\n```\n\\[ \\int_0^1 x\\,dx \\]');
+    eq((r.match(/class="katex"/g) || []).length, 4, 'four formulas');
+    eq((r.match(/katex-display/g) || []).length, 2, 'two display formulas');
+    assert(r.includes('$5 和 $6'), 'prices untouched'); assert(r.includes('<code>$code$</code>'), 'inline code untouched'); assert(r.includes('$$no$$'), 'fenced code untouched');
+    assert(!r.includes('\\ce'), 'mhchem rendered');
+    for (const f of ['katex.min.js', 'katex.min.css', 'contrib/mhchem.min.js', 'LICENSE']) assert(fs.existsSync(path.join(D, 'vendor/katex', f)), f);
+    const css = fs.readFileSync(path.join(D, 'vendor/katex/katex.min.css'), 'utf8');
+    for (const m of css.matchAll(/url\((fonts\/[^)]+)\)/g)) assert(fs.existsSync(path.join(D, 'vendor/katex', m[1])), 'font ' + m[1]);
+    for (const pg of ['chat', 'siri', 'tool']) assert(fs.readFileSync(path.join(ROOT, 'src/renderer/pages', pg + '.html'), 'utf8').includes('vendor/katex/katex.min.js'), pg + ' loads KaTeX');
+  });
+  await test('自定义镜像（F6）：识别 ISO / QCOW2 / IMG；QCOW2（v2、v3、压缩簇）转换为原始格式后逐字节一致', async () => {
+    const os = require('os'); const fs = require('fs'); const { execFileSync } = require('child_process'); const crypto = require('crypto');
+    const custom = require(path.join(ROOT, 'src/main/vm/custom'));
+    let qemuImg = null; try { execFileSync('qemu-img', ['--version']); qemuImg = 'qemu-img'; } catch {}
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'aib-qc-'));
+    const raw = path.join(d, 'src.raw'); const b = Buffer.alloc(4 * 1024 * 1024);
+    crypto.randomBytes(300000).copy(b, 500000); b.write('hello', 3500000); b[510] = 0x55; b[511] = 0xaa; fs.writeFileSync(raw, b);
+    eq(custom.detect(raw).format, 'raw');
+    const iso = path.join(d, 'x.iso'); const ib = Buffer.alloc(0x9000); ib.write('CD001', 0x8001, 'latin1'); fs.writeFileSync(iso, ib);
+    eq(custom.detect(iso).format, 'iso');
+    if (!qemuImg) { console.log('    (跳过 QCOW2 转换：没有 qemu-img)'); return; }
+    const md5 = (f) => crypto.createHash('md5').update(fs.readFileSync(f)).digest('hex');
+    for (const [n, args] of [['v3', ['-O', 'qcow2']], ['v3c', ['-c', '-O', 'qcow2']], ['v2', ['-O', 'qcow2', '-o', 'compat=0.10']]]) {
+      const q = path.join(d, n + '.qcow2'); execFileSync(qemuImg, ['convert', ...args, raw, q]);
+      eq(custom.detect(q).format, 'qcow2');
+      await custom.qcow2ToRaw(q, path.join(d, n + '.out'));
+      eq(md5(path.join(d, n + '.out')), md5(raw), n);
+    }
   });
 };

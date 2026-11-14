@@ -189,7 +189,7 @@ final class QRScanSession: NSObject, AVCaptureMetadataOutputObjectsDelegate {
                 let s = AVCaptureSession()
                 if s.canAddInput(input) { s.addInput(input) }
                 let out = AVCaptureMetadataOutput()
-                if s.canAddOutput(out) { s.addOutput(out); out.setMetadataObjectsDelegate(self, queue: .main); out.metadataObjectTypes = out.availableMetadataObjectTypes.filter { [.qr, .aztec, .dataMatrix, .pdf417, .ean13, .code128].contains($0) } }
+                if s.canAddOutput(out) { s.addOutput(out); out.setMetadataObjectsDelegate(self, queue: .main); let wanted: [AVMetadataObject.ObjectType] = [.qr, .aztec, .dataMatrix, .pdf417, .ean13, .code128]; out.metadataObjectTypes = out.availableMetadataObjectTypes.filter { wanted.contains($0) } }
                 let layer = AVCaptureVideoPreviewLayer(session: s)
                 layer.videoGravity = .resizeAspectFill
                 layer.frame = vc.view.bounds

@@ -1,13 +1,15 @@
 // Compact model switcher shown next to an input box (desktop pages and the web / iPad app share this file;
 // web/js/model-picker.js is an exact copy). Grouped by provider, searchable, keyboard navigable.
-// AIBModelPicker.mount(host, { load, select, onManage, lang, scopeNote }) -> { refresh, close, el, destroy }
+// AIBModelPicker.mount(host, { load, select, onManage, lang, scopeNote, thinking }) -> { refresh, close, el, destroy }
+//   thinking (optional): { load(): Promise<{supported, adjustable, levels:[{id,label}], current, note}>, select(level) }
+//   adds the thinking level control next to the switcher (one global setting shared by every page)
 //   load():  Promise<{ current:{provider,model,label}, groups:[{id,name,models:[{id,name,ctx,vision,reasoning}]}] }>
 //   select(ref): Promise<any>  (ref = {provider, model})
 (function (root) {
   'use strict';
   const STR = {
-    zh: { search: '搜索模型', manage: '管理模型', empty: '尚未启用任何模型。请前往“设置 → AI 模型”，为服务商获取并启用模型。', noMatch: '未找到匹配的模型', vision: '视觉', reasoning: '思考', ctx: '上下文长度', current: '当前模型', choose: '选择模型', none: '未选择模型', loading: '正在加载…' },
-    en: { search: 'Search models', manage: 'Manage models', empty: 'No models are enabled yet. Open Settings → AI models to fetch and enable models for a provider.', noMatch: 'No matching models', vision: 'Vision', reasoning: 'Thinking', ctx: 'Context length', current: 'Current model', choose: 'Choose model', none: 'No model selected', loading: 'Loading…' }
+    zh: { think: '思考', thinkTitle: '思考等级', thinkOff: '不支持', thinkFixed: '始终开启', thinkNote: '思考等级为全局设置，对所有页面生效。', search: '搜索模型', manage: '管理模型', empty: '尚未启用任何模型。请前往“设置 → AI 模型”，为服务商获取并启用模型。', noMatch: '未找到匹配的模型', vision: '视觉', reasoning: '思考', ctx: '上下文长度', current: '当前模型', choose: '选择模型', none: '未选择模型', loading: '正在加载…' },
+    en: { think: 'Thinking', thinkTitle: 'Thinking level', thinkOff: 'Not supported', thinkFixed: 'Always on', thinkNote: 'The thinking level is a global setting for every page.', search: 'Search models', manage: 'Manage models', empty: 'No models are enabled yet. Open Settings → AI models to fetch and enable models for a provider.', noMatch: 'No matching models', vision: 'Vision', reasoning: 'Thinking', ctx: 'Context length', current: 'Current model', choose: 'Choose model', none: 'No model selected', loading: 'Loading…' }
   };
   const CSS = `
 .mp{position:relative;display:inline-flex;max-width:100%;vertical-align:middle;
@@ -45,6 +47,12 @@
 .mp-pop .mp-empty{padding:18px 14px;color:var(--_m);line-height:1.6}
 .mp-pop .mp-foot{all:unset;box-sizing:border-box;display:block;border-top:1px solid var(--_b);padding:9px 14px;color:var(--_a);font:inherit;font-size:12.5px;font-weight:600;cursor:default;text-align:left}
 .mp-pop .mp-foot:hover,.mp-pop .mp-foot:focus-visible{background:var(--_h)}
+.mp .mp-think{margin-left:6px;gap:5px;padding:0 10px}
+.mp .mp-think .mp-tl{color:var(--_m);font-weight:500}
+.mp .mp-think[aria-disabled="true"]{opacity:.62}
+.mp-pop.mp-tpop{width:min(260px,calc(100vw - 16px))}
+.mp-pop .mp-tnote{padding:8px 14px 10px;color:var(--_m);font-size:11.5px;line-height:1.5;border-top:1px solid var(--_b)}
+.mp-pop .mp-thead{padding:10px 14px 4px;font-size:11.5px;font-weight:600;color:var(--_m)}
 @media (pointer:coarse){.mp .mp-btn{height:40px;font-size:14px;padding:0 12px}.mp-pop .mp-it{min-height:44px}.mp-pop .mp-q{height:40px;font-size:16px}}
 `;
   function injectCss() {
@@ -188,12 +196,58 @@
       close(true);
       data.current = Object.assign({}, data.current || {}, ref); paintBtn();
       try { const r = await opts.select(ref); if (r && r.current) { data = r; paintBtn(); } else await refresh(); } catch { await refresh(); }
+      trefresh();
     }
+    // ---- thinking level control (U5)
+    let tbtn = null, tpop = null, tdata = null;
+    if (opts.thinking) {
+      tbtn = document.createElement('button'); tbtn.type = 'button'; tbtn.className = 'mp-btn mp-think';
+      tbtn.setAttribute('aria-haspopup', 'listbox'); tbtn.setAttribute('aria-expanded', 'false');
+      wrap.appendChild(tbtn);
+      tbtn.addEventListener('click', () => (tpop ? tclose() : topen()));
+    }
+    function tpaint() {
+      if (!tbtn) return;
+      const d = tdata || {};
+      let val = '…';
+      if (tdata) val = !d.supported ? S().thinkOff : !d.adjustable ? S().thinkFixed : ((d.levels || []).find(l => l.id === d.current) || {}).label || (d.labels && d.labels[d.current]) || d.current;
+      tbtn.innerHTML = `<span class="mp-tl">${esc(S().think)}</span><span class="mp-name">${esc(val)}</span>${tdata && d.adjustable ? CHEV : ''}`;
+      tbtn.setAttribute('aria-disabled', String(!!tdata && !d.adjustable));
+      tbtn.title = S().thinkTitle + '：' + val + (d.note ? '（' + d.note + '）' : '');
+      tbtn.setAttribute('aria-label', tbtn.title);
+    }
+    async function trefresh() { if (!opts.thinking) return; try { tdata = await opts.thinking.load(); } catch { tdata = null; } tpaint(); }
+    function topen() {
+      if (tpop || !tdata) return;
+      tpop = document.createElement('div'); tpop.className = 'mp-pop mp-tpop';
+      const cs = getComputedStyle(wrap);
+      for (const v of ['--_t', '--_m', '--_b', '--_a', '--_bg', '--_h', '--_p']) tpop.style.setProperty(v, cs.getPropertyValue(v));
+      const d = tdata;
+      const rows = d.adjustable ? d.levels.map(l => `<div class="mp-it" role="option" data-lv="${esc(l.id)}" aria-selected="${l.id === d.current}"><span class="mp-ck" aria-hidden="true">${l.id === d.current ? '✓' : ''}</span><span class="mp-id">${esc(l.label)}</span></div>`).join('') : '';
+      tpop.innerHTML = `<div class="mp-thead">${esc(S().thinkTitle)}</div><div class="mp-list" role="listbox">${rows}</div><div class="mp-tnote">${esc(d.note ? d.note + '。' : '')}${esc(S().thinkNote)}</div>`;
+      document.body.appendChild(tpop); tbtn.setAttribute('aria-expanded', 'true');
+      const r = tbtn.getBoundingClientRect(); const w = Math.min(260, window.innerWidth - 16);
+      tpop.style.left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8) + 'px';
+      if (window.innerHeight - r.bottom > 220) tpop.style.top = (r.bottom + 6) + 'px'; else tpop.style.bottom = (window.innerHeight - r.top + 6) + 'px';
+      tpop.addEventListener('click', async (e) => {
+        const it = e.target.closest('[data-lv]'); if (!it) return;
+        const lv = it.dataset.lv; tclose();
+        tdata = Object.assign({}, tdata, { current: lv }); tpaint();
+        try { const r2 = await opts.thinking.select(lv); if (r2) { tdata = r2; tpaint(); } } catch { trefresh(); }
+      });
+      setTimeout(() => { document.addEventListener('mousedown', toutside, true); document.addEventListener('touchstart', toutside, true); }, 0);
+    }
+    function tclose() {
+      if (!tpop) return; tpop.remove(); tpop = null; tbtn.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('mousedown', toutside, true); document.removeEventListener('touchstart', toutside, true);
+    }
+    function toutside(e) { if (tpop && !tpop.contains(e.target) && !tbtn.contains(e.target)) tclose(); }
     btn.addEventListener('click', () => (pop ? close() : open()));
     btn.addEventListener('keydown', (e) => { if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !pop) { e.preventDefault(); open(); } });
     paintBtn();
-    refresh();
-    return { el: wrap, refresh, close, open, destroy() { close(); wrap.remove(); }, get data() { return data; } };
+    refresh(); tpaint(); trefresh();
+    const refreshAll = () => Promise.all([refresh(), trefresh()]).then(() => data);
+    return { el: wrap, refresh: refreshAll, close() { close(); tclose(); }, open, destroy() { close(); tclose(); wrap.remove(); }, get data() { return data; }, get thinking() { return tdata; } };
   }
   root.AIBModelPicker = { mount, fmtCtx };
 })(typeof window !== 'undefined' ? window : globalThis);

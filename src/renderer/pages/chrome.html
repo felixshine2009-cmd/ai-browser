@@ -11,6 +11,7 @@
 <div class="window chrome-root">
   <div class="tabbar">
     <div class="traffic"></div>
+    <button type="button" class="space-chip" id="spacechip" title="空间：按学科分组的标签页" aria-label="空间"></button>
     <div class="tabs" id="tabs"></div>
   </div>
   <div class="toolbar">
@@ -18,8 +19,8 @@
     <div class="tb-btn disabled" id="fwd" data-i18n-title="nav.forward"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></div>
     <div class="tb-btn" id="reload" data-i18n-title="nav.reload"><svg viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5V5h-2.5"/></svg></div>
     <div class="mode-seg" id="modeseg">
-      <div class="seg ai" data-mode="chat" data-i18n="mode.chat">Chat</div>
-      <div class="seg" data-mode="search" data-i18n="mode.search">Search</div>
+      <div class="seg ai" data-mode="chat" data-i18n="mode.chat">对话</div>
+      <div class="seg" data-mode="search" data-i18n="mode.search">搜索</div>
     </div>
     <div class="address-wrap">
       <div class="address">
@@ -30,15 +31,10 @@
     <div class="tb-right">
       <div class="tool-cluster" id="toolcluster">
         <button type="button" class="tb-btn tool-fold" id="toolfold" title="收起或展开工具栏" aria-expanded="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5L8 9l2.5-2.5"/></svg></button>
-        <div class="tool-icons" id="toolicons">
-          <button type="button" class="ticon" data-tool="geogebra" title="GeoGebra" aria-label="GeoGebra"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 13.5h12M2.5 14V2"/><path d="M3 11.5c2.2-6 4.8-6 7-1.5s2.5 1.5 3.5-3"/><circle cx="6.5" cy="7" r="1.3"/><circle cx="11.5" cy="9.5" r="1.3"/></svg></button>
-          <button type="button" class="ticon" data-tool="physics" title="物理" aria-label="物理"><svg viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="8" rx="6.5" ry="2.6" transform="rotate(-30 8 8)"/><ellipse cx="8" cy="8" rx="6.5" ry="2.6" transform="rotate(30 8 8)"/><circle cx="8" cy="8" r="1.2"/></svg></button>
-          <button type="button" class="ticon" data-tool="solve" title="解题" aria-label="解题"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2" width="11" height="12" rx="2"/><path d="M5.2 6.2l1.6 1.6 3.8-3.4"/><path d="M5.2 10.8h5.6"/></svg></button>
-          <button type="button" class="ticon" data-tool="wiki" title="百科" aria-label="百科"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="2.6" ry="6"/><path d="M2.3 6h11.4M2.3 10h11.4"/></svg></button>
-          <button type="button" class="ticon" data-tool="dict" title="词典" aria-label="词典"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3.5c1.8-.6 4.2-.6 6 .5 1.8-1.1 4.2-1.1 6-.5v9.2c-1.8-.6-4.2-.6-6 .5-1.8-1.1-4.2-1.1-6-.5z"/><path d="M8 4v9.2"/></svg></button>
-        </div>
+        <div class="tool-icons" id="toolicons"></div>
       </div>
-      <button type="button" class="tb-btn siri-btn" id="siri" title="Siri" aria-label="Siri">
+      <button type="button" class="tb-btn split-btn" id="splitbtn" title="分屏：两个标签页并排显示" aria-label="分屏"></button>
+      <button type="button" class="tb-btn siri-btn" id="siri" title="页面助手：一键摘要与问答，并标注原文出处" aria-label="页面助手">
         <svg class="siri-orb" viewBox="0 0 20 20" aria-hidden="true">
           <defs>
             <radialGradient id="orbBg" cx="35%" cy="30%" r="70%">
@@ -64,7 +60,9 @@
     </div>
   </div>
 </div>
+<div class="split-bar" id="splitbar" hidden title="拖动调整分屏比例；双击交换左右"><span></span></div>
 <script src="aibrowser://static/theme.js"></script>
 <script src="aibrowser://static/i18n.js"></script>
+<script src="aibrowser://static/icons.js"></script>
 <script src="aibrowser://static/chrome.js"></script>
 </body></html>

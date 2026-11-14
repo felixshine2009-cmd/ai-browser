@@ -75,11 +75,22 @@
 
 ## iPad
 
-iPad 版以未签名的 `AI-Browser-iPad-unsigned.ipa` 发布。它使用 Capacitor（MIT）封装同一套网页应用，支持 iPad（亦可在 iPhone 上使用）及全部方向。桌面专属功能仍显示为灰色，并提示「仅桌面版可用」。可打开 ZIM 格式离线百科（系统允许时会保存到应用目录，否则在本次会话中保留于内存）、选择文件，并在解题时使用相机或相册。若设备不支持 WebGPU，本地模型会平稳降级。IPA 内嵌 Linux 虚拟机（基于 v86 模拟器的 Alpine Linux），预装 Python、numpy、scipy、sympy、pandas 与 matplotlib，AI 可在其中离线运行 Python 与命令。虚拟机内部无法联网：其他纯 Python 库由应用下载后装入虚拟机，含原生代码的库则安装到 Pyodide。
+iPad 版由桌面版直接移植：原生宿主运行与桌面版相同的主程序与页面，界面与功能与桌面版一致。以未签名的 `AI-Browser-iPad-unsigned.ipa` 发布（需 iPadOS 16 或更高版本）。
 
-该 IPA **未经签名**。请使用 AltStore 或 Sideloadly 等侧载工具，以你自己的 Apple ID 安装。免费的 Apple 开发者账户须每 7 天重新签名一次。
+* **工具独立视图**：解题、拍题、GeoGebra、物理实验、离线百科（ZIM）、词典（MDX）、代码编辑器与稍后阅读直接显示在地址栏下方，不再作为网页标签打开。每个工具主页均可将输入交给 AI、切换模型并调节思考等级，协作侧栏可以收起。
+* **相机**：拍题即解（Apple Vision 文字识别，支持图像的模型负责转写公式）；凡可添加图片之处均可直接拍照；使用系统相机扫描二维码。
+* **公式渲染**：AI 回答中的数学公式与化学方程式由离线 KaTeX 排版。
+* **分屏与空间**：两个标签页并排显示，分隔线可拖动调整；标签页可按学科归入不同空间。
+* **页面助手**：一键摘要网页与 PDF；回答问题时附带编号引用，点击即可定位原文段落。
+* **稍后阅读**：保存网页的完整离线副本，并可与离线百科一并检索。
+* **代码编辑器**：管理“我的代码”、Python 工作目录与 Linux 虚拟机共享目录中的文件，支持语法高亮，一键运行 Python、Shell 与 HTML 文件。
+* **Python 与 Linux**：内置 Python（Pyodide）与 Alpine Linux 虚拟机（v86），AI 可离线使用；可导入并启动自定义的 ISO、IMG、QCOW2 系统镜像。
+* **本地模型**：llama.cpp，使用 Metal 加速。
+* **稳定性**：长时间使用、应用挂起或网页内容进程重启后，页面与主程序之间的连接自动恢复。
 
-见 [iPad 发行版](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v1.2.0)。
+IPA **未签名**，请使用 AltStore、Sideloadly 等工具以您自己的 Apple ID 侧载安装。免费 Apple 开发者账号需每 7 天重新签名一次。
+
+见 [iPad 发行版](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v2.3.0)。
 
 ## 安装（推荐）
 

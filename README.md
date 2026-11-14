@@ -75,11 +75,22 @@ The **web version (PWA)** at https://felixshine2009-cmd.github.io/ai-browser/ wo
 
 ## iPad
 
-An unsigned iPad build is available as `AI-Browser-iPad-unsigned.ipa`. It wraps the same web app with Capacitor (MIT), supports iPad (and iPhone) with all orientations, and uses the same interface: desktop-only features stay grayed out with “Desktop only”. You can open a ZIM encyclopedia (stored in the app directory when the system allows, otherwise kept in memory for the session), pick files, and use the camera or photo library when solving a problem. Local WebGPU models degrade gracefully if the device does not support WebGPU. The IPA embeds a Linux virtual machine (Alpine Linux in the v86 emulator) with Python, numpy, scipy, sympy, pandas and matplotlib; the AI can run Python and shell commands in it offline. The VM has no internet access: extra pure-Python libraries are downloaded by the app and installed into the VM, and libraries with native code are installed into Pyodide.
+The iPad app is the desktop app ported to iPadOS: a native host runs the same main program and pages, so the interface and features match the desktop version. It is published as the unsigned `AI-Browser-iPad-unsigned.ipa` (iPadOS 16 or later).
+
+* **Tools in their own view**: solver, photo solving, GeoGebra, physics lab, offline encyclopedia (ZIM), dictionary (MDX), code editor and read later open directly below the address bar instead of as web tabs. Every tool home page can hand its input to the AI, switch models and set the thinking level, and the collaboration sidebar can be collapsed.
+* **Camera**: photograph a problem and solve it at once (Apple Vision text recognition; a vision-capable model transcribes formulas), take photos wherever images are accepted, and scan QR codes with the system camera.
+* **Math rendering**: AI answers render formulas and chemical equations offline with KaTeX.
+* **Split view and spaces**: show two tabs side by side with an adjustable divider, and group tabs into spaces by subject.
+* **Page assistant**: one-tap summaries of web pages and PDFs, and questions answered with numbered citations that jump to the cited passage.
+* **Read later**: save pages with full offline copies and search them together with the offline encyclopedia.
+* **Code editor**: a file manager for your code folder, the Python working directory and the Linux VM shared folder, with syntax highlighting and one-tap running of Python, shell and HTML files.
+* **Python and Linux**: built-in Python (Pyodide) and an Alpine Linux virtual machine (v86) the AI can use offline; custom ISO, IMG and QCOW2 system images can be imported and booted.
+* **Local models**: llama.cpp with Metal acceleration.
+* **Reliability**: the connection between the pages and the main program recovers on its own after long use, suspension or a web content process restart.
 
 The IPA is **unsigned**. Install it by sideloading with a tool such as AltStore or Sideloadly and your own Apple ID. Free Apple Developer accounts must re-sign the app every 7 days.
 
-See the [iPad release](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v1.2.0).
+See the [iPad release](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v2.3.0).
 
 ## Install (recommended)
 

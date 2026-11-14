@@ -24,7 +24,7 @@ const selfmod = require('./selfmod');
 const appearance = require('./appearance');
 
 const RENDERER = path.join(__dirname, '..', 'renderer');
-const PAGES = new Set(['chrome', 'home', 'chat', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'menu', 'find', 'lookup', 'onboarding', 'selfmod', 'tool', 'siri', 'vmdesktop']);
+const PAGES = new Set(['chrome', 'home', 'chat', 'settings', 'extensions', 'history', 'bookmarks', 'downloads', 'menu', 'find', 'lookup', 'onboarding', 'selfmod', 'tool', 'siri', 'vmdesktop', 'code', 'readlater', 'vmcustom']);
 const MIME = { html: 'text/html; charset=utf-8', js: 'application/javascript', css: 'text/css', json: 'application/json', svg: 'image/svg+xml', png: 'image/png', woff2: 'font/woff2', wasm: 'application/wasm', mjs: 'application/javascript', gif: 'image/gif', jpg: 'image/jpeg', jpeg: 'image/jpeg', ico: 'image/x-icon', ttf: 'font/ttf', woff: 'font/woff', txt: 'text/plain', map: 'application/json', xml: 'text/xml', mp3: 'audio/mpeg', ogg: 'audio/ogg' };
 const mimeOf = f => MIME[path.extname(f).slice(1).toLowerCase()] || 'application/octet-stream';
 const fileResponse = (f) => new Response(fs.readFileSync(f), { headers: { 'Content-Type': mimeOf(f), 'Access-Control-Allow-Origin': '*' } });
@@ -136,7 +136,8 @@ function callPanel(ctx, extId, panelId, method, args) {
     const wc = ctx && ctx.wcId != null ? webContents.fromId(ctx.wcId) : null;
     if (!wc || wc.isDestroyed()) return reject(new Error('没有可用的页面来显示面板'));
     const reqId = 'p' + (++panelSeq);
-    const t = setTimeout(() => { panelPending.delete(reqId); reject(new Error('面板调用超时')); }, 70000);
+    // shorter than the 120 s tool limit so the panel's own (more specific) error wins
+    const t = setTimeout(() => { panelPending.delete(reqId); reject(new Error('面板响应超时（115 秒），请确认面板已打开后重试')); }, 115000);
     panelPending.set(reqId, { resolve: (v) => { clearTimeout(t); resolve(v); }, reject: (e) => { clearTimeout(t); reject(e); } });
     wc.send('panel:call', { reqId, extId, panelId, method, args });
   });
@@ -196,6 +197,13 @@ function registerIpc() {
     modelsM().select(ref); modelsChanged(); return modelsM().picker({});
   });
   handle('engines:list', () => store.ENGINES);
+  // one global thinking level for every page (U4 / U5)
+  handle('models:thinking', () => llm.thinkingInfo());
+  handle('models:setThinking', (e, level) => {
+    const v = require('./v36/v36').normThinking(level);
+    const s = store.patchSettings({ thinkingLevel: v }); broadcast('settings:changed', s); broadcast('models:changed', {});
+    return llm.thinkingInfo();
+  });
 
   // tabs / navigation
   handle('tab:new', () => { tabsMod.createTab(); return true; });
@@ -206,7 +214,34 @@ function registerIpc() {
   handle('nav:reload', () => { const t = tabsMod.activeTab(); if (t) { t.loading ? t.wc.stop() : t.wc.reload(); } });
   handle('nav:submit', (e, text) => tabsMod.submit(text));
   handle('nav:open', (e, name) => { tabsMod.openInternal(name); });
-  handle('nav:openUrl', (e, url, background) => { tabsMod.createTab(url, { activate: !background }); });
+  handle('nav:openUrl', (e, url, background) => {
+    const tool = tabsMod.toolIdOf(url);
+    if (tool) { tabsMod.openTool(tool, url.includes('&') ? url : null); return true; } // tools open in their own view (U1)
+    tabsMod.createTab(url, { activate: !background });
+  });
+  // tool views, split view, spaces (2.3.0)
+  handle('tool:open', (e, id, url) => { tabsMod.openTool(String(id || ''), url || null); return true; });
+  handle('tool:close', (e, id) => { tabsMod.closeTool(String(id || '')); return true; });
+  handle('tool:hide', () => { tabsMod.hideTool(); return true; });
+  handle('split:toggle', (e, other) => tabsMod.toggleSplit(other));
+  handle('split:ratio', (e, r) => { tabsMod.setSplitRatio(r); return true; });
+  handle('split:swap', () => { tabsMod.swapSplit(); return true; });
+  handle('space:switch', (e, id) => { tabsMod.switchSpace(String(id || 'main')); return true; });
+  handle('space:add', (e, name) => tabsMod.addSpace(name));
+  handle('space:remove', (e, id) => tabsMod.removeSpace(String(id || '')));
+  handle('space:move', (e, tabId, id) => tabsMod.moveToSpace(Number(tabId), String(id || '')));
+  handle('space:menu', (e, x, y) => {
+    const st = tabsMod.state(); const a = tabsMod.activeTab();
+    const used = new Set(st.spaces.map(sp => sp.name));
+    const tpl = st.spaces.map(sp => ({ label: `${sp.name}（${sp.count}）`, type: 'radio', checked: sp.active, click: () => tabsMod.switchSpace(sp.id) }));
+    tpl.push({ type: 'separator' });
+    tpl.push({ label: '新建空间', submenu: st.subjects.filter(n => !used.has(n)).map(n => ({ label: n, click: () => tabsMod.addSpace(n) })) });
+    if (a && !a.tool && st.spaces.length > 1) tpl.push({ label: '将当前标签页移到', submenu: st.spaces.filter(sp => !sp.active).map(sp => ({ label: sp.name, click: () => tabsMod.moveToSpace(a.id, sp.id) })) });
+    const cur = st.spaces.find(sp => sp.active);
+    if (cur && cur.id !== 'main') tpl.push({ label: `删除空间“${cur.name}”（标签页移回默认空间）`, click: () => tabsMod.removeSpace(cur.id) });
+    Menu.buildFromTemplate(tpl).popup({ window: tabsMod.getWin(), x: Math.round(Number(x) || 0), y: Math.round(Number(y) || 0) });
+    return true;
+  });
   let lastHomeQuery = '';
   handle('home:query', (e, q) => { if (typeof q === 'string') { lastHomeQuery = q; return true; } return lastHomeQuery; });
   handle('mode:set', (e, mode, query) => {
@@ -527,7 +562,52 @@ function registerIpc() {
     return { url, qr: v36.qrSvg(url), desktop: true };
   });
   handle('solve:link', () => ({ url: v36.phoneLink({ desktop: true, lanUrl: global.__aibPhone && global.__aibPhone.info && global.__aibPhone.info.url }), publicUrl: v36.PUBLIC_SOLVER }));
-  handle('wiki:search', async (e, q) => ({ hits: await require('./v36/extra-tools').wikiSearch(q) }));
+  // the offline encyclopedia search also lists saved pages (F4)
+  handle('wiki:search', async (e, q) => ({ hits: await require('./v36/extra-tools').wikiSearch(q), saved: require('./readlater').search(q, 10) }));
+  // ---- code editor file manager (F5)
+  const cfs = () => require('./codefs');
+  handle('code:roots', () => cfs().roots());
+  handle('code:list', (e, root, rel) => cfs().list(root, rel));
+  handle('code:read', (e, root, rel) => cfs().read(root, rel));
+  handle('code:write', (e, root, rel, text) => cfs().write(root, rel, text));
+  handle('code:mkdir', (e, root, rel) => cfs().mkdir(root, rel));
+  handle('code:delete', (e, root, rel) => cfs().remove(root, rel));
+  handle('code:rename', (e, root, from, to) => cfs().rename(root, from, to));
+  handle('code:run', async (e, root, rel, text) => { const r = await cfs().run(root, rel, text); if (r.kind === 'open') { tabsMod.hideTool(); tabsMod.createTab(r.url); } return r; });
+  // ---- user system images (F6)
+  const vmc = () => require('./vm/custom');
+  handle('vmimg:list', () => ({ images: vmc().list(), engines: vmc().engines() }));
+  handle('vmimg:import', async () => {
+    const files = await pick({ properties: ['openFile'], filters: [{ name: '系统镜像', extensions: ['iso', 'img', 'qcow2', 'raw', 'ima'] }], title: '选择系统镜像（ISO、IMG 或 QCOW2）' });
+    if (!files[0]) return { cancelled: true };
+    const picked = /[\\/]picked[\\/]/.test(files[0]);
+    try {
+      const e = await vmc().importImage(files[0], { move: picked, onProgress: (p) => broadcast('vmimg:progress', { progress: p }) });
+      broadcast('vmimg:progress', { done: true }); return { ok: true, image: e };
+    } catch (err) { broadcast('vmimg:progress', { done: true }); return { ok: false, error: String(err.message || err) }; }
+  });
+  handle('vmimg:remove', (e, id) => vmc().remove(String(id)));
+  handle('vmimg:update', (e, id, patch) => vmc().update(String(id), patch || {}));
+  handle('vmimg:v86config', (e, id) => vmc().v86Config(String(id)));
+  handle('vmimg:start', (e, id) => {
+    const en = vmc().engines();
+    if (en.qemu) return Object.assign({ engine: 'qemu' }, vmc().launchQemu(String(id)));
+    if (en.v86) return { engine: 'v86', config: vmc().v86Config(String(id)) };
+    return { engine: null, error: '未找到 QEMU。请先安装 QEMU（例如在 macOS 上执行 brew install qemu），再重试。' };
+  });
+  handle('vmimg:open', () => { tabsMod.createTab('aibrowser://vmcustom'); return true; });
+  // ---- read later / offline copies (F4)
+  const rl = () => require('./readlater');
+  handle('readlater:list', () => rl().list());
+  handle('readlater:save', async (e, tabId) => { const t = tabId ? tabsMod.getTab(Number(tabId)) : tabsMod.lastTab(); const r = await rl().save(t); broadcast('readlater:changed', {}); return r; });
+  handle('readlater:remove', (e, id) => { const r = rl().remove(String(id)); broadcast('readlater:changed', {}); return r; });
+  handle('readlater:read', (e, id, read) => rl().markRead(String(id), read !== false));
+  handle('readlater:get', (e, id) => rl().get(String(id)));
+  handle('readlater:open', (e, id) => { const u = rl().fileUrl(String(id)); if (!u) return false; rl().markRead(String(id)); tabsMod.hideTool(); tabsMod.createTab(u); return true; });
+  handle('readlater:search', async (e, q) => {
+    let wiki = []; try { wiki = await require('./v36/extra-tools').wikiSearch(q); } catch {}
+    return { saved: rl().search(q), wiki: (wiki || []).slice(0, 20) };
+  });
   handle('wiki:openZim', async () => {
     const zim = require('./wiki/zim');
     const files = await pick({ properties: ['openFile'], filters: [{ name: 'ZIM', extensions: ['zim', 'zimaa'] }], title: '选择 ZIM 格式的离线百科文件' });
@@ -558,6 +638,44 @@ function registerIpc() {
     return bag[tool];
   });
   handle('kernel:check', () => require('./v36/kernel').check());
+  // ---- camera, 拍题即解, QR scanning (F1, B6)
+  const nativeM = () => require('./native');
+  const snaps = new Map();
+  handle('camera:caps', () => nativeM().caps());
+  handle('camera:capture', (e, o) => nativeM().capture(o || {}));
+  handle('snap:get', (e, id) => { const v = snaps.get(String(id)); snaps.delete(String(id)); return v || null; });
+  handle('snap:solve', async () => {
+    const shot = await nativeM().capture({ ocr: true });
+    if (!shot || shot.cancelled) return { cancelled: true };
+    let text = String(shot.text || '').trim(), via = text ? 'ocr' : '';
+    // formulas: a vision-capable model transcribes the problem with LaTeX when one is selected
+    try {
+      const c = llm.activeModel(); const caps = c && c.provider !== 'local' ? llm.modelCaps(c.provider, c.model) : null;
+      if (caps && caps.vision) {
+        const ac = new AbortController(); const timer = setTimeout(() => ac.abort(), 45000);
+        try {
+          const t = await llm.complete([
+            { role: 'system', content: '请把图片中的题目原样转写为文字：保留题号、选项与条件，数学公式使用 LaTeX 并用 $…$ 包围；只输出题目本身，不要解答。' },
+            { role: 'user', content: [{ type: 'text', text: text ? '系统文字识别结果（可能有误，仅供参考）：\n' + text : '请转写图片中的题目。' }, { type: 'image_url', image_url: { url: shot.dataUrl } }] }
+          ], { maxTokens: 1200, signal: ac.signal });
+          if (String(t || '').trim()) { text = String(t).trim(); via = 'vision'; }
+        } finally { clearTimeout(timer); }
+      }
+    } catch (err) { console.error('snap vision', err.message); }
+    const id = 's' + Date.now().toString(36);
+    snaps.set(id, { text, dataUrl: shot.dataUrl, via });
+    setTimeout(() => snaps.delete(id), 10 * 60 * 1000).unref?.();
+    tabsMod.openTool('solve', `aibrowser://tool?id=solve&snap=${id}&auto=1`);
+    return { ok: true, id, via, chars: text.length };
+  });
+  handle('scan:qr', async () => {
+    const r = await nativeM().scanQr();
+    if (!r || r.cancelled || !r.text) return { cancelled: true };
+    const text = String(r.text).trim();
+    if (/^(https?:\/\/|www\.)/i.test(text) || tabsMod.looksLikeUrl(text)) { tabsMod.hideTool(); tabsMod.createTab(/^www\./i.test(text) ? 'https://' + text : text); return { ok: true, text, opened: true }; }
+    const w = tabsMod.getWin(); if (w) w.webContents.send('addr:fill', text); // other content goes to the address bar
+    return { ok: true, text, opened: false };
+  });
   handle('siri:toggle', () => tabsMod.toggleSiri());
   handle('siri:read', async () => {
     const t = tabsMod.activeTab(); if (!t) return { text: '', title: '', url: '' };
@@ -565,17 +683,22 @@ function registerIpc() {
     try { text = String(await t.wc.executeJavaScript('document.body ? document.body.innerText : ""')).slice(0, 8000); } catch {}
     return { text, title: t.wc.getTitle(), url: t.wc.getURL() };
   });
-  handle('siri:ask', async (e, kind, question) => {
+  handle('siri:ask', async (e, kind, question, extra) => {
+    if (kind !== 'translate') return siriAsk(kind, question, extra);
     const page = await (async () => { const t = tabsMod.activeTab(); if (!t) return { text: '', title: '' }; let text = ''; try { text = String(await t.wc.executeJavaScript('document.body ? document.body.innerText : ""')).slice(0, 6000); } catch {} return { text, title: t.wc.getTitle() }; })();
     if (kind === 'translate') {
       const tr = await require('./ai/translate').translate(page.text.slice(0, 4000), {});
       return { text: tr.text || tr };
     }
-    const sys = kind === 'summary' ? 'Summarize the page in Simplified Chinese. Be structured and detailed.' : 'Answer the user about the page. Do not name tools.';
-    const user = (kind === 'ask' ? String(question || '') + '\n\n' : '') + 'Page:\n' + page.text.slice(0, 5000);
-    const out = await llm.complete([{ role: 'system', content: sys + '\n' + v36.answerAddendum(store.getSettings().answerStyle) }, { role: 'user', content: user }], { maxTokens: 1200 });
-    return { text: v36.redactToolTalk(out) };
+    return siriAsk(kind, question, extra);
   });
+  async function siriAsk(kind, question, extra) {
+    // summary / questions with numbered source passages (F3)
+    const r = await require('./pagehelper').ask({ tab: tabsMod.activeTab(), kind: kind === 'summary' ? 'summary' : 'ask', question, history: Array.isArray(extra) ? extra : [], complete: (m, o) => llm.complete(m, o) });
+    r.text = v36.redactToolTalk(r.text);
+    return r;
+  }
+  handle('siri:reveal', async (e, n) => require('./pagehelper').reveal(tabsMod.activeTab(), n));
 
   // selection lookup from web pages (preload content script)
   ipcMain.on('sel:lookup', (e, p) => {
@@ -605,8 +728,17 @@ function registerHostServices() {
     setEnabled: (id, v) => { dict.setEnabled(id, v); return true; },
     move: (id, d) => { dict.move(id, d); return true; },
     pickAndAdd: async () => {
-      const files = await pick({ properties: ['openFile', 'multiSelections'], filters: [{ name: 'MDict', extensions: ['mdx'] }], title: '选择 .mdx 词典' });
+      // iPad: files are copied out of the Files app one pick at a time, so the .mdd resources and style / script files
+      // must be picked together with the .mdx (or the whole folder); otherwise entries lose their CSS / JS (B3).
+      const ipad = !!global.__aibIpad;
+      const picked = await pick(ipad
+        ? { properties: ['openFile', 'openDirectory', 'multiSelections'], filters: [{ name: 'MDict 词典及资源', extensions: ['mdx', 'mdd', 'css', 'js', 'ttf', 'otf', 'woff', 'woff2', 'png', 'jpg', 'gif', 'svg', 'mp3', 'spx'] }], title: '选择 .mdx 词典及同名 .mdd 资源（或整个词典文件夹）' }
+        : { properties: ['openFile', 'multiSelections'], filters: [{ name: 'MDict', extensions: ['mdx'] }], title: '选择 .mdx 词典' });
+      const files = [];
+      const walk = (p, depth) => { let st; try { st = fs.statSync(p); } catch { return; } if (st.isDirectory()) { if (depth < 3) for (const n of fs.readdirSync(p)) walk(path.join(p, n), depth + 1); } else if (/\.mdx$/i.test(p)) files.push(p); };
+      for (const f of picked) walk(f, 0);
       const added = [], errors = [];
+      if (picked.length && !files.length) errors.push('所选内容中没有 .mdx 词典文件');
       for (const f of files) { try { const r = await dict.importDict(f, { onProgress: (p) => broadcast('dict:progress', p) }); if (!r.dup) added.push(r.name); } catch (e) { errors.push(path.basename(f) + ': ' + e.message); } }
       broadcast('dict:progress', { active: false }); return { added, errors };
     },

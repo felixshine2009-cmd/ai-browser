@@ -42,6 +42,7 @@
         scopeNote: () => (I18N.lang === 'en' ? 'This chat' : '本对话'),
         load: () => window.aib.invoke('models:picker', sid),
         select: (ref) => window.aib.invoke('models:select', ref, sid),
+        thinking: { load: () => window.aib.invoke('models:thinking'), select: (lv) => window.aib.invoke('models:setThinking', lv) },
         onManage: () => window.aib.invoke('nav:openUrl', 'aibrowser://settings#ai')
       });
       window.__AIB_MP__ = mp;
@@ -96,7 +97,7 @@
   function onEvent(ev) {
     switch (ev.type) {
       case 'kind':
-        st.kind = ev.kind;
+        st.kind = ev.kind === 'solve' ? 'question' : ev.kind;
         ({ word: buildWord, sentence: buildSentence, article: buildArticle }[ev.kind] || buildQuestion)();
         break;
       case 'queries': st.queries = ev.queries; st.direct = ev.direct; renderQueries(); if (ev.direct) setStatus(t('chat.generating')); else if (!ev.queries.length) setStatus(t('chat.thinking')); break;

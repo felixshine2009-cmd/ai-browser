@@ -116,6 +116,8 @@ module.exports = async ({ test, group, assert, eq }) => {
     const api = await import(path.join(ROOT, 'web/js/api.js'));
     const sse = (lines) => ({ ok: true, headers: { get: () => 'text/event-stream' }, body: { getReader() { let i = 0; const enc = new TextEncoder(); return { read: async () => i < lines.length ? { value: enc.encode('data: ' + JSON.stringify(lines[i++]) + '\n\n'), done: false } : { done: true } }; } } });
     let sent = null;
+    const realFetch = global.fetch; // restored below: later suites (iPad simulator, unit tests) use the real fetch
+    try {
     global.fetch = async (url, init) => { sent = JSON.parse(init.body); return sse([
       { choices: [{ delta: { tool_calls: [{ index: 0, id: 'c1', function: { name: 'python_run', arguments: '{"co' } }] } }] },
       { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: 'de":"1+1"}' } }] } }] }]); };
@@ -130,7 +132,7 @@ module.exports = async ({ test, group, assert, eq }) => {
     eq(r2.toolCalls[0].id, 't1');
     eq(sent.tools[0].input_schema.type, 'object');
     eq(sent.messages[1].content[0].type, 'tool_use'); eq(sent.messages[2].content[0].type, 'tool_result');
-    delete global.fetch;
+    } finally { if (realFetch) global.fetch = realFetch; else delete global.fetch; }
   });
 
   await test('iPad 虚拟机脚本：串口协议、9p 启动参数与持久化', () => {

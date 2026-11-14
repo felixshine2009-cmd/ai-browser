@@ -194,6 +194,6 @@ function health() {
   return { ok: true, eid, ring: ring.length, ringBytes, waiting: waiting.size, stream: !!stream, backlog: stream ? stream.writableLength : 0, stats, rss: m.rss, heapUsed: m.heapUsed, heapTotal: m.heapTotal, external: m.external, uptime: Math.round((Date.now() - stats.startedAt) / 1000) };
 }
 // waiting calls that never got an answer (e.g. a web view that went away) are kept at most 10 minutes when they have no timeout
-setInterval(() => { const now = Date.now(); for (const [id, w] of waiting) if (!w.timer && now - w.at > 10 * 60 * 1000 && !/^(dialog|menu|wc\.print|llama)/.test(w.name)) { waiting.delete(id); w.reject(new Error('原生层未响应：' + w.name)); } }, 60000).unref();
+setInterval(() => { const now = Date.now(); for (const [id, w] of waiting) if (!w.timer && now - w.at > 10 * 60 * 1000 && !/^(dialog|menu|wc\.print|llama|native\.(camera|qrscan))/.test(w.name)) { waiting.delete(id); w.reject(new Error('原生层未响应：' + w.name)); } }, 60000).unref();
 
 module.exports = { start, cmd, call, bus, handlers, clone, health, relisten, _ring: () => ring };

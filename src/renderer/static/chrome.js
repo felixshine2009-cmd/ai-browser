@@ -7,7 +7,17 @@
     if (!(ev.ctrlKey || ev.metaKey)) return;
     window.aib.invoke('kbd:key', { code: ev.code, ctrl: ev.ctrlKey, meta: ev.metaKey, shift: ev.shiftKey, alt: ev.altKey }).then(() => {}).catch(() => {});
   });
-  let state = { tabs: [], activeId: null, mode: 'chat' };
+  let state = { tabs: [], activeId: null, mode: 'chat', tools: [], spaces: [] };
+  const cur = () => state.current || state.tabs.find(t => t.active) || null;
+  const ICONS = window.AIB_ICONS;
+  const IPAD = !!(window.aib && window.aib.ipad);
+  // toolbar tools (U8): hand-drawn icons with a visible Chinese caption; one view per tool (U1)
+  const TOOLS = ['solve', 'snap', 'geogebra', 'physics', 'wiki', 'dict', 'code', 'readlater'].concat(IPAD ? ['scan'] : []);
+  {
+    const box = $('toolicons');
+    if (box && ICONS) box.innerHTML = TOOLS.map(id => `<button type="button" class="ticon labeled" data-tool="${id}" title="${ICONS.tip(id)}" aria-label="${ICONS.label(id)}">${ICONS.svg(id)}<span class="ticon-label">${ICONS.label(id)}</span></button>`).join('');
+    const sb = $('splitbtn'); if (sb && ICONS) sb.innerHTML = ICONS.svg('split');
+  }
   const LOCK = '<svg width="12" height="12" viewBox="0 0 16 16"><rect x="4" y="7" width="8" height="7" rx="1.5" fill="none" stroke="currentColor"/><path d="M6 7V5a2 2 0 0 1 4 0v2" fill="none" stroke="currentColor"/></svg>';
 
   const seen = new Set(); let firstRender = true; let prevEls = new Map();
@@ -15,9 +25,19 @@
     const prevIds = [...prevEls.keys()];
     const nextEls = new Map();
     tabsEl.innerHTML = '';
+    for (const tl of state.tools || []) {
+      const el = document.createElement('div');
+      el.className = 'tab tool-pill' + (tl.active ? ' active' : '');
+      el.dataset.id = tl.tabId; el.dataset.tool = tl.id; el.title = tl.name;
+      el.innerHTML = (ICONS ? ICONS.svg(tl.id, 'pill-icon') : '') + `<div class="title"></div><div class="close-tab" data-closetool="${tl.id}" title="关闭工具">×</div>`;
+      el.querySelector('.title').textContent = tl.name;
+      tabsEl.appendChild(el);
+    }
+    if ((state.tools || []).length) { const sep = document.createElement('div'); sep.className = 'tool-sep'; tabsEl.appendChild(sep); }
     for (const tb of state.tabs) {
       const el = document.createElement('div');
-      el.className = 'tab' + (tb.active ? ' active' : '') + (tb.incognito ? ' incognito' : '') + (!firstRender && !seen.has(tb.id) ? ' enter' : '');
+      const inSplit = state.split && !state.split.hidden && (state.split.left === tb.id || state.split.right === tb.id);
+      el.className = 'tab' + (tb.active ? ' active' : '') + (inSplit ? ' split' : '') + (tb.incognito ? ' incognito' : '') + (!firstRender && !seen.has(tb.id) ? ' enter' : '');
       seen.add(tb.id);
       el.dataset.id = tb.id;
       const fav = document.createElement('div'); fav.className = 'favicon';
@@ -59,7 +79,7 @@
     prevEls = nextEls; firstRender = false;
     const add = document.createElement('div'); add.className = 'tab-add'; add.id = 'tabadd'; add.textContent = '+';
     tabsEl.appendChild(add);
-    const a = state.tabs.find(t => t.active);
+    const a = cur();
     if (a) {
       $('back').classList.toggle('disabled', !a.canBack);
       $('fwd').classList.toggle('disabled', !a.canForward);
@@ -69,9 +89,17 @@
       $('lock').innerHTML = LOCK;
       $('lock').classList.remove('spark');
       if (document.activeElement !== addr) addr.value = a.display || '';
-      const activeTool = (a.url && a.url.startsWith('aibrowser://tool')) ? new URLSearchParams(a.url.split('?')[1] || '').get('id') : '';
-      document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === activeTool));
     }
+    const activeTool = state.activeTool || '';
+    document.querySelectorAll('.ticon[data-tool]').forEach(b => { b.classList.toggle('active', b.dataset.tool === activeTool); b.classList.toggle('open', (state.tools || []).some(x => x.id === b.dataset.tool)); });
+    document.body.classList.toggle('tool-active', !!activeTool);
+    // spaces chip
+    const sc = $('spacechip');
+    if (sc) { const sp = (state.spaces || []).find(x => x.active); sc.innerHTML = (ICONS ? ICONS.svg('spaces') : '') + `<span></span>`; sc.querySelector('span').textContent = sp ? sp.name : '默认'; sc.classList.toggle('multi', (state.spaces || []).length > 1); }
+    // split view: bar between the two views (drawn by this page under the native views)
+    const sbar = $('splitbar'), sbtn = $('splitbtn');
+    if (sbtn) sbtn.classList.toggle('active', !!(state.split && !state.split.hidden));
+    if (sbar) { const sv = state.split && !state.split.hidden ? state.split : null; sbar.hidden = !sv; if (sv) { sbar.style.left = sv.x + 'px'; sbar.style.top = sv.top + 'px'; } }
     document.querySelectorAll('#modeseg .seg').forEach(s => s.classList.toggle('active', s.dataset.mode === state.mode));
     placeIndicator();
   }
@@ -87,6 +115,8 @@
   }
   window.addEventListener('resize', placeIndicator);
   tabsEl.addEventListener('click', (e) => {
+    const ct = e.target.closest('[data-closetool]');
+    if (ct) return window.aib.invoke('tool:close', ct.dataset.closetool);
     const c = e.target.closest('[data-close]');
     if (c) return window.aib.invoke('tab:close', Number(c.dataset.close));
     if (e.target.closest('#tabadd')) return window.aib.invoke('tab:new');
@@ -109,7 +139,7 @@
     const r = await window.aib.invoke('cx:installStore', cwsUrl);
     cwsBusy = false; b.dataset.flash = '1';
     if (r.ok) { b.className = 'cws-add ok'; b.textContent = tr('cws.done') + ' · ' + r.ext.name; } else { b.className = 'cws-add bad'; b.textContent = tr('cws.fail') + ' ' + r.error; b.title = r.error; }
-    clearTimeout(cwsMsgT); cwsMsgT = setTimeout(() => { delete b.dataset.flash; const a = state && state.tabs.find(x => x.active); if (a) cwsUpdate(a); }, r.ok ? 4000 : 9000);
+    clearTimeout(cwsMsgT); cwsMsgT = setTimeout(() => { delete b.dataset.flash; const a = state && cur(); if (a) cwsUpdate(a); }, r.ok ? 4000 : 9000);
   };
   $('menu').onclick = () => window.aib.invoke('menu:toggle');
   const fold = document.getElementById('toolfold');
@@ -121,7 +151,26 @@
       fold.setAttribute('aria-expanded', String(!collapsed));
     };
   }
-  document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => window.aib.invoke('nav:openUrl', 'aibrowser://tool?id=' + b.dataset.tool));
+  document.querySelectorAll('.ticon[data-tool]').forEach(b => b.onclick = () => {
+    const id = b.dataset.tool;
+    if (id === 'scan') return window.aib.invoke('scan:qr');
+    if (id === 'snap') return window.aib.invoke('snap:solve');
+    if (state.activeTool === id) return window.aib.invoke('tool:hide'); // second tap returns to the page
+    window.aib.invoke('tool:open', id);
+  });
+  { const sb = $('splitbtn'); if (sb) sb.onclick = () => window.aib.invoke('split:toggle'); }
+  { const sc = $('spacechip'); if (sc) sc.onclick = () => { const r = sc.getBoundingClientRect(); window.aib.invoke('space:menu', r.left, r.bottom); }; }
+  {
+    const bar = $('splitbar');
+    if (bar) {
+      let drag = false;
+      bar.addEventListener('pointerdown', (e) => { drag = true; bar.setPointerCapture(e.pointerId); bar.classList.add('drag'); });
+      bar.addEventListener('pointermove', (e) => { if (!drag) return; const w = document.documentElement.clientWidth; bar.style.left = e.clientX + 'px'; window.aib.invoke('split:ratio', e.clientX / Math.max(1, w)); });
+      const end = () => { drag = false; bar.classList.remove('drag'); };
+      bar.addEventListener('pointerup', end); bar.addEventListener('pointercancel', end);
+      bar.addEventListener('dblclick', () => window.aib.invoke('split:swap'));
+    }
+  }
   const siri = document.getElementById('siri');
   if (siri) {
     siri.onclick = () => {
@@ -134,7 +183,7 @@
     let q = '';
     if (document.activeElement === addr) q = addr.value;
     else {
-      const a = state.tabs.find(t => t.active);
+      const a = cur();
       if (a && a.kind === 'chat') q = a.display || a.title || '';
       else if (a && a.kind === 'home') {
         try { q = await window.aib.invoke('home:query'); } catch {}
@@ -143,8 +192,8 @@
     }
     await window.aib.invoke('mode:set', next, q);
   });
-  addr.addEventListener('focus', () => { const a = state.tabs.find(t => t.active); if (a && a.kind !== 'chat') addr.value = a.kind === 'home' ? '' : a.url; setTimeout(() => addr.select(), 0); });
-  addr.addEventListener('blur', () => { const a = state.tabs.find(t => t.active); addr.value = a ? a.display || '' : ''; });
+  addr.addEventListener('focus', () => { const a = cur(); if (a && a.kind !== 'chat') addr.value = (a.kind === 'home' || a.tool) ? '' : a.url; setTimeout(() => addr.select(), 0); });
+  addr.addEventListener('blur', () => { const a = cur(); addr.value = a ? a.display || '' : ''; });
   addr.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.isComposing) { const v = addr.value.trim(); if (v) window.aib.invoke('nav:submit', v); addr.blur(); }
     else if (e.key === 'Escape') addr.blur();
@@ -164,6 +213,7 @@
   });
   window.aib.on('tabs:state', (s) => { state = s; render(); });
   window.aib.on('addr:focus', () => { addr.focus(); });
+  window.aib.on('addr:fill', (text) => { addr.focus(); addr.value = String(text || ''); setTimeout(() => addr.select(), 0); });
   I18N.onChange(render);
   state = await window.aib.invoke('tabs:state');
   render();

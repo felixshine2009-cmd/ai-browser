@@ -15,6 +15,16 @@ let chromeWc = null;
 let tabs = [];
 let activeId = null;
 let nextId = 1;
+// 2.3.0 tool views: one view per tool (aibrowser://tool?id=…), shown over the content area instead of opening a tab.
+const toolViews = new Map(); // tool id -> tab-like { id, tool, view, wc, ... }
+let lastTabId = null;        // last real tab, shown again when a tool view is closed
+// split view: two tabs side by side, shown while one of them is active
+let split = null;            // { left, right, ratio }
+const SPLIT_GAP = 6;
+// spaces: tab groups by subject (the tab strip shows the tabs of the current space)
+let spaceId = 'main';
+const lastInSpace = new Map();
+const TOOL_NAMES = { solve: '解题', geogebra: 'GeoGebra', physics: '物理实验', wiki: '百科', dict: '词典', code: '代码', readlater: '稍后阅读', snap: '拍题' };
 const overlays = { menu: null, find: null, lookup: null };
 const hooks = { onTabsChanged: () => {}, prepareIncognito: () => {}, shortcut: () => false };
 const INCOG_PARTITION = 'aib-incognito'; // no 'persist:' prefix -> in-memory session, separate cookies/cache/storage
@@ -47,12 +57,12 @@ function normalizeUrl(t) {
 }
 
 // ---------------- tabs
-function createTab(url, { activate = true, incognito = false } = {}) {
+function createTab(url, { activate = true, incognito = false, tool = null } = {}) {
   const view = new WebContentsView(wcOptions(incognito));
   view.setBackgroundColor('#00000000');
   const wc = view.webContents;
-  const tab = { id: nextId++, view, wc, title: '', favicon: '', loading: false, url: '', incognito: !!incognito };
-  tabs.push(tab);
+  const tab = { id: nextId++, view, wc, title: '', favicon: '', loading: false, url: '', incognito: !!incognito, space: spaceId, tool };
+  if (tool) toolViews.set(tool, tab); else tabs.push(tab);
   wire(tab);
   win.contentView.addChildView(view);
   view.setVisible(false);
@@ -80,6 +90,7 @@ function wire(tab) {
     if (isMain && code !== -3) { tab.title = desc; tab.error = { code, desc, url }; notify(); }
   });
   wc.setWindowOpenHandler(({ url, disposition }) => {
+    if (toolIdOf(url)) { openTool(toolIdOf(url), url); return { action: 'deny' }; }
     if (/^https?:|^chrome-extension:|^aibrowser:/i.test(url)) createTab(url, { activate: disposition !== 'background-tab', incognito: tab.incognito });
     return { action: 'deny' };
   });
@@ -92,14 +103,25 @@ function wire(tab) {
   });
 }
 
-function getTab(id) { return tabs.find(t => t.id === id); }
+function getTab(id) { return tabs.find(t => t.id === id) || Array.from(toolViews.values()).find(t => t.id === id); }
 function activeTab() { return getTab(activeId); }
+function allViews() { return tabs.concat(Array.from(toolViews.values())); }
+function inSplit(id) { return !!(split && (split.left === id || split.right === id)); }
+function splitShown() { const a = getTab(activeId); return !!(split && a && !a.tool && inSplit(activeId) && getTab(split.left) && getTab(split.right)); }
 
 function layout() {
   if (!win) return;
   const [w, h] = win.getContentSize();
   const siriW = overlays.siri ? Math.min(380, Math.round(w * 0.34)) : 0;
-  for (const t of tabs) t.view.setBounds({ x: 0, y: CHROME_H, width: Math.max(0, w - siriW), height: Math.max(0, h - CHROME_H) });
+  const cw = Math.max(0, w - siriW), ch = Math.max(0, h - CHROME_H);
+  const full = { x: 0, y: CHROME_H, width: cw, height: ch };
+  for (const t of allViews()) t.view.setBounds(full);
+  if (splitShown()) {
+    const lw = Math.round(Math.max(240, Math.min(cw - 240, cw * split.ratio)) - SPLIT_GAP / 2);
+    getTab(split.left).view.setBounds({ x: 0, y: CHROME_H, width: lw, height: ch });
+    getTab(split.right).view.setBounds({ x: lw + SPLIT_GAP, y: CHROME_H, width: Math.max(0, cw - lw - SPLIT_GAP), height: ch });
+    split.x = lw;
+  }
   if (overlays.siri) overlays.siri.setBounds({ x: w - siriW, y: CHROME_H, width: siriW, height: Math.max(0, h - CHROME_H) });
   if (overlays.menu) overlays.menu.setBounds(menuBounds());
   if (overlays.find) overlays.find.setBounds(findBounds());
@@ -109,7 +131,9 @@ function activateTab(id) {
   const t = getTab(id);
   if (!t) return;
   activeId = id;
-  for (const x of tabs) x.view.setVisible(x.id === id);
+  if (!t.tool) { lastTabId = id; if (t.space !== spaceId) spaceId = t.space; lastInSpace.set(spaceId, id); }
+  const both = splitShown();
+  for (const x of allViews()) x.view.setVisible(x.id === id || (both && inSplit(x.id)));
   layout();
   closeOverlay('menu'); closeOverlay('lookup');
   if (overlays.find) closeOverlay('find');
@@ -126,16 +150,107 @@ function wipeIncognito() {
 }
 
 function closeTab(id) {
+  const tv = Array.from(toolViews.values()).find(t => t.id === id);
+  if (tv) return closeTool(tv.tool);
   const i = tabs.findIndex(t => t.id === id);
   if (i < 0) return;
   const t = tabs[i];
   tabs.splice(i, 1);
+  if (inSplit(id)) split = null;
+  if (lastTabId === id) lastTabId = null;
+  for (const [k, v] of lastInSpace) if (v === id) lastInSpace.delete(k);
   if (t.incognito && !tabs.some(x => x.incognito)) wipeIncognito();
   try { win.contentView.removeChildView(t.view); } catch {}
   try { t.wc.close({ waitForBeforeUnload: false }); } catch {}
   if (!tabs.length) { createTab(); return; }
-  if (activeId === id) activateTab(tabs[Math.min(i, tabs.length - 1)].id);
+  if (activeId === id) {
+    const same = tabs.filter(x => x.space === t.space);
+    activateTab((same.length ? same[Math.min(i, same.length - 1)] : tabs[Math.min(i, tabs.length - 1)]).id);
+  } else layout();
   notify();
+}
+
+// ---------------- tool views (U1): aibrowser://tool?id=X opens or shows the single view of that tool
+function toolIdOf(url) {
+  try { const u = new URL(url); if (u.protocol === SCHEME + ':' && u.hostname === 'tool') return u.searchParams.get('id') || ''; } catch {}
+  return '';
+}
+function openTool(id, url) {
+  if (!id) return null;
+  const PAGE_TOOLS = { code: `${SCHEME}://code`, readlater: `${SCHEME}://readlater` };
+  const target = url || PAGE_TOOLS[id] || `${SCHEME}://tool?id=${encodeURIComponent(id)}`;
+  let t = toolViews.get(id);
+  if (t && !t.wc.isDestroyed()) {
+    if (url && url !== (t.wc.getURL() || t.url)) load(t, target);
+    activateTab(t.id); return t;
+  }
+  t = createTab(target, { tool: id });
+  return t;
+}
+function closeTool(id) {
+  const t = toolViews.get(id); if (!t) return;
+  toolViews.delete(id);
+  try { win.contentView.removeChildView(t.view); } catch {}
+  try { t.wc.close({ waitForBeforeUnload: false }); } catch {}
+  if (activeId === t.id) {
+    const back = getTab(lastTabId) || tabs.find(x => x.space === spaceId) || tabs[0];
+    if (back) activateTab(back.id); else createTab();
+  }
+  notify();
+}
+/** Hide the tool view and show the last tab (the tool keeps its state). */
+function lastTab() { const a = activeTab(); return (a && !a.tool) ? a : (getTab(lastTabId) || tabs[0] || null); }
+function hideTool() { const a = activeTab(); if (a && a.tool) { const back = getTab(lastTabId) || tabs[0]; if (back) activateTab(back.id); } }
+
+// ---------------- split view (F2)
+function toggleSplit(otherId) {
+  if (split) { split = null; const a = activeTab(); for (const x of allViews()) x.view.setVisible(a && x.id === a.id); layout(); notify(); return false; }
+  let a = activeTab(); if (a && a.tool) a = getTab(lastTabId);
+  if (!a) return false;
+  let b = otherId && getTab(otherId);
+  if (!b || b.tool || b.id === a.id) {
+    const same = tabs.filter(x => x.space === a.space && x.id !== a.id);
+    b = same[same.indexOf(a) + 1] || same[same.length - 1];
+  }
+  if (!b) b = createTab(`${SCHEME}://home`, { activate: false });
+  split = { left: a.id, right: b.id, ratio: 0.5 };
+  activateTab(a.id);
+  return true;
+}
+function setSplitRatio(r) { if (!split) return; split.ratio = Math.max(0.2, Math.min(0.8, Number(r) || 0.5)); layout(); notify(); }
+function swapSplit() { if (!split) return; split = { left: split.right, right: split.left, ratio: 1 - split.ratio }; layout(); notify(); }
+
+// ---------------- spaces (F2): tab groups by subject
+const SUBJECTS = ['数学', '物理', '化学', '生物', '语文', '英语', '历史', '地理', '政治', '信息技术', '阅读', '其他'];
+function spaces() {
+  const list = (store.getSettings().spaces || []).filter(x => x && x.id && x.name);
+  return [{ id: 'main', name: '默认' }].concat(list.filter(x => x.id !== 'main'));
+}
+function addSpace(name) {
+  name = String(name || '').trim().slice(0, 20); if (!name) return null;
+  const list = spaces().slice(1);
+  let sp = list.find(x => x.name === name);
+  if (!sp) { sp = { id: 's' + Date.now().toString(36), name }; list.push(sp); store.patchSettings({ spaces: list }); }
+  switchSpace(sp.id); return sp;
+}
+function removeSpace(id) {
+  if (id === 'main') return false;
+  store.patchSettings({ spaces: spaces().slice(1).filter(x => x.id !== id) });
+  for (const t of tabs) if (t.space === id) t.space = 'main';
+  if (spaceId === id) switchSpace('main'); else notify();
+  return true;
+}
+function switchSpace(id) {
+  if (!spaces().some(x => x.id === id)) id = 'main';
+  spaceId = id; split = null;
+  const t = getTab(lastInSpace.get(id)) || tabs.find(x => x.space === id);
+  if (t) activateTab(t.id); else createTab(`${SCHEME}://home`);
+  notify();
+}
+function moveToSpace(tabId, id) {
+  const t = getTab(tabId); if (!t || t.tool || !spaces().some(x => x.id === id)) return false;
+  t.space = id; if (inSplit(tabId)) split = null;
+  switchSpace(id); return true;
 }
 
 function tabInfo(t) {
@@ -149,8 +264,9 @@ function tabInfo(t) {
     else display = `aibrowser://${u.hostname}`;
   }
   const nh = t.wc.isDestroyed() ? null : t.wc.navigationHistory;
+  if (t.tool) { display = TOOL_NAMES[t.tool] || t.title || t.tool; }
   return {
-    id: t.id, title: t.title || (kind === 'home' ? '' : url), url, display, kind, icon, favicon: t.favicon, loading: t.loading,
+    id: t.id, title: t.title || (kind === 'home' ? '' : url), url, display, kind, icon, favicon: t.favicon, loading: t.loading, tool: t.tool || null, space: t.space,
     canBack: nh ? nh.canGoBack() : false, canForward: nh ? nh.canGoForward() : false,
     bookmarked: !isInternal(url) && !t.incognito && store.isBookmarked(url), active: t.id === activeId, incognito: !!t.incognito,
     storeExt: (() => { try { const id = require('./ext/chrome').storeIdOf(url); return id ? { id, installed: require('./ext/chrome').isInstalled(id) } : null; } catch { return null; } })()
@@ -163,13 +279,23 @@ function notify() {
 }
 function state() {
   const s = store.getSettings();
-  return { tabs: tabs.map(tabInfo), activeId, mode: s.mode, lang: s.lang };
+  const a = activeTab();
+  return {
+    tabs: tabs.filter(t => t.space === spaceId).map(tabInfo), activeId, mode: s.mode, lang: s.lang,
+    current: a ? tabInfo(a) : null,
+    tools: Array.from(toolViews.values()).map(t => ({ id: t.tool, tabId: t.id, name: TOOL_NAMES[t.tool] || t.tool, active: t.id === activeId })),
+    activeTool: a && a.tool ? a.tool : null,
+    split: splitShown() ? { left: split.left, right: split.right, ratio: split.ratio, x: split.x || 0, top: CHROME_H } : (split ? { left: split.left, right: split.right, hidden: true } : null),
+    spaces: spaces().map(x => ({ id: x.id, name: x.name, count: tabs.filter(t => t.space === x.id).length, active: x.id === spaceId })),
+    space: spaceId, subjects: SUBJECTS
+  };
 }
 
 // ---------------- navigation / input
 function submit(text) {
   text = (text || '').trim();
-  const t = activeTab();
+  let t = activeTab();
+  if (t && t.tool) { const back = getTab(lastTabId) || tabs[0]; if (back) { activateTab(back.id); t = back; } }
   if (!t || !text) return { ok: false };
   const mode = store.getSettings().mode;
   if (looksLikeUrl(text)) { load(t, normalizeUrl(text)); return { ok: true, type: 'url' }; }
@@ -321,7 +447,7 @@ function createWindow() {
   win.loadURL(`${SCHEME}://chrome`);
   win.on('resize', layout);
   win.on('enter-full-screen', layout); win.on('leave-full-screen', layout);
-  win.on('closed', () => { win = null; chromeWc = null; tabs = []; activeId = null; overlays.menu = overlays.find = overlays.lookup = null; });
+  win.on('closed', () => { win = null; chromeWc = null; tabs = []; toolViews.clear(); split = null; activeId = null; overlays.menu = overlays.find = overlays.lookup = null; });
   chromeWc.on('did-finish-load', () => notify());
   win.webContents.on('did-finish-load', () => {
     if (!tabs.length) {
@@ -333,7 +459,7 @@ function createWindow() {
 }
 
 function getWin() { return win; }
-function allTabs() { return tabs; }
+function allTabs() { return allViews(); }
 
 function broadcastToActive(channel, payload) {
   const t = activeTab();
@@ -343,5 +469,5 @@ function broadcastToActive(channel, payload) {
 module.exports = {
   CHROME_H, createWindow, createTab, createIncognitoTab, closeTab, activateTab, getTab, activeTab, allTabs, submit, openInternal, load, broadcastToActive, toggleSiri,
   toggleMenu, closeOverlay, showFind, showLookup, openOverlay, overlays, zoom, state, notify, getWin, hooks, looksLikeUrl, isInternal,
-  tabInfo, layout
+  tabInfo, layout, openTool, closeTool, hideTool, toolIdOf, lastTab, toggleSplit, setSplitRatio, swapSplit, spaces, addSpace, removeSpace, switchSpace, moveToSpace, SUBJECTS, TOOL_NAMES
 };
