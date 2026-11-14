@@ -4,6 +4,9 @@ The iPad app runs the desktop main process (`src/main`) in embedded Node.js and 
 by the Swift host (`ipad/App`). Native code replaces JavaScript one piece at a time, only where Swift is clearly better
 (system look, hardware, file and PDF APIs, speed), and never by removing a feature.
 
+This plan covers the iPad app only. The desktop app stays on Electron and JavaScript and does not use or depend on
+any Swift code; `ipad/App` is built only into the iPad IPA.
+
 ## Contract
 Node calls the host with `host.request({ cmd, ... })` (`ipad/node/electron`). Each native capability is a
 `NativeService` (`ipad/App/Services/ServiceRegistry.swift`) that owns one or more `native.*` commands. A module moves to
