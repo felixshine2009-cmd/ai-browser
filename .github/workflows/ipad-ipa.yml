@@ -264,7 +264,8 @@ jobs:
       - name: iPad simulator
         run: |
           set -euo pipefail
-          UDID=$(IOS="${{ matrix.ios }}" xcrun simctl list devices available -j | python3 -c '
+          export IOS="${{ matrix.ios }}"
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
           import json,sys,os
           d=json.load(sys.stdin)["devices"]
           c=[(rt,x) for rt,l in d.items() if "iOS" in rt for x in l if x["name"].startswith("iPad")]
