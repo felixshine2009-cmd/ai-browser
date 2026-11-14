@@ -224,6 +224,14 @@ function registerIpc() {
   handle('tool:open', (e, id, url) => { tabsMod.openTool(String(id || ''), url || null); return true; });
   handle('tool:close', (e, id) => { tabsMod.closeTool(String(id || '')); return true; });
   handle('tool:hide', () => { tabsMod.hideTool(); return true; });
+  // iPad glass tool popover (native host); desktop keeps the tool strip
+  handle('tools:popover', async (e, rect, items, toolbarBottom) => {
+    const nat = require('./native');
+    if (!nat.isIpad()) return { unsupported: true };
+    const list = (Array.isArray(items) ? items : []).slice(0, 24).map(x => ({ id: String(x.id || ''), label: String(x.label || ''), tip: String(x.tip || ''), active: !!x.active })).filter(x => x.id);
+    try { return await nat.toolsPopover({ rect: rect || {}, items: list, toolbarBottom: Number(toolbarBottom) || 0 }); }
+    catch (err) { if (/unsupported command/.test(String(err && err.message))) return { unsupported: true }; throw err; }
+  });
   handle('split:toggle', (e, other) => tabsMod.toggleSplit(other));
   handle('split:ratio', (e, r) => { tabsMod.setSplitRatio(r); return true; });
   handle('split:swap', () => { tabsMod.swapSplit(); return true; });

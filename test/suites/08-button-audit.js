@@ -153,16 +153,16 @@ await A('tb.bookmark', '工具栏', '书签星标', '加入 / 取消书签，列
   });
 
   // ===================================================================== B. four-squares menu
-  await A('menu.toggle', '四方格菜单', '四方格按钮', '点击打开 / 再点关闭 / Esc 关闭，含 11 个菜单项，且全部在视图内', async () => {
+  await A('menu.toggle', '四方格菜单', '四方格按钮', '点击打开 / 再点关闭 / Esc 关闭，含 12 个菜单项，且全部在视图内', async () => {
     const m = await openMenu();
-    eq(await m.locator('.omi').count(), 11);
+    eq(await m.locator('.omi').count(), 12);
     const vh = await m.evaluate(() => innerHeight); const bad = await m.$$eval('.omi', (els, vh) => els.filter(e => e.getBoundingClientRect().bottom > vh).length, vh); eq(bad, 0, 'all menu items inside the overlay');
     const labels = await m.locator('.omi').allInnerTexts(); assert(labels.join('|').includes('历史记录') && labels.join('|').includes('设置'), labels.join('|'));
     await ch.click('#menu'); await until(() => !app.pages().some(p => p.url().startsWith('aibrowser://menu')), 3000, 'closed by toggle');
     const m2 = await openMenu(); await m2.keyboard.press('Escape');
     await until(() => !app.pages().some(p => p.url().startsWith('aibrowser://menu')), 3000, 'closed by Esc');
   });
-  for (const [a, label, url] of [['history', '历史记录', 'history'], ['downloads', '下载内容', 'downloads'], ['extensions', '拓展', 'extensions'], ['bookmarks', '书签', 'bookmarks'], ['settings', '设置', 'settings']])
+  for (const [a, label, url] of [['history', '历史记录', 'history'], ['chats', '对话记录', 'chat?list=1'], ['downloads', '下载内容', 'downloads'], ['extensions', '拓展', 'extensions'], ['bookmarks', '书签', 'bookmarks'], ['settings', '设置', 'settings']])
     await A('menu.' + a, '四方格菜单', label, '点击后打开 aibrowser://' + url + ' 并关闭菜单', async () => {
       await go(`${wb}/m-${a}`);
       await menuClick(`[data-action="${a}"]`);

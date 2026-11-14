@@ -2122,3 +2122,16 @@ body.codepage { overflow: hidden; }
 .vmc-screen { background: #000; color: #ddd; border-radius: 10px; overflow: auto; min-height: 420px; display: flex; justify-content: center; align-items: flex-start; outline: none; }
 .vmc-screen canvas { max-width: 100%; image-rendering: pixelated; }
 .vmc-kin { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+/* iPad (v3.0.0): the tool strip collapses into one Liquid Glass button that opens the native glass tool popover */
+.tool-cluster.glass-mode > .tool-fold, .tool-cluster.glass-mode > .tool-icons { display: none; }
+.tool-cluster:not(.glass-mode) > .tool-glass { display: none; }
+.tb-btn.tool-glass { width: auto; gap: 6px; padding: 0 12px 0 10px; border-radius: 999px; position: relative; overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.05));
+  border: 0.5px solid rgba(255,255,255,.28); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 4px 14px rgba(0,0,0,.22);
+  backdrop-filter: blur(18px) saturate(1.6); -webkit-backdrop-filter: blur(18px) saturate(1.6); color: var(--text-primary);
+  transition: transform .16s ease, background .16s ease; }
+.tb-btn.tool-glass::before { content: ''; position: absolute; inset: 0 0 50% 0; border-radius: inherit; background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0)); pointer-events: none; }
+.tb-btn.tool-glass:active, .tb-btn.tool-glass.open { transform: scale(.95); background: linear-gradient(180deg, rgba(255,255,255,.24), rgba(255,255,255,.09)); }
+.tb-btn.tool-glass .tg-label { font-size: 13px; font-weight: 500; }
+[data-scheme="light"] .tb-btn.tool-glass { background: linear-gradient(180deg, rgba(255,255,255,.75), rgba(255,255,255,.45)); border-color: rgba(0,0,0,.12); box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 4px 14px rgba(0,0,0,.10); }

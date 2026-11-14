@@ -36,6 +36,13 @@ async function ocr(dataUrl) {
   return n.native('ocr', { b64 }, 60000);
 }
 
+/** iPad: the glass tool popover under the toolbar button -> { id | null } (no time limit: it stays open until dismissed) */
+async function toolsPopover(args) {
+  const n = ipadNative();
+  if (!n) return { unsupported: true };
+  return n.native('toolsPopover', args || {}, 0);
+}
+
 /** QR code -> { text } | { cancelled } */
 async function scanQr() {
   const n = ipadNative();
@@ -57,4 +64,4 @@ async function savePage(wc, dir, base) {
   return { file, bytes: fs.statSync(file).size, format: 'mhtml' };
 }
 
-module.exports = { isIpad, caps, capture, ocr, scanQr, savePage };
+module.exports = { isIpad, caps, capture, ocr, scanQr, savePage, toolsPopover };

@@ -243,6 +243,7 @@ async function onCmd(m) {
       case 'native.ocr': ok({ text: (sim.cameraImage && sim.cameraImage.text) || '', lines: [] }); break;
       case 'native.qrscan': sim.lastScan = m; { const t = sim.qrText; sim.qrText = null; ok(t ? { text: t } : { cancelled: true }); } break;
       case 'native.qrimage': ok({ codes: sim.qrText ? [sim.qrText] : [] }); break;
+      case 'native.toolsPopover': sim.lastPopover = m; { const pick = sim.popoverPick; sim.popoverPick = null; ok({ id: pick || null }); } break;
       case 'native.pdftext': ok(sim.pdfText || { pages: [], pageCount: 0, title: '' }); break;
       case 'wc.archive': {
         if (!h) return err('no such view');
@@ -322,7 +323,7 @@ app.whenReady().then(async () => {
     else if (req.url === '/wake') { const f = path.join(TMP, 'aib-wake'); fs.writeFileSync(f, String(Date.now())); const t = new Date(Date.now() + 2000); fs.utimesSync(f, t, t); out = true; }
     else if (req.url === '/drop-stream') { const r = stream.res; if (r) r.destroy(); out = !!r; }
     else if (req.url === '/open-paths') { sim.openPaths.push(...((body && body.paths) || [])); sim.openDelay = Number(body && body.delayMs) || 0; out = true; }
-    else if (req.url === '/state') out = { diag: sim.diag, windowShown: sim.windowShown, lastMenu: sim.lastMenu || null, lastDialog: sim.lastDialog || null, lastShell: sim.lastShell || null, lastOpen: sim.lastOpen || null, opens: sim.opens || 0, appKeys: (sim.appKeys || []).length, themeSource: nativeTheme.themeSource, views: Array.from(hosts.values()).map(h => ({ id: h.id, kind: h.kind, url: h.view.webContents.getURL(), attached: h.attached, visible: h.visible, bounds: h.id === winHostId ? { x: 0, y: 0, width: W, height: H } : h.bounds })) };
+    else if (req.url === '/state') out = { diag: sim.diag, lastPopover: sim.lastPopover || null, windowShown: sim.windowShown, lastMenu: sim.lastMenu || null, lastDialog: sim.lastDialog || null, lastShell: sim.lastShell || null, lastOpen: sim.lastOpen || null, opens: sim.opens || 0, appKeys: (sim.appKeys || []).length, themeSource: nativeTheme.themeSource, views: Array.from(hosts.values()).map(h => ({ id: h.id, kind: h.kind, url: h.view.webContents.getURL(), attached: h.attached, visible: h.visible, bounds: h.id === winHostId ? { x: 0, y: 0, width: W, height: H } : h.bounds })) };
     else if (req.url === '/resize') { const b = body || {}; win.setContentSize(b.w, b.h); W = b.w; H = b.h; for (const h of hosts.values()) layoutHost(h); out = await event({ type: 'window', w: b.w, h: b.h }); }
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(out));
   }).listen(Number(process.env.AIB_SIM_CTL), '127.0.0.1');

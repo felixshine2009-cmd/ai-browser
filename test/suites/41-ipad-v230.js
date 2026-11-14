@@ -51,6 +51,26 @@ module.exports = async ({ test, group, assert, eq, until }) => {
       eq(ws, ['对话', '任务']);
     });
 
+    await test('v3.0.0 玻璃工具按钮：工具栏只显示一个“工具”按钮；原生弹出面板收到全部工具（正式中文名与说明），选择后打开对应工具', async () => {
+      const c = await app.chrome();
+      const vis = await c.evaluate(() => ({ glass: !!document.querySelector('#toolglass') && getComputedStyle(document.querySelector('#toolglass')).display !== 'none', strip: getComputedStyle(document.querySelector('#toolicons')).display, label: document.querySelector('#toolglass .tg-label')?.textContent }));
+      assert(vis.glass && vis.strip === 'none' && vis.label === '工具', JSON.stringify(vis));
+      await shot('300-glass-toolbar');
+      await app.native({ popoverPick: 'dict' });
+      await c.click('#toolglass');
+      await until(async () => (await st()).activeTool === 'dict', 8000, 'dict opened from the popover');
+      const pop = (await app.state()).lastPopover;
+      assert(pop && pop.items.length === 9 && pop.items.map(x => x.label).join(',') === '解题,拍题,GeoGebra,物理,百科,词典,代码,稍后读,扫码', JSON.stringify(pop && pop.items));
+      assert(pop.items.every(x => x.tip && x.tip.length > 2), 'descriptions');
+      assert(pop.rect && pop.rect.w > 20 && pop.rect.h > 10 && pop.toolbarBottom >= pop.rect.y + pop.rect.h, JSON.stringify(pop.rect) + pop.toolbarBottom);
+      // the open tool is marked active; dismissing (no pick) changes nothing
+      await c.click('#toolglass'); await sleep(400);
+      const pop2 = (await app.state()).lastPopover;
+      assert(pop2.items.find(x => x.id === 'dict').active, 'active tool marked');
+      eq((await st()).activeTool, 'dict');
+      await app.invoke('tool:hide');
+    });
+
     await test('U5：思考等级随模型提供；可设置并在各页面共用', async () => {
       const info = await app.invoke('models:thinking');
       assert(info && 'supported' in info && info.labels, JSON.stringify(info));

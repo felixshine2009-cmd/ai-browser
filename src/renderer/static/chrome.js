@@ -151,13 +151,39 @@
       fold.setAttribute('aria-expanded', String(!collapsed));
     };
   }
-  document.querySelectorAll('.ticon[data-tool]').forEach(b => b.onclick = () => {
-    const id = b.dataset.tool;
+  function toolAction(id) {
     if (id === 'scan') return window.aib.invoke('scan:qr');
     if (id === 'snap') return window.aib.invoke('snap:solve');
     if (state.activeTool === id) return window.aib.invoke('tool:hide'); // second tap returns to the page
-    window.aib.invoke('tool:open', id);
-  });
+    return window.aib.invoke('tool:open', id);
+  }
+  document.querySelectorAll('.ticon[data-tool]').forEach(b => b.onclick = () => toolAction(b.dataset.tool));
+  // iPad (v3.0.0): the tool strip is one Liquid Glass button; the native host shows the tools in a glass popover
+  // that grows downward from under it (ipad/App/Chrome/ToolPopover.swift) and can expand to the whole content area.
+  if (IPAD && ICONS) {
+    const cluster = $('toolcluster');
+    if (cluster) {
+      cluster.classList.add('glass-mode');
+      const gb = document.createElement('button');
+      gb.type = 'button'; gb.id = 'toolglass'; gb.className = 'tb-btn tool-glass';
+      gb.title = '工具：解题、拍题、GeoGebra、物理、百科、词典、代码、稍后读、扫码'; gb.setAttribute('aria-label', '工具'); gb.setAttribute('aria-haspopup', 'dialog');
+      gb.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.4"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.4"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.4"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.4"/></svg><span class="tg-label">工具</span>';
+      cluster.appendChild(gb);
+      let open = false;
+      gb.onclick = async () => {
+        if (open) return;
+        open = true; gb.classList.add('open'); gb.setAttribute('aria-expanded', 'true');
+        try {
+          const r = gb.getBoundingClientRect(), tb = document.querySelector('.toolbar');
+          const items = TOOLS.map(id => ({ id, label: ICONS.label(id), tip: ICONS.tip(id), active: state.activeTool === id }));
+          const res = await window.aib.invoke('tools:popover', { x: r.left, y: r.top, w: r.width, h: r.height }, items, tb ? tb.getBoundingClientRect().bottom : r.bottom);
+          if (res && res.unsupported) { cluster.classList.remove('glass-mode'); return; } // older host: back to the strip
+          if (res && res.id) await toolAction(res.id);
+        } catch (e) { console.warn('tools popover', e); }
+        finally { open = false; gb.classList.remove('open'); gb.setAttribute('aria-expanded', 'false'); }
+      };
+    }
+  }
   { const sb = $('splitbtn'); if (sb) sb.onclick = () => window.aib.invoke('split:toggle'); }
   { const sc = $('spacechip'); if (sc) sc.onclick = () => { const r = sc.getBoundingClientRect(); window.aib.invoke('space:menu', r.left, r.bottom); }; }
   {

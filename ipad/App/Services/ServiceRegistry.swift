@@ -30,6 +30,7 @@ final class ServiceRegistry {
         register(HapticsService())
         register(ShareService())
         register(CapabilitiesService())
+        register(ToolPopoverService()) // glass tool popover (v3.0.0)
     }
     func register(_ s: NativeService) {
         services.append(s)
