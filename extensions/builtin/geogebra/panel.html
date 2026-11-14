@@ -54,8 +54,12 @@ html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,
 </div>
 <script>
 (function () {
-  var applet = null, currentApp = 'graphing', readyRes, readyRej, kbOpen = false;
+  var applet = null, currentApp = 'graphing', readyRes, readyRej, kbOpen = false, settled = false;
+  // Calls that arrive before the applet exists wait on `ready`. inject() must keep that same promise while it is
+  // still pending, otherwise those early callers (e.g. the first ggb_eval, sent as soon as the page loads) wait forever.
   var ready = new Promise(function (a, b) { readyRes = a; readyRej = b; });
+  function freshReady() { if (!settled) return; settled = false; ready = new Promise(function (a, b) { readyRes = a; readyRej = b; }); }
+  var LOAD_TIMEOUT_MS = 60000;
   var toastEl = document.getElementById('toast'), toastT;
   function toast(m) { toastEl.textContent = m; toastEl.style.opacity = '1'; clearTimeout(toastT); toastT = setTimeout(function () { toastEl.style.opacity = '0'; }, 1800); }
   function size() {
@@ -95,7 +99,7 @@ html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,
       showKeyboardOnFocus: false, allowUpscale: false, autoHeight: false,
       enableFileFeatures: false, showZoomButtons: true,
       appletOnLoad: function (api) {
-        applet = api; readyRes(api); ready = Promise.resolve(api);
+        applet = api; readyRes(api); settled = true; ready = Promise.resolve(api);
         try { var er = document.getElementById('err'); if (er) er.style.display = 'none'; } catch (e) {}
         syncSize(true);
         setTimeout(function () { syncSize(true); }, 80);
@@ -105,9 +109,10 @@ html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,
       }
     };
   }
+  var injectSeq = 0;
   function inject(app) {
     applet = null; kbOpen = false;
-    ready = new Promise(function (a, b) { readyRes = a; readyRej = b; });
+    freshReady();
     document.getElementById('ggb').innerHTML = '';
     document.getElementById('err').style.display = 'none';
     currentApp = app;
@@ -115,15 +120,17 @@ html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,
     var a = new GGBApplet(paramsFor(app), true);
     a.setHTML5Codebase(codebaseFor(app));
     a.inject('ggb');
+    var mine = ++injectSeq;
     setTimeout(function () {
-      if (!applet && currentApp === app) {
+      if (!applet && currentApp === app && mine === injectSeq) {
         var e = document.getElementById('err'); e.style.display = 'flex';
-        e.textContent = 'GeoGebra 加载较慢，仍在继续加载（' + app + '）';
+        e.innerHTML = '<div>GeoGebra 组件加载超时（' + (LOAD_TIMEOUT_MS / 1000) + ' 秒），仍在后台继续加载。<br>若长时间无响应，可能是设备内存不足或图形加速不可用。<br><button id="ggbRetry" style="margin-top:10px">重新加载</button></div>';
+        var rb = document.getElementById('ggbRetry'); if (rb) rb.onclick = function () { inject(currentApp); };
         // fail the calls waiting now with a clear message, but keep a fresh promise so a late load still serves later calls
-        var rej = readyRej; ready = new Promise(function (a, b) { readyRes = a; readyRej = b; });
-        rej(new Error('GeoGebra 组件尚未加载完成，请稍后重试'));
+        var rej = readyRej; settled = true; freshReady();
+        rej(new Error('GeoGebra 组件加载超时（' + (LOAD_TIMEOUT_MS / 1000) + ' 秒），未能完成绘图。可能是设备内存不足或图形加速不可用；请稍后重试，或在 GeoGebra 面板中点击“重新加载”。'));
       }
-    }, 100000);
+    }, LOAD_TIMEOUT_MS);
   }
   function focusInput() {
     var sels = [

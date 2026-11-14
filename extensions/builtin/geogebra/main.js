@@ -1,6 +1,13 @@
 // GeoGebra Math Apps — full offline bundle (graphing / geometry / 3D / CAS / scientific / suite).
 // Tools are forwarded to the panel (panel.html) which hosts the HTML5 applet + WEB math keyboard.
-function call(ctx, method, args) { return aib.panels.call(ctx, 'canvas', method, args); }
+// The panel itself fails after 30 s (page) + 60 s (applet) with a specific message; this is the last guard.
+var TIMEOUT_MS = 100000;
+function call(ctx, method, args) {
+  return aib.panels.call(ctx, 'canvas', method, args, {
+    timeoutMs: TIMEOUT_MS,
+    timeoutMsg: 'GeoGebra 执行超时（' + (TIMEOUT_MS / 1000) + ' 秒）：面板未能在规定时间内完成“' + method + '”。请检查 GeoGebra 面板是否已显示，稍后重试；也可以改用文字说明作答。'
+  });
+}
 module.exports = {
   tools: {
     ggb_eval: function (args, ctx) {

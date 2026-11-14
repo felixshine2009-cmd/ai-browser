@@ -112,7 +112,7 @@ function makeApi(rec) {
     },
     ai: { complete: async (prompt) => { need('ai'); if (!hooks.ai) throw new Error('AI 不可用'); return hooks.ai(typeof prompt === 'string' ? [{ role: 'user', content: prompt }] : prompt); } },
     tabs: { open: (url) => { need('tabs'); hooks.openTab(String(url)); } },
-    panels: { call: (ctx, panelId, method, args) => { need('panels'); return hooks.callPanel(ctx, m.id, panelId, method, args); } },
+    panels: { call: (ctx, panelId, method, args, opts) => { need('panels'); return hooks.callPanel(ctx, m.id, panelId, method, args, opts && typeof opts === 'object' ? { timeoutMs: opts.timeoutMs, timeoutMsg: opts.timeoutMsg ? String(opts.timeoutMsg) : undefined } : {}); } },
     settings: { get: () => (store.getSettings().extensions[m.id] || {}).settings || {}, set: (v) => { const e = store.getSettings().extensions; store.patchSettings({ extensions: { ...e, [m.id]: { ...(e[m.id] || {}), settings: v } } }); } },
     browser: {
       get: () => { need('browser'); return store.publicSettings(); },

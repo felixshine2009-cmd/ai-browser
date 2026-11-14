@@ -40,6 +40,12 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     assert(hasKb, 'keyboard DOM present; tabs=' + JSON.stringify(tabs) + ' ' + txt.slice(0, 200));
   });
 
+  await test('面板页面加载超时：给出明确的中文失败信息，而不是一直等待', async () => {
+    const msg = await p.evaluate(async () => { Bridge.PANEL_LOAD_MS = 1; try { await Bridge.panelCall('aib.physics', 'canvas', 'state', {}); return 'resolved'; } catch (e) { return e.message; } finally { Bridge.PANEL_LOAD_MS = 30000; } });
+    assert(/面板页面加载超时.*物理面板未能打开/.test(msg), msg);
+    await sleep(1500);
+  });
+
   await test('物理：加载示例（抛体）、播放后时间推进、画布有内容；暂停/单步/重置', async () => {
     const ex = JSON.parse(fs.readFileSync(path.join(__dirname, '../../extensions/builtin/physics/examples/index.json'), 'utf8'));
     const first = (ex.examples || ex)[0];

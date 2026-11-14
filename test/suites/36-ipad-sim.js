@@ -116,6 +116,23 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     } finally { llm.state.script = null; }
   });
 
+  await test('GeoGebra（v3.0.0 修复）：悬链线请求调用 ggb_eval 不再停在“正在处理”，绘图完成后给出回答', async () => {
+    llm.state.script = ({ system, tools, toolMsgs, lastUser }) => {
+      if (!/web-research agent/.test(system) || !tools.includes('ggb_eval') || !/IPADCAT/.test(lastUser || '')) return null;
+      if (!toolMsgs.length) return { toolCalls: [{ name: 'ggb_eval', args: { commands: ['f(x)=cosh(x)', 'A=(0,1)'] } }] };
+      return { text: 'CATDONE ' + String(toolMsgs[0].content).slice(0, 200) };
+    };
+    try {
+      await app.invoke('nav:openUrl', 'aibrowser://home'); await sleep(500);
+      await app.submit('IPADCAT 画出悬链线 y=cosh(x)');
+      const chats = () => app.ctx.pages().filter(p => p.url().startsWith('aibrowser://chat'));
+      const text = async () => { let t = ''; for (const p of chats()) t += '\n' + await p.locator('#turns').innerText().catch(() => ''); return t; };
+      try { await until(async () => /CATDONE[\s\S]*"ok":true/.test(await text()), 150000, 'ggb answer'); }
+      catch (e) { console.log('    chat:', (await text()).slice(-800)); throw e; }
+      await sleep(1500); await shot('03d-ggb-catenary');
+    } finally { llm.state.script = null; }
+  }, { timeout: 170000 });
+
   await test('Python（内置 Pyodide，隐藏 web 视图内核）：AI 调用 python_run → sympy / numpy 结果', async () => {
     const bundle = process.env.AIB_IPAD_BUNDLE || '';
     if (!bundle || !fs.existsSync(path.join(bundle, 'pyodide', 'pyodide.mjs'))) return console.log('    (跳过：负载中没有 Pyodide，先运行 scripts/fetch-ipad-pyodide.js)');

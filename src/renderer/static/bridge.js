@@ -6,8 +6,10 @@
   let n = 0;
   const readyFrames = new WeakSet();
   const events = {};
+  const panelName = (id) => id === 'aib.geogebra' ? ' GeoGebra ' : id === 'aib.physics' ? '物理' : '';
   const Bridge = {
     mountPanel: null, // set by page: (extId, panelId) => iframe
+    PANEL_LOAD_MS: 30000,
     onPanelEvent(fn) { (events.panel = events.panel || []).push(fn); },
     frameFor(extId, panelId) { return document.querySelector(`iframe[data-ext="${extId}"][data-panel="${panelId}"]`); },
     async panelCall(extId, panelId, method, args) {
@@ -15,7 +17,11 @@
       if (!f && Bridge.mountPanel) f = Bridge.mountPanel(extId, panelId);
       if (!f) throw new Error('panel not available');
       if (Bridge.showPanel) Bridge.showPanel(f);
-      if (!f.dataset.loaded) await new Promise(res => { if (f.dataset.loaded) return res(); f.addEventListener('load', () => res(), { once: true }); });
+      if (!f.dataset.loaded) await new Promise((res, rej) => {
+        if (f.dataset.loaded) return res();
+        const t = setTimeout(() => rej(new Error(`面板页面加载超时（${Bridge.PANEL_LOAD_MS / 1000} 秒）：${panelName(extId)}面板未能打开，请重试`)), Bridge.PANEL_LOAD_MS);
+        f.addEventListener('load', () => { clearTimeout(t); res(); }, { once: true });
+      });
       return new Promise((resolve, reject) => {
         const id = ++n;
         pendingPanel[id] = { resolve, reject };

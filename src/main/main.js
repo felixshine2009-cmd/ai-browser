@@ -131,13 +131,14 @@ function setupDownloads(ses = session.defaultSession) {
 // ------------------------------------------------------------ panel calls (feature-ext tools -> page iframes)
 const panelPending = new Map();
 let panelSeq = 0;
-function callPanel(ctx, extId, panelId, method, args) {
+function callPanel(ctx, extId, panelId, method, args, opts = {}) {
   return new Promise((resolve, reject) => {
     const wc = ctx && ctx.wcId != null ? webContents.fromId(ctx.wcId) : null;
     if (!wc || wc.isDestroyed()) return reject(new Error('没有可用的页面来显示面板'));
     const reqId = 'p' + (++panelSeq);
     // shorter than the 120 s tool limit so the panel's own (more specific) error wins
-    const t = setTimeout(() => { panelPending.delete(reqId); reject(new Error('面板响应超时（115 秒），请确认面板已打开后重试')); }, 115000);
+    const ms = Math.min(115000, Math.max(1000, Number(opts.timeoutMs) || 115000));
+    const t = setTimeout(() => { panelPending.delete(reqId); reject(new Error(opts.timeoutMsg || `面板响应超时（${Math.round(ms / 1000)} 秒），请确认面板已打开后重试`)); }, ms);
     panelPending.set(reqId, { resolve: (v) => { clearTimeout(t); resolve(v); }, reject: (e) => { clearTimeout(t); reject(e); } });
     wc.send('panel:call', { reqId, extId, panelId, method, args });
   });
