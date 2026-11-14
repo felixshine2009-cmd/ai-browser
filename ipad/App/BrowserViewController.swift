@@ -465,11 +465,22 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
         else if let h = hosts[wcId] { src = h.webView }
         contextPoint = nil
         if let pop = sheet.popoverPresentationController { pop.sourceView = src; pop.sourceRect = CGRect(origin: anchor, size: CGSize(width: 1, height: 1)) }
-        topController.present(sheet, animated: true)
+        presentWhenReady(sheet)
     }
 
     // ------------------------------------------------------------------ dialogs
     private var topController: UIViewController { var c: UIViewController = self; while let p = c.presentedViewController { c = p }; return c }
+    /// v3.0.1: present once no sheet or picker is still being dismissed (a presentation started during a dismissal
+    /// is dropped by UIKit, e.g. a second import right after the Files picker closed)
+    func presentWhenReady(_ vc: UIViewController, animated: Bool = true, tries: Int = 0, completion: (() -> Void)? = nil) {
+        var c: UIViewController = self; var busy = false
+        while let p = c.presentedViewController { if p.isBeingDismissed || p.isBeingPresented { busy = true }; c = p }
+        if busy && tries < 30 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in self?.presentWhenReady(vc, animated: animated, tries: tries + 1, completion: completion) }
+            return
+        }
+        c.present(vc, animated: animated, completion: completion)
+    }
     func alert(title: String, message: String, buttons: [String], cancelIndex: Int = -1, completion: @escaping (Int) -> Void) {
         let a = UIAlertController(title: title, message: message.isEmpty ? nil : message, preferredStyle: .alert)
         a.overrideUserInterfaceStyle = container.overrideUserInterfaceStyle
@@ -477,14 +488,14 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
             let destructive = ["删除", "清除", "移除", "Delete", "Remove"].contains(where: { b.contains($0) })
             a.addAction(UIAlertAction(title: b, style: i == cancelIndex ? .cancel : destructive ? .destructive : .default) { _ in completion(i) })
         }
-        topController.present(a, animated: true)
+        presentWhenReady(a)
     }
     func prompt(title: String, text: String, completion: @escaping (String?) -> Void) {
         let a = UIAlertController(title: title, message: nil, preferredStyle: .alert)
         a.addTextField { $0.text = text }
         a.addAction(UIAlertAction(title: "取消", style: .cancel) { _ in completion(nil) })
         a.addAction(UIAlertAction(title: "确定", style: .default) { [weak a] _ in completion(a?.textFields?.first?.text ?? "") })
-        topController.present(a, animated: true)
+        presentWhenReady(a)
     }
     /// dialog.showOpenDialog: Files picker.
     ///  files:   opened as copies (the system downloads iCloud items and shows its own progress), then moved to tmp/picked
@@ -504,7 +515,7 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
             a.addAction(UIAlertAction(title: "选择整个文件夹", style: .default) { [weak self] _ in self?.presentPicker(m, props: props, mode: .folder, completion: completion) })
             a.addAction(UIAlertAction(title: "取消", style: .cancel) { _ in completion(true, []) })
             if let pop = a.popoverPresentationController { pop.sourceView = container; pop.sourceRect = CGRect(x: container.bounds.midX, y: container.bounds.midY, width: 1, height: 1); pop.permittedArrowDirections = [] }
-            topController.present(a, animated: true) { if UITest.enabled { UITest.event("sheet") } }
+            presentWhenReady(a) { if UITest.enabled { UITest.event("sheet") } }
             return
         }
         presentPicker(m, props: props, mode: dirs ? .folder : .files, completion: completion)
@@ -536,7 +547,7 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
         pickMode = mode
         pickerReply?(true, []) // a picker that was never answered
         pickerReply = completion
-        topController.present(picker, animated: true) {
+        presentWhenReady(picker) {
             if UITest.enabled { UITest.pickerPresented(self, picker: picker, folder: mode == .folder, filters: m["filters"] as? [[String: Any]] ?? []) }
         }
     }
