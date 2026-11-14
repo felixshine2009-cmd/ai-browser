@@ -83,12 +83,14 @@ enum UITest {
         vc.view.addSubview(tools)
         NSLayoutConstraint.activate([
             tools.leadingAnchor.constraint(equalTo: vc.view.safeAreaLayoutGuide.leadingAnchor, constant: 8),
-            tools.bottomAnchor.constraint(equalTo: vc.view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
+            // mid-height: clear of the toolbar, of tool panes' bottom bars and of the keyboard's shortcut bar
+            tools.centerYAnchor.constraint(equalTo: vc.view.safeAreaLayoutGuide.centerYAnchor),
         ])
         // keep the test controls above the native web views and tool views added later (tabs, tool panes)
-        Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { [weak panel, weak tools, weak vc] _ in
+        Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { [weak panel, weak tools, weak vc, weak ob] _ in
             Task { @MainActor in
                 if let v = vc?.view { if let p = panel { v.bringSubviewToFront(p) }; if let t = tools { v.bringSubviewToFront(t) } }
+                if let b = ob, let v = vc { UITest.coverCheck(b, v) }
                 UITest.toolState()
             }
         }
@@ -132,6 +134,23 @@ enum UITest {
         w.evaluateJavaScript("(() => { const b = document.getElementById('toolglass'); if (!b) return 'missing'; b.click(); return 'clicked'; })()", in: nil, in: .page) { r in
             if case .success(let v) = r { event("toolglass:\(v ?? "nil")") } else { event("toolglass:error") }
         }
+    }
+    /// Diagnostics: what a touch on the test button would hit (logged when it changes), and what is presented on top.
+    private static var lastCover = ""
+    static func coverCheck(_ b: UIView, _ vc: UIViewController) {
+        guard let w = b.window else { return }
+        let p = b.convert(CGPoint(x: b.bounds.midX, y: b.bounds.midY), to: nil)
+        var d = "ok"
+        if let hit = w.hitTest(p, with: nil), !(hit === b || hit.isDescendant(of: b)) {
+            var chain = [String](); var x: UIView? = hit
+            while let y = x, chain.count < 5 { chain.append(String(describing: type(of: y))); x = y.superview }
+            d = chain.joined(separator: "<")
+        }
+        var top = vc.presentedViewController; var pres = [String]()
+        while let t = top { pres.append(String(describing: type(of: t)) + (t.isBeingDismissed ? "(dismissing)" : "")); top = t.presentedViewController }
+        let wins = (w.windowScene?.windows ?? []).filter { !$0.isHidden }.count
+        let s = "cover:\(d) presented:\(pres.isEmpty ? "none" : pres.joined(separator: ">")) windows:\(wins)"
+        if s != lastCover { lastCover = s; event(s) }
     }
     /// result = "tool:<active tool id or none>" from the Node core's tab state.
     static func toolState() {

@@ -75,7 +75,9 @@ final class ToolPopoverTests: XCTestCase {
 
         for (i, full) in ids.enumerated() {
             let id = String(full.dropFirst("tool.".count))
-            XCTAssertTrue(openPopover(), "popover did not open for \(id)")
+            let opened = openPopover()
+            if !opened { shot(String(format: "%02d-%@-noopen", i + 2, id)) }
+            XCTAssertTrue(opened, "popover did not open for \(id); events: \(value(events))")
             let tile = app.descendants(matching: .any)[full]
             XCTAssertTrue(tile.waitForExistence(timeout: 5) && tile.isHittable, "tile \(id) not hittable")
             tile.tap()
