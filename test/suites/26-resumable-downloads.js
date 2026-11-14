@@ -122,6 +122,8 @@ module.exports = async ({ test, group, assert }) => {
     let k = 0; const reqs = [];
     const srv = http.createServer((req, res) => {
       const f = decodeURIComponent(req.url.split('/resolve/main/')[1]); const b = files[f]; if (!b) { res.statusCode = 404; return res.end(); }
+      // v3.0.0: the segmented downloader first probes Range support with bytes=0-0; this server has none (answers 200)
+      if (req.headers.range === 'bytes=0-0') { res.writeHead(200, { 'content-length': b.length }); return res.end(b); }
       const m = (req.headers.range || '').match(/bytes=(\d+)-/); const st = m ? Number(m[1]) : 0; reqs.push(f + ':' + st);
       const body = b.subarray(st); res.writeHead(st ? 206 : 200, { 'content-length': body.length, ...(st ? { 'content-range': `bytes ${st}-${b.length - 1}/${b.length}` } : {}) });
       if (f === 'model.safetensors' && k++ === 0) { res.write(body.subarray(0, 100000)); return setTimeout(() => res.socket.destroy(), 20); }
