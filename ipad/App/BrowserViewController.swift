@@ -260,11 +260,25 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
             }
         case "wc.snapshot":
             guard let w = h else { fail("no such web contents"); break }
+            if let rect = PDFPages.rects((m["rect"] as? [String: Any]).map { [$0] }).first {
+                // a page of a laid-out document: rendered through PDF so content outside the visible area is included
+                PDFPages.snapshot(w.webView, rect: rect) { r in
+                    switch r { case .success(let d): ok(["b64": d.base64EncodedString()]); case .failure(let e): fail(e.localizedDescription) }
+                }
+                break
+            }
             w.webView.takeSnapshot(with: nil) { img, err in
                 if let d = img?.pngData() { ok(["b64": d.base64EncodedString()]) } else { fail(err?.localizedDescription ?? "snapshot failed") }
             }
         case "wc.pdf":
             guard let w = h else { fail("no such web contents"); break }
+            let pageRects = PDFPages.rects((m["opts"] as? [String: Any])?["aibPageRects"])
+            if !pageRects.isEmpty {
+                PDFPages.render(w.webView, rects: pageRects) { r in
+                    switch r { case .success(let d): ok(["b64": d.base64EncodedString()]); case .failure(let e): fail(e.localizedDescription) }
+                }
+                break
+            }
             w.webView.createPDF(configuration: WKPDFConfiguration()) { r in
                 switch r { case .success(let d): ok(["b64": d.base64EncodedString()]); case .failure(let e): fail(e.localizedDescription) }
             }

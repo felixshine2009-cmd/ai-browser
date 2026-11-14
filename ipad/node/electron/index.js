@@ -155,7 +155,7 @@ class WebContents extends EventEmitter {
   stopFindInPage(action) { host.cmd('wc.stopFind', { id: this.id, action: action || 'clearSelection' }); }
   print(opts, cb) { host.call('wc.print', { id: this.id }, 0).then(r => cb && cb(!!(r && r.ok), r && r.error || ''), (e) => cb && cb(false, e.message)); }
   async printToPDF(opts) { const r = await host.call('wc.pdf', { id: this.id, opts: host.clone(opts || {}) }, 180000); return Buffer.from((r && r.b64) || '', 'base64'); }
-  async capturePage() { const r = await host.call('wc.snapshot', { id: this.id }, 30000); return nativeImage.createFromBuffer(Buffer.from((r && r.b64) || '', 'base64')); }
+  async capturePage(rect) { const r = await host.call('wc.snapshot', { id: this.id, rect: rect && rect.width ? { x: rect.x || 0, y: rect.y || 0, width: rect.width, height: rect.height } : null }, 30000); return nativeImage.createFromBuffer(Buffer.from((r && r.b64) || '', 'base64')); }
   openDevTools() { host.cmd('wc.devtools', { id: this.id }); }
   closeDevTools() {}
   isDevToolsOpened() { return false; }

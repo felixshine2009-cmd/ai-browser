@@ -109,8 +109,10 @@ async function resHandler(req) {
   const root = u.host === 'data' ? UD : BUNDLE;
   const f = u.host === 'data' ? path.join(UD, rel) : /^(pyodide|vm)\//.test(rel) ? path.join(BUNDLE, rel) : path.join(BUNDLE, 'web', rel);
   let f2 = f, root2 = root;
-  // graphical VM image: blobs that are not in the bundled base image were downloaded to userData/vm-gui/fs/ (SchemeHandler.swift)
-  if (u.host !== 'data' && /^vm\/fs\//.test(rel) && !fs.existsSync(f)) { f2 = path.join(UD, 'vm-gui', 'fs', path.basename(rel)); root2 = UD; }
+  // v3.0.0: the base image is downloaded on first use to userData/vm-base/vm/ when the bundle has none (SchemeHandler.swift)
+  if (u.host !== 'data' && /^vm\//.test(rel) && !fs.existsSync(f2) && fs.existsSync(path.join(UD, 'vm-base', rel))) { f2 = path.join(UD, 'vm-base', rel); root2 = path.join(UD, 'vm-base', 'vm'); }
+  // graphical VM image: blobs that are not in the base image were downloaded to userData/vm-gui/fs/ (SchemeHandler.swift)
+  if (u.host !== 'data' && /^vm\/fs\//.test(rel) && !fs.existsSync(f2)) { f2 = path.join(UD, 'vm-gui', 'fs', path.basename(rel)); root2 = UD; }
   return serveFile(f2, root2, req.headers.get('range'));
 }
 function serveFile(f, root, range) {
@@ -202,8 +204,18 @@ async function onCmd(m) {
       case 'wc.find': if (h && m.text) h.view.webContents.findInPage(m.text, { forward: m.forward, findNext: m.findNext, matchCase: m.matchCase }); break;
       case 'wc.stopFind': if (h) h.view.webContents.stopFindInPage(m.action || 'clearSelection'); break;
       case 'wc.edit': if (h) { const wc = h.view.webContents; (wc[m.op] || (() => {})).call(wc); } break;
-      case 'wc.snapshot': if (!h) return err('no such view'); ok({ b64: (await h.view.webContents.capturePage()).toPNG().toString('base64') }); break;
-      case 'wc.pdf': if (!h) return err('no such view'); ok({ b64: (await h.view.webContents.printToPDF({})).toString('base64') }); break;
+      case 'wc.snapshot': {
+        if (!h) return err('no such view');
+        const rect = m.rect ? { x: Math.round(m.rect.x), y: Math.round(m.rect.y), width: Math.round(m.rect.width), height: Math.round(m.rect.height) } : undefined;
+        // hidden helper views are parked inside the window on the device (BrowserViewController.parking); here a detached
+        // view is attached behind the content for the capture
+        const park = rect && h.kind === 'hidden' && !h.attached && win && !win.isDestroyed();
+        if (park) { win.contentView.addChildView(h.view, 0); h.view.setBounds({ x: 0, y: 0, width: rect.x + rect.width, height: rect.y + rect.height }); await new Promise(r => setTimeout(r, 120)); }
+        try { ok({ b64: (await h.view.webContents.capturePage(rect)).toPNG().toString('base64') }); }
+        finally { if (park) { try { win.contentView.removeChildView(h.view); } catch {} } }
+        break;
+      }
+      case 'wc.pdf': if (!h) return err('no such view'); { const o = m.opts || {}; ok({ b64: (await h.view.webContents.printToPDF(o.aibPageRects ? { printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' } } : {})).toString('base64') }); } break;
       case 'wc.print': ok({ ok: true }); break;
       case 'wc.devtools': break;
       case 'theme.set': nativeTheme.themeSource = ['light', 'dark'].includes(m.source) ? m.source : (process.env.AIB_SIM_DARK === '0' ? 'light' : 'system'); break;

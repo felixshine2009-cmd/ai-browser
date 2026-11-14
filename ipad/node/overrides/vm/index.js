@@ -1,6 +1,6 @@
 'use strict';
 // Embedded Linux VM on iPad. iPadOS has no Virtualization.framework for apps and no way to start helper processes, so
-// the VM is v86 (x86 emulator compiled to WebAssembly) running the bundled Alpine Linux (i686, Python 3 with numpy /
+// the VM is v86 (x86 emulator compiled to WebAssembly) running Alpine Linux (downloaded on first use) (i686, Python 3 with numpy /
 // scipy / sympy / pandas / matplotlib) in a hidden WKWebView. Same module API as the desktop VM (status / start / stop /
 // reset / shell / readFile / writeFile / python / ping), so the vm_* agent tools and Settings work unchanged.
 // Persistence: /persist (extra Python packages) and /root are saved to userData/vm/persist.tar and restored at boot.
@@ -26,6 +26,12 @@ function supported() { return true; }
 // Only the files that differ from the bundled image are downloaded on first use (userData/vm-gui: fs.json + fs/ blobs);
 // SchemeHandler.swift serves aibres://app/vm/fs/<blob> from there when the blob is not in the app bundle.
 const GUI_IMAGE = { id: 'alpine-gui', version: 'alpine-3.22-x86-gui-1', asset: 'linux-vm-x86-gui.tar', base: 'https://github.com/felixshine2009-cmd/ai-browser/releases/download/v5.7.0/', mirrors: ['', 'https://ghfast.top/'], downloadMB: 28, memoryMB: 1024 };
+// v3.0.0: the IPA carries only the v86 emulator; the Alpine base image (kernel + file system) is downloaded on first
+// use into userData/vm-base/vm (SchemeHandler.swift serves aibres://app/vm/... from there when the bundle has no image).
+const BASE_IMAGE = { id: 'alpine', version: 'alpine-3.22-i686-v86', asset: 'linux-vm-x86-v86.tar.gz', base: 'https://github.com/felixshine2009-cmd/ai-browser/releases/download/v5.6.0/', mirrors: ['', 'https://ghfast.top/'], downloadMB: 121 };
+const baseDir = () => path.join(userData(), 'vm-base');
+const bundledBase = () => { const r = global.__aibIpad && global.__aibIpad.resources; return !!r && fs.existsSync(path.join(r, 'vm', 'fs.json')); };
+const baseReady = () => { if (bundledBase()) return true; try { return fs.readFileSync(path.join(baseDir(), '.ok'), 'utf8').trim() === BASE_IMAGE.version; } catch { return false; } };
 const guiDir = () => path.join(userData(), 'vm-gui');
 const guiReady = () => { try { return fs.readFileSync(path.join(guiDir(), '.ok'), 'utf8').trim() === GUI_IMAGE.version; } catch { return false; } };
 let imageOverride = null;
@@ -52,27 +58,42 @@ async function extractTarFile(file, dest) {
   } finally { fs.closeSync(fd); }
   return n;
 }
+// downloads a release asset (with mirrors) to tmp, reporting progress; `local` (tests) copies a file instead
+async function downloadAsset(img, tmp, label, local, signal) {
+  if (local) { setPhase('preparing', `正在准备${label}…`); fs.copyFileSync(local, tmp); return; }
+  let lastErr = null;
+  for (const m of img.mirrors) {
+    try {
+      const r = await fetch(m + img.base + img.asset, { signal }); if (!r.ok) throw new Error('HTTP ' + r.status);
+      const total = Number(r.headers.get('content-length')) || 0; let got = 0;
+      const out = fs.openSync(tmp, 'w');
+      try { const rd = r.body.getReader(); for (;;) { const { done, value } = await rd.read(); if (done) break; fs.writeSync(out, value); got += value.length; setPhase('downloading', `正在下载${label}…`, { progress: { file: img.asset, got, total } }); } }
+      finally { fs.closeSync(out); }
+      if (total && got !== total) throw new Error('下载不完整');
+      lastErr = null; break;
+    } catch (e) { lastErr = e; if (signal && signal.aborted) throw new Error('已取消下载'); }
+  }
+  if (lastErr) throw new Error(`下载${label}失败：` + (lastErr.message || lastErr));
+}
+async function downloadBase(signal) {
+  if (baseReady()) return;
+  const dir = baseDir(); fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+  const gz = path.join(dir, 'download.tar.gz.part'), tar = path.join(dir, 'download.tar');
+  try {
+    await downloadAsset(BASE_IMAGE, gz, ' Linux 镜像（约 ' + BASE_IMAGE.downloadMB + ' MB，仅首次）', process.env.AIB_VM_BASE_TGZ, signal);
+    setPhase('preparing', '正在解压 Linux 镜像…', { progress: null });
+    await require('stream/promises').pipeline(fs.createReadStream(gz), require('zlib').createGunzip(), fs.createWriteStream(tar));
+    fs.unlinkSync(gz);
+    await extractTarFile(tar, dir);
+    if (!fs.existsSync(path.join(dir, 'vm', 'fs.json')) || !fs.existsSync(path.join(dir, 'vm', 'bzImage'))) throw new Error('Linux 镜像不完整（缺少 fs.json 或内核）');
+    fs.writeFileSync(path.join(dir, '.ok'), BASE_IMAGE.version);
+  } finally { fs.rmSync(gz, { force: true }); fs.rmSync(tar, { force: true }); }
+}
 async function downloadGui(signal) {
   if (guiReady()) return;
   const dir = guiDir(); fs.mkdirSync(dir, { recursive: true });
   const tmp = path.join(dir, 'download.tar.part');
-  const local = process.env.AIB_VM_GUI_TAR; // tests: a local copy of the release asset
-  if (local) { setPhase('preparing', '正在准备图形镜像…'); fs.copyFileSync(local, tmp); }
-  else {
-    let lastErr = null;
-    for (const m of GUI_IMAGE.mirrors) {
-      try {
-        const r = await fetch(m + GUI_IMAGE.base + GUI_IMAGE.asset, { signal }); if (!r.ok) throw new Error('HTTP ' + r.status);
-        const total = Number(r.headers.get('content-length')) || 0; let got = 0;
-        const out = fs.openSync(tmp, 'w');
-        try { const rd = r.body.getReader(); for (;;) { const { done, value } = await rd.read(); if (done) break; fs.writeSync(out, value); got += value.length; setPhase('downloading', `正在下载图形镜像…`, { progress: { file: GUI_IMAGE.asset, got, total } }); } }
-        finally { fs.closeSync(out); }
-        if (total && got !== total) throw new Error('下载不完整');
-        lastErr = null; break;
-      } catch (e) { lastErr = e; if (signal && signal.aborted) throw new Error('已取消下载'); }
-    }
-    if (lastErr) throw new Error('下载图形镜像失败：' + (lastErr.message || lastErr));
-  }
+  await downloadAsset(GUI_IMAGE, tmp, '图形镜像', process.env.AIB_VM_GUI_TAR, signal);
   setPhase('preparing', '正在解压图形镜像…', { progress: null });
   await extractTarFile(tmp, dir); fs.unlinkSync(tmp);
   if (!fs.existsSync(path.join(dir, 'fs.json'))) throw new Error('图形镜像不完整（缺少 fs.json）');
@@ -87,6 +108,12 @@ async function setImage(id) {
   return status();
 }
 async function removeImage(id) {
+  if (id === 'alpine') {
+    if (bundledBase()) throw new Error('cannot remove this image');
+    if (st.win) await stop();
+    fs.rmSync(baseDir(), { recursive: true, force: true }); fs.rmSync(guiDir(), { recursive: true, force: true }); // the graphical image builds on the base image
+    return status();
+  }
   if (id !== 'alpine-gui') throw new Error('cannot remove this image');
   if (st.win && st.image === 'alpine-gui') await stop();
   fs.rmSync(guiDir(), { recursive: true, force: true });
@@ -100,8 +127,9 @@ function status() {
   const d = D(); let diskBytes = 0; try { diskBytes = fs.statSync(d.persist).size; } catch {}
   const cfg = settings();
   const img = imageId(), gui = img === 'alpine-gui';
-  const images = [{ id: 'alpine', gui: false, ready: true, version: IMAGE.version }, { id: 'alpine-gui', gui: true, ready: guiReady(), version: GUI_IMAGE.version, downloadMB: GUI_IMAGE.downloadMB }];
-  return { supported: true, backend: 'v86', phase: st.phase, detail: st.detail, progress: st.progress, error: st.error, imageReady: gui ? guiReady() : true, imageVersion: gui ? GUI_IMAGE.version : IMAGE.version, image: img, gui, images, runningImage: st.image || null, diskBytes, diskGB: cfg.diskGB, memoryMB: Math.min(1536, Number(cfg.memoryMB) || 512), cpus: 1, info: st.info, share: d.share, startedAt: st.startedAt, network: false };
+  const base = baseReady();
+  const images = [{ id: 'alpine', gui: false, ready: base, version: IMAGE.version, downloadMB: bundledBase() ? 0 : BASE_IMAGE.downloadMB, removable: !bundledBase() && base }, { id: 'alpine-gui', gui: true, ready: base && guiReady(), version: GUI_IMAGE.version, downloadMB: GUI_IMAGE.downloadMB + (base ? 0 : BASE_IMAGE.downloadMB) }];
+  return { supported: true, backend: 'v86', phase: st.phase, detail: st.detail, progress: st.progress, error: st.error, imageReady: gui ? base && guiReady() : base, imageVersion: gui ? GUI_IMAGE.version : IMAGE.version, image: img, gui, images, runningImage: st.image || null, diskBytes, diskGB: cfg.diskGB, memoryMB: Math.min(1536, Number(cfg.memoryMB) || 512), cpus: 1, info: st.info, share: d.share, startedAt: st.startedAt, network: false };
 }
 // VM host calls (save / restore / package installs) can take minutes on a slow device or a loaded CI machine
 const js = (code, timeoutMs = 900000) => st.win.webContents.executeJavaScript(code, false, { timeoutMs });
@@ -128,6 +156,7 @@ async function start() {
     try {
       st.error = null; const d = D(); fs.mkdirSync(d.base, { recursive: true }); fs.mkdirSync(d.share, { recursive: true });
       const img = imageId(); st.image = img;
+      await downloadBase();
       if (img === 'alpine-gui') await downloadGui();
       setPhase('booting', 'Linux 虚拟机正在启动…');
       st.win = new BrowserWindow({ show: false, width: 640, height: 480, webPreferences: { sandbox: true } });
@@ -387,9 +416,9 @@ async function afterBoot() {
   await runJob(`window.vmhost.exec(${JSON.stringify(require('../vm/codex-tools').BOOT_CMD)}, '/', 60)`, {});
 }
 async function ping() { await ensure(); const r = await js('window.vmhost.ping()'); st.info = Object.assign({}, st.info || {}, (r && r.info) || {}); return st.info; }
-function diskUsage() { const s = status(); return { diskBytes: s.diskBytes, diskGB: s.diskGB, imageReady: true }; }
+function diskUsage() { const s = status(); return { diskBytes: s.diskBytes, diskGB: s.diskGB, imageReady: s.imageReady }; }
 function shutdownSync() { try { st.win && st.win.destroy(); } catch {} }
 function launchArgs() { throw new Error('iPad 使用 v86 虚拟机'); }
 function sockPath() { return ''; }
 
-module.exports = { IMAGE, GUI_IMAGE, setImage, removeImage, imageId, guiMaxWidth, events, status, supported, backend, start, stop, reset, ensure, running, shell, readFile, writeFile, python, ping, diskUsage, shutdownSync, pipInstall, offlineInstall, apkInstall, save, dirs: D, launchArgs, sockPath, _setUserData: (p) => { userDataOverride = p; } };
+module.exports = { IMAGE, BASE_IMAGE, GUI_IMAGE, downloadBase, baseReady, setImage, removeImage, imageId, guiMaxWidth, events, status, supported, backend, start, stop, reset, ensure, running, shell, readFile, writeFile, python, ping, diskUsage, shutdownSync, pipInstall, offlineInstall, apkInstall, save, dirs: D, launchArgs, sockPath, _setUserData: (p) => { userDataOverride = p; } };

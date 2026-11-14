@@ -72,7 +72,8 @@ async function preview(id, opts = {}) {
     try {
       const png = await withView(E.renderHtml(doc, { bare: true, page: p }), [W * PX, H * PX], async (wc) => {
         let img = null;
-        for (let i = 0; i < 3 && (!img || img.isEmpty()); i++) { try { img = await wc.capturePage(undefined, { stayHidden: true }); } catch { try { img = await wc.capturePage(); } catch {} } if (!img || img.isEmpty()) await new Promise(r => setTimeout(r, 200)); }
+        const rect = { x: 0, y: 0, width: Math.round(W * PX), height: Math.round(H * PX) };
+        for (let i = 0; i < 3 && (!img || img.isEmpty()); i++) { try { img = await wc.capturePage(rect, { stayHidden: true }); } catch { try { img = await wc.capturePage(rect); } catch {} } if (!img || img.isEmpty()) await new Promise(r => setTimeout(r, 200)); }
         if (!img || img.isEmpty()) return null;
         const sz = img.getSize(); const target = Math.min(900, sz.width);
         return (sz.width > target ? img.resize({ width: target }) : img).toPNG();
@@ -93,7 +94,9 @@ async function exportDoc(id, format = 'pdf') {
   if (fmt === 'html') fs.writeFileSync(dest, E.renderHtml(doc, { inlineFonts: true }));
   else {
     const [W, H] = E.pageDims(doc.page);
-    const buf = await withView(E.renderHtml(doc, { bare: true }), [W * PX, H * PX], (wc) => wc.printToPDF({ printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' }, pageSize: { width: W / 25.4, height: H / 25.4 } }));
+    const buf = await withView(E.renderHtml(doc, { bare: true }), [W * PX, H * PX], (wc) => wc.printToPDF({ printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' }, pageSize: { width: W / 25.4, height: H / 25.4 },
+      // iPad host: one PDF page per page rectangle (CSS px), merged natively (Services/PDFPages.swift)
+      aibPageRects: Array.from({ length: doc.pages }, (_, i) => ({ x: 0, y: Math.round(i * H * PX * 100) / 100, width: Math.round(W * PX * 100) / 100, height: Math.round(H * PX * 100) / 100 })) }));
     if (!buf || !buf.length) throw new Error('PDF 生成失败');
     fs.writeFileSync(dest, buf);
   }

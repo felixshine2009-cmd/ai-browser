@@ -63,7 +63,13 @@ final class SchemeHandler: NSObject, WKURLSchemeHandler {
         }
         var std = file.standardizedFileURL.path
         var okRoot = url.host == "data" ? Paths.userData.standardizedFileURL.path : Paths.payload.standardizedFileURL.path
-        // graphical VM image: blobs that are not in the bundled base image were downloaded to userData/vm-gui/fs/
+        // v3.0.0: the IPA ships only the v86 emulator; the Alpine base image is downloaded on first use to userData/vm-base/vm/
+        if url.host == "app", rel.hasPrefix("/vm/"), !FileManager.default.fileExists(atPath: std) {
+            let alt = Paths.userData.appendingPathComponent("vm-base").appendingPathComponent(String(rel.drop(while: { $0 == "/" }))).standardizedFileURL.path
+            let baseRoot = Paths.userData.appendingPathComponent("vm-base/vm").standardizedFileURL.path
+            if alt.hasPrefix(baseRoot), FileManager.default.fileExists(atPath: alt) { std = alt; okRoot = Paths.userData.standardizedFileURL.path }
+        }
+        // graphical VM image: blobs that are not in the base image were downloaded to userData/vm-gui/fs/
         if url.host == "app", rel.hasPrefix("/vm/fs/"), !FileManager.default.fileExists(atPath: std) {
             let alt = Paths.userData.appendingPathComponent("vm-gui/fs").appendingPathComponent(file.lastPathComponent).standardizedFileURL.path
             if FileManager.default.fileExists(atPath: alt) { std = alt; okRoot = Paths.userData.standardizedFileURL.path }

@@ -884,7 +884,7 @@
         $('vmimgrow').hidden = false;
         const IMN = { alpine: T('命令行（Alpine Linux）', 'Command line (Alpine Linux)'), 'debian-xfce': T('图形桌面（Debian 13 + XFCE）', 'Graphical desktop (Debian 13 + XFCE)'), 'alpine-gui': T('图形桌面（轻量 Alpine + JWM）', 'Graphical desktop (light Alpine + JWM)') };
         const sel = $('vmimg');
-        if (document.activeElement !== sel) sel.innerHTML = s.images.map(im => `<option value="${esc(im.id)}" ${im.id === s.image ? 'selected' : ''}>${esc((IMN[im.id] || im.id) + (im.gui && !im.ready ? T(`（首次使用时下载${im.downloadMB ? '约 ' + im.downloadMB + ' MB' : ''}）`, ` (downloaded on first use${im.downloadMB ? ', about ' + im.downloadMB + ' MB' : ''})`) : ''))}</option>`).join('');
+        if (document.activeElement !== sel) sel.innerHTML = s.images.map(im => `<option value="${esc(im.id)}" ${im.id === s.image ? 'selected' : ''}>${esc((IMN[im.id] || im.id) + (!im.ready ? T(`（首次使用时下载${im.downloadMB ? '约 ' + im.downloadMB + ' MB' : ''}）`, ` (downloaded on first use${im.downloadMB ? ', about ' + im.downloadMB + ' MB' : ''})`) : ''))}</option>`).join('');
         sel.disabled = busy;
         $('vmdesk').hidden = !s.gui; $('vmimgrm').hidden = !s.images.some(im => im.gui && im.ready); $('vmimgrm').disabled = busy;
         $('vmimghint').textContent = s.gui ? T('图形镜像带有完整桌面，AI 可以截图、点击和输入来操作其中的程序（vm_screenshot / vm_click / vm_type …）。切换镜像会重启虚拟机，两个镜像的磁盘互相独立。', 'The graphical image has a full desktop the AI can operate with screenshots, clicks and typing (vm_screenshot / vm_click / vm_type …). Switching restarts the VM; each image keeps its own disk.') : T('需要让 AI 操作图形界面程序时，可切换到图形桌面镜像。两个镜像的磁盘互相独立。', 'Switch to the graphical image when the AI should use GUI programs. Each image keeps its own disk.');

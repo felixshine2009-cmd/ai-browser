@@ -85,7 +85,7 @@ host.bus.on('event', (m) => {
     require('http').createServer(async (req, res) => {
       let body = ''; for await (const c of req) body += c;
       let out;
-      try { const { name, args } = JSON.parse(body); if (name === '__vm') { const vm = require('./src/main/vm'); out = { ok: true, result: await vm[args.fn](...(args.args || [])) }; } else { const t = require('./src/main/ai/compute-tools').TOOLS.find(x => x.name === name); if (!t) throw new Error('unknown tool ' + name); out = { ok: true, result: await t.run(args || {}, { emit: () => {} }) }; } }
+      try { const { name, args } = JSON.parse(body); if (name === '__vm') { const vm = require('./src/main/vm'); out = { ok: true, result: await vm[args.fn](...(args.args || [])) }; } else { const t = require('./src/main/ai/compute-tools').TOOLS.find(x => x.name === name); if (t) out = { ok: true, result: await t.run(args || {}, { emit: () => {} }) }; else { const reg = require('./src/main/ai/tools'); if (!reg.BUILTIN.some(x => x.name === name)) throw new Error('unknown tool ' + name); out = { ok: true, result: await reg.call(name, args || {}, {}) }; } } }
       catch (e) { out = { ok: false, error: String(e && e.message || e) }; }
       res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(out));
     }).listen(Number(process.env.AIB_SIM_TOOLS_PORT), '127.0.0.1');

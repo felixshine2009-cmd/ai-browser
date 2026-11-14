@@ -12,6 +12,8 @@ html.aib-ipad .tab .close-tab { width: 26px; height: 26px; font-size: 15px; opac
 html.aib-ipad .tab-add { width: 34px; height: 32px; font-size: 20px; }
 html.aib-ipad .tb-btn { width: 40px; height: 40px; }
 html.aib-ipad .tb-btn svg { width: 19px; height: 19px; }
+html.aib-ipad .tool-cluster > .tb-btn.tool-glass { height: 40px; min-width: 76px; padding: 0 14px 0 12px; }
+html.aib-ipad .tb-btn.tool-glass svg { width: 17px; height: 17px; }
 html.aib-ipad .ticon { min-width: 40px; min-height: 40px; }
 html.aib-ipad .address { min-height: 38px; }
 html.aib-ipad .address .url { font-size: 16px; } /* >= 16px: iPadOS does not zoom the page when the field is focused */

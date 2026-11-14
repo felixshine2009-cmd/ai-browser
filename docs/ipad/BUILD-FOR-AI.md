@@ -18,8 +18,14 @@ npm ci
 node scripts/build-ipad-bundle.js ipad/build/aibapp          # desktop main process + pages + iPad layer
 node scripts/fetch-ipad-pyodide.js ipad/build/aibapp          # Pyodide 314 (CPython 3.14 WASM) + numpy/scipy/sympy/pandas/matplotlib/Pillow
 gh release download v5.6.0 -R felixshine2009-cmd/ai-browser -p linux-vm-x86-v86.tar.gz
-tar -C ipad/build/aibapp -xzf linux-vm-x86-v86.tar.gz         # vm/ : v86 + Alpine image with the guest agent
+tar -C ipad/build/aibapp -xzf linux-vm-x86-v86.tar.gz \
+  vm/libv86.js vm/v86.wasm vm/seabios.bin vm/vgabios.bin vm/LICENSE-v86.txt   # emulator only, no disk image
 ```
+
+The Linux image itself (`vm/fs.json`, `vm/fs/`, `vm/bzImage`, `vm/initramfs.gz`) is **not** part of the payload: the app
+downloads `linux-vm-x86-v86.tar.gz` (~121 MB) from the v5.6.0 release the first time the VM is used and keeps it in
+`Application Support/vm-base`. Model files are never bundled either; they are downloaded in 设置 → 本地模型. CI fails the
+build if the IPA contains a disk image or model file, or if it is 500 MB or larger.
 
 The optional graphical image is not part of the payload. The app downloads `linux-vm-x86-gui.tar` from the v5.7.0
 release on first use (only the files that differ from the built-in image, ~28 MB). To rebuild it:

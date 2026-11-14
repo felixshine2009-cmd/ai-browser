@@ -25,6 +25,9 @@ Verified = covered by `test/suites/36-ipad-sim.js` (iPad payload on the host sim
 | Notifications | ✔ | UserNotifications | Adapted |
 | Codex-style VM tools (vm_view, vm_edit, vm_apply_patch, vm_search, vm_list, vm_bg, vm_pkg, vm_service, vm_git) | ✔ (network: apk/apt/pip/npm in the guest) | ✔ (no guest network: the app downloads Alpine packages / pip wheels and installs them offline; restored after restart) | Adapted · verified (all nine in sim, test 36) |
 | Graphical VM image + computer use (vm_desktop, vm_screenshot, vm_click, vm_type, vm_key, vm_scroll, vm_drag) | Debian 13 arm64 + XFCE, ~1 GB first-use download | Alpine + JWM + xterm + Dillo + Xfe, 28 MB first-use download (delta over the built-in image) | Adapted (lighter desktop, slower) · verified (test 38 on QEMU, test 39 in sim) |
+| Document tools (layout engine, PDF / HTML export, layout, slides, chart, exam, word-card and mind-map agents) | ✔ | Same code; measured in hidden web views, one PDF page per document page via PDFKit (`Services/PDFPages.swift`) | Same · verified (sim, `47-ipad-docs.js`) |
+| Answer blocks (tables, chemical equations with balance check, function graphs, word cards) | ✔ | Same pages | Same |
+| Linux VM image | Built in | Downloaded on first use (~121 MB), not in the IPA | Adapted · verified (sim, `46-ipad-vm-download.js`) |
 
 ## Not yet done (next milestones)
 - On-device verification of the Swift host (CI compiles and packages it; it cannot run it on an iPad).

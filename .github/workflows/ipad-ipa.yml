@@ -130,14 +130,15 @@ jobs:
         run: node scripts/build-ipad-bundle.js ipad/build/aibapp
       - name: "Payload: Pyodide (embedded Python)"
         run: node scripts/fetch-ipad-pyodide.js ipad/build/aibapp --cache "$RUNNER_TEMP/pyodide"
-      - name: "Payload: Linux VM (v86 + Alpine, guest agent)"
+      - name: "Payload: Linux VM emulator (v86 only; the Alpine image is downloaded on first use)"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           gh release download "$VM_RELEASE" -p 'linux-vm-x86-v86.tar.gz' -D "$RUNNER_TEMP"
-          tar -C ipad/build/aibapp -xzf "$RUNNER_TEMP/linux-vm-x86-v86.tar.gz"
-          test -f ipad/build/aibapp/vm/manifest.json
+          # v3.0.0: no VM images and no model files inside the IPA — only the emulator and its BIOS files
+          tar -C ipad/build/aibapp -xzf "$RUNNER_TEMP/linux-vm-x86-v86.tar.gz" vm/libv86.js vm/v86.wasm vm/seabios.bin vm/vgabios.bin vm/LICENSE-v86.txt
+          test -f ipad/build/aibapp/vm/v86.wasm && test ! -e ipad/build/aibapp/vm/fs.json && test ! -e ipad/build/aibapp/vm/bzImage
           du -sh ipad/build/aibapp/*
           # iOS install verification rejects bundles some re-signers mangle: no symlinks inside the .app
           find ipad/build/aibapp -type l -print -delete
@@ -185,8 +186,14 @@ jobs:
           find Payload -type f -exec chmod 644 {} +
           chmod 755 Payload/AIBrowser.app/AIBrowser Payload/AIBrowser.app/Frameworks/llama.framework/llama
           chmod 755 Payload/AIBrowser.app/Frameworks/NodeMobile.framework/NodeMobile
+          # no VM images or model weights may be embedded (they are downloaded on demand)
+          if find Payload \( -name '*.gguf' -o -name '*.safetensors' -o -name '*.mlpackage' -o -name '*.qcow2' -o -name '*.img' -o -path '*/vm/fs/*' -o -path '*/vm/fs.json' -o -path '*/vm/bzImage' \) -print | grep -q .; then echo "VM image or model file inside the IPA"; exit 1; fi
           zip -qry AI-Browser-iPad-unsigned.ipa Payload
           ls -lh AI-Browser-iPad-unsigned.ipa
+          SIZE=$(stat -f %z AI-Browser-iPad-unsigned.ipa)
+          echo "IPA size: $((SIZE / 1048576)) MB (limit 500 MB)"
+          du -sh Payload/AIBrowser.app/* Payload/AIBrowser.app/aibapp/* Payload/AIBrowser.app/Frameworks/* 2>/dev/null | sort -h | tail -15
+          test "$SIZE" -lt $((500 * 1048576)) || { echo "IPA exceeds 500 MB"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: AI-Browser-iPad-unsigned
