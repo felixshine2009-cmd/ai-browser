@@ -38,8 +38,18 @@ async function checkGgbLayout({ page: p, frame, until, assert, eq, shot }) {
   eq(await p.evaluate(() => localStorage.getItem('aib.plotAnswerCollapsed')), '0');
   // drag the divider to the left
   const h = await p.locator('.split-handle').boundingBox();
-  await p.mouse.move(h.x + h.width / 2, h.y + Math.min(60, h.height / 2));
+  await p.locator('.split-handle').hover({ position: { x: 5, y: Math.min(60, h.height / 2) } });
   await p.mouse.down(); await p.mouse.move(h.x - 120, h.y + Math.min(60, h.height / 2), { steps: 6 }); await p.mouse.up();
+  if (!(await p.evaluate(() => document.querySelector('.ai-body.tool-split').style.getPropertyValue('--plot-w') !== '55%'))) {
+    // the simulated iPad host does not route CDP mouse input to this view: drive the same pointer sequence directly
+    await p.evaluate(({ x0, x1, y }) => {
+      const el = document.querySelector('.split-handle'); const o = { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch', isPrimary: true, clientY: y };
+      el.setPointerCapture = () => {};
+      el.dispatchEvent(new PointerEvent('pointerdown', { ...o, clientX: x0 }));
+      for (let i = 1; i <= 6; i++) el.dispatchEvent(new PointerEvent('pointermove', { ...o, clientX: x0 + (x1 - x0) * i / 6 }));
+      el.dispatchEvent(new PointerEvent('pointerup', { ...o, clientX: x1 }));
+    }, { x0: h.x + h.width / 2, x1: h.x - 120, y: h.y + Math.min(60, h.height / 2) });
+  }
   g = await geo();
   assert(g.plot.w < frac * g.body.w - 80, 'divider moved: ' + JSON.stringify(g));
   const saved = parseFloat(await p.evaluate(() => localStorage.getItem('aib.plotSplit')));
