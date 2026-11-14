@@ -519,6 +519,14 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
             for f in (m["filters"] as? [[String: Any]]) ?? [] {
                 for e in (f["extensions"] as? [String]) ?? [] where e != "*" { if let t = UTType(filenameExtension: e), !types.contains(t) { types.append(t) } }
             }
+            // v3.0.1: extensions without a system type (.mdd, .mdx …) map to dynamic types the Files picker may grey out;
+            // the app declares them (Info.plist, com.aibrowser.mdict-*), and such picks also accept any data file
+            // (the core filters by extension after the pick)
+            let declared: [String: String] = ["mdx": "com.aibrowser.mdict-mdx", "mdd": "com.aibrowser.mdict-mdd"]
+            for (ext, id) in declared where types.contains(where: { $0.preferredFilenameExtension == ext || $0.tags[.filenameExtension]?.contains(ext) == true }) {
+                if let t = UTType(id), !types.contains(t) { types.append(t) }
+            }
+            if types.contains(where: { $0.isDynamic }) || types.contains(where: { declared.values.contains($0.identifier) }) { if !types.contains(.data) { types.append(.data) } }
             if types.isEmpty { types = [.item] }
             picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
             picker.allowsMultipleSelection = props.contains("multiSelections")

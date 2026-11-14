@@ -130,6 +130,10 @@ module.exports = async ({ test, group, assert, eq, until }) => {
       try { await until(async () => /CATDONE[\s\S]*"ok":true/.test(await text()), 150000, 'ggb answer'); }
       catch (e) { console.log('    chat:', (await text()).slice(-800)); throw e; }
       await sleep(1500); await shot('03d-ggb-catenary');
+      // v3.0.1: graph width share, 1:1 axes, collapsible answer, draggable divider
+      const cp = chats().find(x => x.frames().some(f => f.url().includes('aib.geogebra/panel.html')));
+      const frame = cp.frames().find(f => f.url().includes('aib.geogebra/panel.html'));
+      await require('../lib/ggb-layout-check').checkGgbLayout({ page: cp, frame, until, assert, eq, shot });
     } finally { llm.state.script = null; }
   }, { timeout: 170000 });
 

@@ -69,7 +69,17 @@ html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,
     var ch = Math.floor(r.height || (w && w.clientHeight) || (window.innerHeight - 42) || 480);
     return { w: Math.max(320, cw), h: Math.max(220, ch) };
   }
-  var lastW = 0, lastH = 0, resizeRaf = 0;
+  var lastW = 0, lastH = 0, resizeRaf = 0, viewTouched = false;
+  // v3.0.1: equal units on both axes (1:1) for the pane's current shape: 16 units across, the height follows the pane.
+  // A fixed -8..8 × -5..5 window stretched graphs in narrow or tall panes.
+  function unitView(api) {
+    // the graphics view's own size (the algebra view takes part of the applet)
+    var w = 0, h = 0;
+    try { var vp = JSON.parse(api.getViewProperties()); w = vp.width; h = vp.height; } catch (e) {}
+    if (!(w > 0 && h > 0)) { var s = size(); w = s.w; h = s.h; }
+    var hx = 8, hy = hx * h / w;
+    try { api.setCoordSystem(-hx, hx, -hy, hy); } catch (e) {}
+  }
   function syncSize(force) {
     if (!applet || !applet.setSize) return;
     var s = size();
@@ -77,6 +87,8 @@ html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,
     lastW = s.w; lastH = s.h;
     try { applet.setSize(s.w, s.h); } catch (e) {}
     try { if (applet.recalculateEnvironments) applet.recalculateEnvironments(); } catch (e) {}
+    // until the AI or the user sets a view, keep the default view centred at 1:1 for the new size
+    if (!viewTouched && (currentApp === 'graphing' || currentApp === 'geometry')) { unitView(applet); var ap = applet; setTimeout(function () { if (!viewTouched && ap === applet) unitView(ap); }, 120); }
   }
   function scheduleResize(force) {
     if (resizeRaf) cancelAnimationFrame(resizeRaf);
@@ -104,7 +116,8 @@ html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,
         syncSize(true);
         setTimeout(function () { syncSize(true); }, 80);
         setTimeout(function () { syncSize(true); }, 260);
-        try { if (app === 'graphing' || app === 'geometry') api.setCoordSystem(-8, 8, -5, 5); } catch (e) {}
+        viewTouched = false;
+        try { if (app === 'graphing' || app === 'geometry') unitView(api); } catch (e) {}
         try { parent.postMessage({ aibPanelEvent: 'ready', app: app }, '*'); } catch (e) {}
       }
     };
@@ -158,6 +171,8 @@ html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,
     setTimeout(function () { syncSize(true); }, 60);
   }
   window.addEventListener('resize', function () { scheduleResize(false); });
+  ['wheel', 'pointerdown'].forEach(function (n) { document.getElementById('wrap').addEventListener(n, function (e) { if (n === 'wheel' || e.target.tagName === 'CANVAS') viewTouched = true; }, { capture: true, passive: true }); });
+  window.__ggbView = function () { try { return { xmin: applet.getViewProperties ? JSON.parse(applet.getViewProperties()).xMin : null, props: applet.getViewProperties ? JSON.parse(applet.getViewProperties()) : null, size: size(), touched: viewTouched }; } catch (e) { return { error: String(e) }; } };
   document.getElementById('apps').addEventListener('click', function (ev) {
     var b = ev.target.closest('button[data-app]'); if (!b) return;
     if (b.dataset.app === currentApp) return;
@@ -188,13 +203,14 @@ html[data-scheme="light"] #toast{background:#d9f2e6;border-color:rgba(35,128,95,
     eval: async function (a) {
       var api = await ready, res = [];
       (a.commands || []).forEach(function (c) {
+        if (/^\s*(Zoom|SetAxesRatio|CenterView|Pan|SetCoordSystem)/i.test(String(c))) viewTouched = true;
         var ok = false, scripting = /^\s*(Set|Show|Hide|Zoom|Pan|Rename|Delete|Execute|Update|Center|Start|Pause|Run|Select|Deselect|Unlink|Lock)[A-Za-z]*\s*\(/i.test(String(c));
         try { ok = api.evalCommand(String(c)); if (!ok && scripting) ok = true; } catch (e) { ok = false; }
         res.push({ cmd: c, ok: !!ok });
       });
       return { results: res, objects: api.getAllObjectNames(), count: api.getObjectNumber(), app: currentApp };
     },
-    clear: async function () { var api = await ready; api.newConstruction(); try { api.setCoordSystem(-8, 8, -5, 5); } catch (e) {} return { ok: true, count: api.getObjectNumber() }; },
+    clear: async function () { var api = await ready; api.newConstruction(); viewTouched = false; unitView(api); return { ok: true, count: api.getObjectNumber() }; },
     exportPng: async function () {
       var api = await ready; var b = api.getPNGBase64(1, true, 72);
       try { parent.postMessage({ aibPanelEvent: 'png', data: 'data:image/png;base64,' + b }, '*'); } catch (e) {}

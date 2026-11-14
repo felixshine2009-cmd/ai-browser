@@ -20,6 +20,7 @@ module.exports = {
     list: function () { return aib.host.dictionary.list(); },
     progress: function () { return aib.host.dictionary.progress(); },
     pickAndAdd: function () { return aib.host.dictionary.pickAndAdd(); },
+    pickResources: function (a) { return aib.host.dictionary.pickResources(a.id); },
     remove: function (a) { return aib.host.dictionary.remove(a.id); },
     setEnabled: function (a) { return aib.host.dictionary.setEnabled(a.id, a.enabled); },
     move: function (a) { return aib.host.dictionary.move(a.id, a.delta); },

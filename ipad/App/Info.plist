@@ -26,6 +26,22 @@
 	<!-- Documents (downloads, exports, the Linux shared folder) appear in the Files app under "AI 浏览器" -->
 	<key>UIFileSharingEnabled</key><true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key><true/>
+	<!-- MDict dictionaries: .mdx entries and .mdd resources, so the Files picker offers both -->
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key><string>com.aibrowser.mdict-mdx</string>
+			<key>UTTypeDescription</key><string>MDict 词典</string>
+			<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>mdx</string><string>MDX</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key><string>com.aibrowser.mdict-mdd</string>
+			<key>UTTypeDescription</key><string>MDict 词典资源</string>
+			<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>mdd</string><string>MDD</string></array></dict>
+		</dict>
+	</array>
 	<!-- a web browser: any site; the loopback bridge to the embedded Node.js runtime -->
 	<key>NSAppTransportSecurity</key>
 	<dict>

@@ -782,6 +782,14 @@ function registerHostServices() {
     remove: (id) => { dict.remove(id); return true; },
     setEnabled: (id, v) => { dict.setEnabled(id, v); return true; },
     move: (id, d) => { dict.move(id, d); return true; },
+    // v3.0.1: add .mdd resource files (or style / script / font files) to an imported dictionary
+    pickResources: async (id) => {
+      const picked = await pick({ properties: ['openFile', 'multiSelections'], filters: [{ name: 'MDict 资源', extensions: ['mdd', 'css', 'js', 'ttf', 'otf', 'woff', 'woff2', 'png', 'jpg', 'gif', 'svg', 'mp3', 'spx'] }], title: '选择该词典的 .mdd 资源文件' });
+      if (!picked.length) return { cancelled: true };
+      try { return await dict.addResources(String(id), picked); }
+      catch (e) { return { error: e.message }; }
+      finally { if (global.__aibIpad) for (const d of new Set(picked.map((f) => path.dirname(f)))) { if (/[\\/]picked[\\/][^\\/]+$/.test(d)) { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} } } }
+    },
     pickAndAdd: async () => {
       // iPad: files are copied out of the Files app one pick at a time, so the .mdd resources and style / script files
       // must be picked together with the .mdx (or the whole folder); otherwise entries lose their CSS / JS (B3).
@@ -789,11 +797,18 @@ function registerHostServices() {
       const picked = await pick(ipad
         ? { properties: ['openFile', 'openDirectory', 'multiSelections'], filters: [{ name: 'MDict 词典及资源', extensions: ['mdx', 'mdd', 'css', 'js', 'ttf', 'otf', 'woff', 'woff2', 'png', 'jpg', 'gif', 'svg', 'mp3', 'spx'] }], title: '选择 .mdx 词典及同名 .mdd 资源（或整个词典文件夹）' }
         : { properties: ['openFile', 'multiSelections'], filters: [{ name: 'MDict', extensions: ['mdx'] }], title: '选择 .mdx 词典' });
-      const files = [];
-      const walk = (p, depth) => { let st; try { st = fs.statSync(p); } catch { return; } if (st.isDirectory()) { if (depth < 4) for (const n of fs.readdirSync(p)) walk(path.join(p, n), depth + 1); } else if (/\.mdx$/i.test(p)) files.push(p); };
+      const files = [], mddOnly = [];
+      const walk = (p, depth) => { let st; try { st = fs.statSync(p); } catch { return; } if (st.isDirectory()) { if (depth < 4) for (const n of fs.readdirSync(p)) walk(path.join(p, n), depth + 1); } else if (/\.mdx$/i.test(p)) files.push(p); else if (/\.mdd$/i.test(p)) mddOnly.push(p); };
       for (const f of picked) walk(f, 0);
       const added = [], errors = [];
-      if (picked.length && !files.length) errors.push('所选内容中没有 .mdx 词典文件');
+      // only .mdd files picked: they are added to the imported dictionary of the same name
+      if (!files.length && mddOnly.length) {
+        for (const m of mddOnly) {
+          const d = dict.dictForMdd(m);
+          if (!d) { errors.push(path.basename(m) + '：没有同名的词典，请先导入 .mdx，或在词典条目中点“添加资源”'); continue; }
+          try { await dict.addResources(d.id, [m]); added.push(d.name + ' ← ' + path.basename(m)); } catch (e) { errors.push(path.basename(m) + ': ' + e.message); }
+        }
+      } else if (picked.length && !files.length) errors.push('所选内容中没有 .mdx 词典文件');
       for (const f of files) { try { const r = await dict.importDict(f, { onProgress: (p) => broadcast('dict:progress', p) }); if (!r.dup) added.push(r.name); } catch (e) { errors.push(path.basename(f) + ': ' + e.message); } }
       broadcast('dict:progress', { active: false });
       // iPad: the copies made out of the Files app (tmp/picked/<id>) are no longer needed once imported

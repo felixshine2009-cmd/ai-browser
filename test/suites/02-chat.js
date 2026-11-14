@@ -138,6 +138,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     await until(async () => /已通过工具完成/.test(await p.locator('#answer').innerText()), 15000, 'final answer after tool');
     await sleep(1500);
     await app.screenshot(path.join(__dirname, '..', '..', 'shots', '06-geogebra-plot.png'));
+    await require('../lib/ggb-layout-check').checkGgbLayout({ page: p, frame, until, assert, eq });
     // exercise the other tools on the same panel
     const png = await p.evaluate(() => Bridge.panelCall('aib.geogebra', 'canvas', 'exportPng', {}));
     assert(png.ok && png.bytes > 1000, 'png export ' + JSON.stringify(png));

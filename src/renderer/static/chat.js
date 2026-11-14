@@ -394,6 +394,34 @@
     p.innerHTML = `<div class="gg-bar"><span class="logo">Geo<span>Gebra</span></span><span>|</span><span>${esc(t('plot.area'))}</span><span style="margin-left:auto">${esc(t('plot.byAi'))}</span></div><div class="gg-canvas" id="plotcanvas"></div>`;
     els.body.classList.add('tool-split');
     els.body.insertBefore(p, els.main);
+    // v3.0.1: draggable divider between the graph and the answer, and the answer column can be collapsed so the graph
+    // takes the whole width; both remembered
+    const body = els.body;
+    const handle = el('div', 'split-handle'); handle.setAttribute('role', 'separator'); handle.setAttribute('aria-orientation', 'vertical');
+    handle.setAttribute('aria-label', t('plot.divider')); handle.title = t('plot.divider'); handle.tabIndex = 0;
+    body.insertBefore(handle, els.main);
+    const KEY_W = 'aib.plotSplit', KEY_C = 'aib.plotAnswerCollapsed';
+    const clampW = (v) => Math.max(25, Math.min(80, v));
+    const setW = (v, save) => { v = clampW(v); body.style.setProperty('--plot-w', v + '%'); handle.setAttribute('aria-valuenow', String(Math.round(v))); if (save) try { localStorage.setItem(KEY_W, String(Math.round(v * 10) / 10)); } catch {} };
+    let w0 = 55; try { const v = parseFloat(localStorage.getItem(KEY_W)); if (v) w0 = v; } catch {}
+    setW(w0, false);
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'plot-collapse';
+    p.querySelector('.gg-bar').appendChild(btn);
+    const setC = (c, save) => {
+      body.classList.toggle('answer-collapsed', c);
+      btn.textContent = c ? t('plot.showAnswer') : t('plot.hideAnswer'); btn.title = btn.textContent; btn.setAttribute('aria-expanded', String(!c));
+      if (save) try { localStorage.setItem(KEY_C, c ? '1' : '0'); } catch {}
+    };
+    let c0 = false; try { c0 = localStorage.getItem(KEY_C) === '1'; } catch {}
+    setC(c0, false);
+    btn.onclick = () => setC(!body.classList.contains('answer-collapsed'), true);
+    let drag = null;
+    handle.addEventListener('pointerdown', (e) => { e.preventDefault(); handle.setPointerCapture(e.pointerId); drag = { r: body.getBoundingClientRect() }; body.classList.add('split-dragging'); });
+    handle.addEventListener('pointermove', (e) => { if (!drag) return; setW((e.clientX - drag.r.left) / drag.r.width * 100, false); });
+    const end = () => { if (!drag) return; drag = null; body.classList.remove('split-dragging'); setW(parseFloat(body.style.getPropertyValue('--plot-w')) || 55, true); };
+    handle.addEventListener('pointerup', end); handle.addEventListener('pointercancel', end);
+    handle.addEventListener('dblclick', () => setW(55, true));
+    handle.addEventListener('keydown', (e) => { const cur = parseFloat(body.style.getPropertyValue('--plot-w')) || 55; if (e.key === 'ArrowLeft') { setW(cur - 5, true); e.preventDefault(); } else if (e.key === 'ArrowRight') { setW(cur + 5, true); e.preventDefault(); } });
   }
   Bridge.onPanelEvent((m) => {
     if (m.aibPanelEvent === 'png' && els.pngs) {

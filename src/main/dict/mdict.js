@@ -32,28 +32,43 @@ function enabled() { return list().filter(d => d.enabled !== false); }
 function openDict(d) {
   const st = (() => { try { return fs.statSync(d.mdx).mtimeMs; } catch { return 0; } })();
   const c = loaded.get(d.id);
-  if (c && c.mtime === st && c.mdxPath === d.mdx) return c;
+  if (c && c.mtime === st && c.mdxPath === d.mdx && c.mddKey === (d.mdd || []).join('|')) return c;
   if (!st) throw new Error('文件不存在: ' + d.mdx);
   const { MDX, MDD } = jsMdict();
   const mdx = new MDX(d.mdx);
   const mdds = [];
-  for (const p of d.mdd || []) { try { mdds.push(new MDD(p)); } catch (e) { console.error('mdd open failed', p, e.message); } }
-  const rec = { mdx, mdds, mtime: st, mdxPath: d.mdx };
+  const mddStatus = [];
+  for (const p of d.mdd || []) {
+    let bytes = 0; try { bytes = fs.statSync(p).size; } catch {}
+    try { mdds.push(new MDD(p)); mddStatus.push({ file: path.basename(p), bytes, ok: true }); }
+    catch (e) { console.error('mdd open failed', p, e.message); mddStatus.push({ file: path.basename(p), bytes, ok: false, error: String(e && e.message || e) }); }
+  }
+  const rec = { mdx, mdds, mddStatus, mtime: st, mdxPath: d.mdx, mddKey: (d.mdd || []).join('|') };
   loaded.set(d.id, rec);
   return rec;
 }
 
+// names compared as the Files app and other systems may write them: Unicode NFC vs NFD, any letter case
+const normName = (n) => String(n).normalize('NFC').toLowerCase().trim();
+// the resource files of a dictionary: "<name>.mdd", "<name>.1.mdd", "<name>.2.mdd" … next to "<name>.mdx". When the folder
+// holds a single .mdx, every .mdd in it belongs to that dictionary (some releases name the .mdd differently).
 function findMddFiles(mdxPath) {
-  const dir = path.dirname(mdxPath), base = path.basename(mdxPath, path.extname(mdxPath));
-  const out = [];
+  const dir = path.dirname(mdxPath), base = normName(path.basename(mdxPath, path.extname(mdxPath)));
+  const out = [], all = [];
+  let mdxCount = 0;
   try {
     for (const f of fs.readdirSync(dir)) {
-      if (!f.toLowerCase().endsWith('.mdd')) continue;
-      const fb = path.basename(f, path.extname(f));
+      const low = normName(f);
+      if (low.endsWith('.mdx')) mdxCount++;
+      if (!low.endsWith('.mdd')) continue;
+      all.push(path.join(dir, f));
+      const fb = low.slice(0, -4);
       if (fb === base || fb.startsWith(base + '.')) out.push(path.join(dir, f));
     }
   } catch {}
-  return out.sort();
+  const r = out.length ? out : (mdxCount === 1 ? all : []);
+  // "<name>.mdd" first, then "<name>.1.mdd", "<name>.2.mdd" …
+  return r.sort((a, b) => { const k = (x) => { const m = normName(path.basename(x)).match(/\.(\d+)\.mdd$/); return m ? Number(m[1]) : 0; }; return k(a) - k(b) || (a < b ? -1 : a > b ? 1 : 0); });
 }
 
 function getTitle(rec, fallback) {
@@ -114,7 +129,7 @@ async function importDict(mdxPath, opts = {}) {
     }
   } catch (e) { try { fs.rmSync(target, { recursive: true, force: true }); } catch {} progressState = { active: false, error: String(e.message || e) }; throw e; }
   const mdxCopy = path.join(target, path.basename(mdxPath));
-  const mddCopies = plan.mdds.map(f => path.join(target, f)).sort();
+  const mddCopies = plan.mdds.map(f => path.join(target, f)); // order kept: <name>.mdd, <name>.1.mdd …
   const id = 'd' + crypto.createHash('md5').update(mdxPath).digest('hex').slice(0, 8);
   const d = { id, name: plan.base, mdx: mdxCopy, mdd: mddCopies, dir: target, origin: mdxPath, bytes: plan.total, enabled: true };
   try { const rec = openDict(d); d.name = getTitle(rec, plan.base); }
@@ -158,7 +173,44 @@ async function migrate() {
   return out;
 }
 function dirSize(p) { let t = 0; try { for (const e of fs.readdirSync(p, { withFileTypes: true })) { const f = path.join(p, e.name); t += e.isDirectory() ? dirSize(f) : fs.statSync(f).size; } } catch {} return t; }
-function listWithInfo() { return list().map(d => ({ ...d, bytes: d.dir ? dirSize(d.dir) : (d.bytes || 0), copied: !!(d.mdx && insideRoot(d.mdx)), missing: d.missing || (d.mdx && !fs.existsSync(d.mdx)) })); }
+function mddInfo(d) {
+  try { const rec = openDict(d); return rec.mddStatus; }
+  catch { return (d.mdd || []).map(p => ({ file: path.basename(p), bytes: (() => { try { return fs.statSync(p).size; } catch { return 0; } })(), ok: fs.existsSync(p) })); }
+}
+function listWithInfo() { return list().map(d => ({ ...d, bytes: d.dir ? dirSize(d.dir) : (d.bytes || 0), copied: !!(d.mdx && insideRoot(d.mdx)), missing: d.missing || (d.mdx && !fs.existsSync(d.mdx)), mddInfo: d.mdx && fs.existsSync(d.mdx) ? mddInfo(d) : [] })); }
+
+// v3.0.1: add .mdd files (and loose css / js / fonts / images) to a dictionary after it was imported — on the iPad
+// the Files picker hands over only what was selected, so the resources may come in a second pick
+async function addResources(id, paths) {
+  const d = list().find(x => x.id === id);
+  if (!d) throw new Error('词典不存在');
+  const target = d.dir || path.dirname(d.mdx);
+  fs.mkdirSync(target, { recursive: true });
+  const mdd = (d.mdd || []).slice(), added = [], skipped = [];
+  for (const p of paths) {
+    let st; try { st = fs.statSync(p); } catch { skipped.push(path.basename(p)); continue; }
+    if (st.isDirectory()) { // a folder: its .mdd files and companion files
+      for (const n of fs.readdirSync(p)) { if (!/\.mdx$/i.test(n) && !n.startsWith('.')) { const r = await addResources(id, [path.join(p, n)]).catch(() => null); if (r) added.push(...r.added); } }
+      continue;
+    }
+    if (/\.mdx$/i.test(p)) { skipped.push(path.basename(p)); continue; }
+    const dst = path.join(target, path.basename(p));
+    if (path.resolve(dst) !== path.resolve(p)) await copyWithProgress(p, dst, () => {});
+    if (/\.mdd$/i.test(p) && !mdd.some(x => normName(path.basename(x)) === normName(path.basename(p)))) mdd.push(dst);
+    added.push(path.basename(p));
+  }
+  const cur = list().find(x => x.id === id) || d;
+  const order = (x) => { const m = normName(path.basename(x)).match(/\.(\d+)\.mdd$/); return m ? Number(m[1]) : 0; };
+  mdd.sort((a, b) => order(a) - order(b));
+  store.patchSettings({ dicts: list().map(x => x.id === id ? { ...cur, mdd, bytes: dirSize(target) } : x) });
+  loaded.delete(id); missingCache.delete(id);
+  return { added, skipped, mdd: mdd.map(x => path.basename(x)) };
+}
+// a pick without any .mdx: .mdd files go to the imported dictionary of the same name
+function dictForMdd(mddPath) {
+  const b = normName(path.basename(mddPath)).replace(/(\.\d+)?\.mdd$/, '');
+  return list().find(d => [d.mdx, d.origin].filter(Boolean).some(m => normName(path.basename(m)).replace(/\.mdx$/, '') === b)) || null;
+}
 function remove(id) {
   const d = list().find(x => x.id === id);
   store.patchSettings({ dicts: list().filter(x => x.id !== id) }); loaded.delete(id);
@@ -376,4 +428,4 @@ function handleProtocol(req) {
   }
 }
 
-module.exports = { list, listWithInfo, enabled, add, importDict, migrate, getProgress, dictRoot, remove, setEnabled, move, rename, lookup, suggest, handleProtocol, entryDocument, resource, findMddFiles };
+module.exports = { addResources, dictForMdd, normName, list, listWithInfo, enabled, add, importDict, migrate, getProgress, dictRoot, remove, setEnabled, move, rename, lookup, suggest, handleProtocol, entryDocument, resource, findMddFiles };

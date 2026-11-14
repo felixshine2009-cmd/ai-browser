@@ -61,5 +61,55 @@ module.exports = async ({ test, group, assert, eq, until }) => {
       const t = await p.locator('.aib-dict-missing').innerText();
       assert(/OALDPE\.css/.test(t) && /oaldpe\.js/.test(t) && /\.mdd/.test(t), t);
     });
+    await test('文件名匹配：NFC 的 .mdx 与 NFD / 大写扩展名的 .mdd、分卷 .1.mdd 都被识别并按顺序链接', async () => {
+      const name = 'OALDPE En-Cn V2024.8.10 Édition';
+      const dir = path.join(ud, 'nfd'); fs.mkdirSync(dir);
+      fs.copyFileSync(path.join(FIX, 'oald.mdx'), path.join(dir, name.normalize('NFC') + '.mdx'));
+      fs.copyFileSync(path.join(FIX, 'oald.mdd'), path.join(dir, name.normalize('NFD') + '.1.mdd'));
+      fs.copyFileSync(path.join(FIX, 'oald.mdd'), path.join(dir, name.normalize('NFD') + '.MDD'));
+      assert(fs.readdirSync(dir).some(f => f !== f.normalize('NFC')), 'fixture really has NFD names');
+      fs.writeFileSync(pickFile, JSON.stringify([path.join(dir, name.normalize('NFC') + '.mdx')]));
+      await ch.evaluate(() => window.aib.invoke('ext:rpc', 'aib.dictionary', 'pickAndAdd', {}));
+      const s = await ch.evaluate(() => window.aib.invoke('settings:get'));
+      const d = s.dicts.find(x => /Édition/.test(x.mdx.normalize('NFC')));
+      eq(d.mdd.map(x => path.basename(x)), [name.normalize('NFD') + '.MDD', name.normalize('NFD') + '.1.mdd'], 'both .mdd linked, main file first');
+      assert(d.mdd.every(x => fs.existsSync(x)), 'copied');
+    });
+    await test('设置页“词典”：每本词典列出已链接的 .mdd；缺少时提示，并可稍后“添加资源…”', async () => {
+      await app.submit('aibrowser://settings#dict');
+      const sp = await app.waitPage('aibrowser://settings');
+      await sp.click('[data-nav="dict"]');
+      const fr = await until(() => sp.frames().find(f => f.url().includes('aib.dictionary/settings.html')), 10000, 'dict settings frame');
+      await until(async () => (await fr.locator('.row').count()) >= 3, 8000, 'rows');
+      const texts = await fr.locator('.row').evaluateAll(rs => rs.map(r => [r.querySelector('b').textContent, r.querySelector('.path').textContent, r.querySelector('.mdd').textContent, r.querySelector('.mdd').classList.contains('warn')]));
+      const withMdd = texts.find(t => /oald\.mdx/.test(t[1]) && !/nomdd/.test(t[1]));
+      assert(withMdd && /oald\.mdd/.test(withMdd[2]) && !withMdd[3], JSON.stringify(texts));
+      const bare = texts.findIndex(t => /nomdd\.mdx/.test(t[1]));
+      assert(bare >= 0 && texts[bare][3] && /未链接 \.mdd/.test(texts[bare][2]), JSON.stringify(texts));
+      // add the .mdd later
+      fs.writeFileSync(pickFile, JSON.stringify([path.join(FIX, 'oald.mdd')]));
+      await fr.locator('.row').nth(bare).locator('button.res').click();
+      await until(async () => /oald\.mdd/.test(await fr.locator('.row').nth(bare).locator('.mdd').innerText()), 8000, 'mdd listed after adding');
+      const s = await ch.evaluate(() => window.aib.invoke('settings:get'));
+      const id = s.dicts.find(d => /nomdd/.test(d.mdx)).id;
+      await ch.evaluate((id) => window.aib.invoke('nav:openUrl', `aibdict://${id}/__entry__?key=apple&r=2`), id);
+      const p = await app.waitPage(u => u.includes(`aibdict://${id}/__entry__?key=apple&r=2`));
+      await until(async () => p.evaluate(() => document.body.classList.contains('oald-ready')), 8000, 'entry script from the added .mdd');
+      eq(await p.locator('.aib-dict-missing').count(), 0, 'no missing note after adding the .mdd');
+    });
+    await test('只选择 .mdd：自动加入同名的已导入词典', async () => {
+      const dir = path.join(ud, 'solo'); fs.mkdirSync(dir);
+      fs.copyFileSync(path.join(FIX, 'oald.mdx'), path.join(dir, 'Solo Dict.mdx'));
+      fs.writeFileSync(pickFile, JSON.stringify([path.join(dir, 'Solo Dict.mdx')]));
+      await ch.evaluate(() => window.aib.invoke('ext:rpc', 'aib.dictionary', 'pickAndAdd', {}));
+      let s = await ch.evaluate(() => window.aib.invoke('settings:get'));
+      eq(s.dicts.find(d => /Solo Dict\.mdx$/.test(d.mdx)).mdd.length, 0);
+      const later = path.join(ud, 'later'); fs.mkdirSync(later);
+      fs.copyFileSync(path.join(FIX, 'oald.mdd'), path.join(later, 'solo dict.mdd'));
+      fs.writeFileSync(pickFile, JSON.stringify([path.join(later, 'solo dict.mdd')]));
+      const r = await ch.evaluate(() => window.aib.invoke('ext:rpc', 'aib.dictionary', 'pickAndAdd', {}));
+      s = await ch.evaluate(() => window.aib.invoke('settings:get'));
+      eq(s.dicts.find(d => /Solo Dict\.mdx$/.test(d.mdx)).mdd.map(x => path.basename(x)), ['solo dict.mdd'], JSON.stringify(r));
+    });
   } finally { await app.close(); await llm.close?.(); }
 };

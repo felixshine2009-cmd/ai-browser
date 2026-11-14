@@ -8,6 +8,7 @@ html{color-scheme:dark;background:var(--panel-solid,#141b1d);color:var(--text,#f
 .tg{flex:none;width:40px;height:24px;border-radius:12px;background:#5b6068;position:relative;cursor:pointer;transition:background-color .15s}.tg.on{background:#2fae84}
 .tg::after{content:"";position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left .15s,right .15s}.tg.on::after{left:auto;right:2px}
 button.s{flex:none;width:30px;height:28px;border-radius:6px;background:var(--btn,#2a3336);border:1px solid var(--border,rgba(255,255,255,.3));color:var(--text,#f7f7f9);font-weight:700;font-size:14px;cursor:pointer}
+button.s.res{width:auto;padding:0 10px;font-size:12px}.row .nm small.mdd.warn{color:#ffd28a}html[data-scheme="light"] .row .nm small.mdd.warn{color:#8a5a00}
 button.s:hover{background:var(--well,#3a4549)}button.s.rm{color:#ff9a9a;border-color:rgba(255,120,120,.55)}
 #prog{display:none;margin:8px 0;font-size:13px;font-weight:600;color:var(--text,#f7f7f9)}#prog .bar{height:8px;border-radius:4px;background:var(--btn,#2a3336);overflow:hidden;margin-top:4px}#prog .bar i{display:block;height:100%;width:0;background:#2fae84;transition:width .2s}
 .row.missing .nm small.warn{color:#ffb4b4}.row .conf{display:flex;gap:6px;align-items:center;font-weight:700;font-size:13px;color:#ffd0d0}.row .conf button{width:auto;padding:0 10px}
@@ -23,17 +24,23 @@ html[data-scheme="light"] .tg{background:#b9bec6}
 <div id="list" class="list"></div><button class="btn-primary" id="add" style="cursor:pointer"></button><div id="prog"><span id="progt"></span><div class="bar"><i></i></div></div><div id="msg" style="margin-top:8px;font-size:13px;font-weight:600;color:#d0d3d9"></div>
 <script src="aibext://aib.dictionary/__sdk.js"></script>
 <script>
-const S={zh:{hint:'导入 .mdx（同目录下同名 .mdd 自动加载）。可启用/停用与排序；顺序即查词标签页顺序。',add:'添加词典 (.mdx)…',empty:'尚未添加词典。',err:'添加失败：',ok:'已添加：'},
+const S={zh:{hint:'导入 .mdx（同目录下同名 .mdd 自动加载；在 iPad 上请同时选择 .mdx 与 .mdd，或选择整个词典文件夹）。可启用/停用与排序；顺序即查词标签页顺序。',add:'添加词典 (.mdx)…',empty:'尚未添加词典。',err:'添加失败：',ok:'已添加：'},
 en:{hint:'Import .mdx files (a same-named .mdd in the folder is loaded automatically). Order = tab order.',add:'Add dictionary (.mdx)…',empty:'No dictionaries yet.',err:'Failed: ',ok:'Added: '}};
 let L='zh';const $=id=>document.getElementById(id);
 const SZ=function(b){return b>=1073741824?(b/1073741824).toFixed(2)+' GB':b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB'};
 const T2={zh:{copied:'已复制到应用数据',ref:'引用原路径',missing:'源文件缺失',del:'删除',confirm:'删除词典及其复制的文件？',yes:'确认删除',no:'取消',copying:'正在复制词典… ',size:'占用 '},en:{copied:'copied to app data',ref:'linked to original path',missing:'source missing',del:'Delete',confirm:'Delete this dictionary and its copied files?',yes:'Delete',no:'Cancel',copying:'Copying dictionary… ',size:'Size '}};
+const T3={zh:{res:'资源文件：',none:'未链接 .mdd 资源文件，词条的样式、脚本、图片与发音可能缺失。',bad:'无法读取',add:'添加资源…',addTip:'为该词典添加 .mdd 资源文件（或样式、脚本、字体文件）',added:'已添加资源：'},en:{res:'Resources: ',none:'No .mdd resource file linked; styles, scripts, pictures and sounds may be missing.',bad:'unreadable',add:'Add resources…',addTip:'Add .mdd resource files (or style, script, font files) to this dictionary',added:'Resources added: '}};
 async function render(){const l=await aibExt.call('list');const el=$('list');el.innerHTML='';if(!l.length){el.innerHTML='<div class="row" style="color:var(--muted,#d0d3d9);font-weight:600">'+S[L].empty+'</div>';}
 l.forEach((d,i)=>{const r=document.createElement('div');r.className='row'+(d.missing?' missing':'');r.dataset.id=d.id;
-r.innerHTML='<div class="nm"><b></b><small class="path"></small><small class="info"></small></div><button class="s up" title="↑">↑</button><button class="s dn" title="↓">↓</button><div class="tg" role="switch"></div><button class="s rm" title="✕">✕</button>';
+r.innerHTML='<div class="nm"><b></b><small class="path"></small><small class="info"></small><small class="mdd"></small></div><button class="s res"></button><button class="s up" title="↑">↑</button><button class="s dn" title="↓">↓</button><div class="tg" role="switch"></div><button class="s rm" title="✕">✕</button>';
 r.querySelector('b').textContent=r.querySelector('b').title=d.name;
 const sm=r.querySelector('.path');sm.textContent=sm.title=d.mdx+(d.mdd&&d.mdd.length?'  + '+d.mdd.length+' mdd':'');
 const inf=r.querySelector('.info');inf.textContent=(d.missing?T2[L].missing+(d.missingReason?': '+d.missingReason:''):(T2[L].size+SZ(d.bytes||0)+' · '+(d.copied?T2[L].copied:T2[L].ref)));if(d.missing)inf.classList.add('warn');inf.title=inf.textContent;
+const mi=r.querySelector('.mdd'),M=d.mddInfo||[];
+if(!M.length){mi.textContent=T3[L].none;mi.classList.add('warn')}else{mi.textContent=T3[L].res+M.map(function(x){return x.file+'（'+SZ(x.bytes||0)+(x.ok===false?'，'+T3[L].bad+(x.error?'：'+x.error:''):'')+'）'}).join('、');if(M.some(function(x){return x.ok===false}))mi.classList.add('warn')}
+mi.title=mi.textContent;
+const rb=r.querySelector('.res');rb.textContent=T3[L].add;rb.title=T3[L].addTip;
+rb.onclick=async()=>{rb.disabled=true;try{const x=await aibExt.call('pickResources',{id:d.id});if(x&&x.error)$('msg').textContent=S[L].err+x.error;else if(x&&x.added&&x.added.length)$('msg').textContent=T3[L].added+x.added.join('、');}catch(e){$('msg').textContent=S[L].err+e.message}rb.disabled=false;render()};
 const tg=r.querySelector('.tg');if(d.enabled!==false)tg.classList.add('on');
 tg.onclick=async()=>{await aibExt.call('setEnabled',{id:d.id,enabled:d.enabled===false});render()};
 r.querySelector('.up').onclick=async()=>{await aibExt.call('move',{id:d.id,delta:-1});render()};
