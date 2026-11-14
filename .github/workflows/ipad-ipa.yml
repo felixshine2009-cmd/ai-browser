@@ -298,7 +298,6 @@ jobs:
             -derivedDataPath build/dd -resultBundlePath build/import.xcresult CODE_SIGNING_ALLOWED=NO \
             -only-testing:AIBrowserUITests/ImportTests/testEveryImportEntry test-without-building | tee sim-test.log | grep -E "Test Case|error|passed|failed|XCTAssert" 
       - name: Real Files picker (browse, select, Open)
-        continue-on-error: true
         env:
           TEST_RUNNER_AIB_UITEST_SHOTS: ${{ github.workspace }}/shots/ios-sim
           TEST_RUNNER_AIB_UITEST_FIXTURES: ${{ runner.temp }}/uitest
