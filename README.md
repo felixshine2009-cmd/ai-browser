@@ -85,12 +85,13 @@ The iPad app is the desktop app ported to iPadOS: a native host runs the same ma
 * **Read later**: save pages with full offline copies and search them together with the offline encyclopedia.
 * **Code editor**: a file manager for your code folder, the Python working directory and the Linux VM shared folder, with syntax highlighting and one-tap running of Python, shell and HTML files.
 * **Python and Linux**: built-in Python (Pyodide) and an Alpine Linux virtual machine (v86) the AI can use offline; custom ISO, IMG and QCOW2 system images can be imported and booted.
+* **Importing from Files**: dictionaries can be added as individual files or as a whole folder (several dictionaries with their .mdd resources, styles and fonts at once); items not yet downloaded from iCloud Drive are fetched during import, with progress shown.
 * **Local models**: llama.cpp with Metal acceleration.
 * **Reliability**: the connection between the pages and the main program recovers on its own after long use, suspension or a web content process restart.
 
 The IPA is **unsigned**. Install it by sideloading with a tool such as AltStore or Sideloadly and your own Apple ID. Free Apple Developer accounts must re-sign the app every 7 days.
 
-See the [iPad release](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v2.3.0).
+See the [iPad release](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v2.3.1).
 
 ## Install (recommended)
 

@@ -85,12 +85,13 @@ iPad 版由桌面版直接移植：原生宿主运行与桌面版相同的主程
 * **稍后阅读**：保存网页的完整离线副本，并可与离线百科一并检索。
 * **代码编辑器**：管理“我的代码”、Python 工作目录与 Linux 虚拟机共享目录中的文件，支持语法高亮，一键运行 Python、Shell 与 HTML 文件。
 * **Python 与 Linux**：内置 Python（Pyodide）与 Alpine Linux 虚拟机（v86），AI 可离线使用；可导入并启动自定义的 ISO、IMG、QCOW2 系统镜像。
+* **从“文件”导入**：词典既可以逐个文件添加，也可以导入整个文件夹（一次导入多部词典及其 .mdd 资源、样式与字体）；尚未从 iCloud 云盘下载的项目会在导入时自动下载，并显示进度。
 * **本地模型**：llama.cpp，使用 Metal 加速。
 * **稳定性**：长时间使用、应用挂起或网页内容进程重启后，页面与主程序之间的连接自动恢复。
 
 IPA **未签名**，请使用 AltStore、Sideloadly 等工具以您自己的 Apple ID 侧载安装。免费 Apple 开发者账号需每 7 天重新签名一次。
 
-见 [iPad 发行版](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v2.3.0)。
+见 [iPad 发行版](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v2.3.1)。
 
 ## 安装（推荐）
 

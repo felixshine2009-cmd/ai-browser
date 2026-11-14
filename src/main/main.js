@@ -735,12 +735,15 @@ function registerHostServices() {
         ? { properties: ['openFile', 'openDirectory', 'multiSelections'], filters: [{ name: 'MDict 词典及资源', extensions: ['mdx', 'mdd', 'css', 'js', 'ttf', 'otf', 'woff', 'woff2', 'png', 'jpg', 'gif', 'svg', 'mp3', 'spx'] }], title: '选择 .mdx 词典及同名 .mdd 资源（或整个词典文件夹）' }
         : { properties: ['openFile', 'multiSelections'], filters: [{ name: 'MDict', extensions: ['mdx'] }], title: '选择 .mdx 词典' });
       const files = [];
-      const walk = (p, depth) => { let st; try { st = fs.statSync(p); } catch { return; } if (st.isDirectory()) { if (depth < 3) for (const n of fs.readdirSync(p)) walk(path.join(p, n), depth + 1); } else if (/\.mdx$/i.test(p)) files.push(p); };
+      const walk = (p, depth) => { let st; try { st = fs.statSync(p); } catch { return; } if (st.isDirectory()) { if (depth < 4) for (const n of fs.readdirSync(p)) walk(path.join(p, n), depth + 1); } else if (/\.mdx$/i.test(p)) files.push(p); };
       for (const f of picked) walk(f, 0);
       const added = [], errors = [];
       if (picked.length && !files.length) errors.push('所选内容中没有 .mdx 词典文件');
       for (const f of files) { try { const r = await dict.importDict(f, { onProgress: (p) => broadcast('dict:progress', p) }); if (!r.dup) added.push(r.name); } catch (e) { errors.push(path.basename(f) + ': ' + e.message); } }
-      broadcast('dict:progress', { active: false }); return { added, errors };
+      broadcast('dict:progress', { active: false });
+      // iPad: the copies made out of the Files app (tmp/picked/<id>) are no longer needed once imported
+      if (ipad) for (const d of new Set(picked.map((f) => path.dirname(f)))) { if (/[\\/]picked[\\/][^\\/]+$/.test(d)) { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} } }
+      return { added, errors };
     },
     progress: () => dict.getProgress(),
     listInfo: () => dict.listWithInfo()

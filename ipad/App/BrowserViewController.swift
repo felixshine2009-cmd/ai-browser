@@ -468,23 +468,47 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
         a.addAction(UIAlertAction(title: "确定", style: .default) { [weak a] _ in completion(a?.textFields?.first?.text ?? "") })
         topController.present(a, animated: true)
     }
-    /// dialog.showOpenDialog: Files picker; picked files are copied into the app (tmp/picked) so Node can read them
+    /// dialog.showOpenDialog: Files picker.
+    ///  files:   opened as copies (the system downloads iCloud items and shows its own progress), then moved to tmp/picked
+    ///  folders: opened in place (security-scoped) and copied with coordinated reads (downloads iCloud items) and a
+    ///           progress panel. When both are allowed (dictionaries: .mdx files or a whole folder) the user chooses first.
+    /// 2.3.1: 2.3.0 mixed folders and files in one picker opened in place; on devices the picker's 打开 button then did
+    /// nothing for some providers, and files that were not downloaded failed silently.
+    private enum PickMode { case files, folder }
+    private var pickMode = PickMode.files
     private func openPicker(_ m: [String: Any], completion: @escaping (Bool, [String]) -> Void) {
         let props = (m["properties"] as? [String]) ?? ["openFile"]
-        let dirs = props.contains("openDirectory")
-        var types = [UTType]()
-        if dirs && !props.contains("openFile") { types = [.folder] }
-        else {
+        let dirs = props.contains("openDirectory"), files = props.contains("openFile") || !dirs
+        if dirs && files {
+            let title = (m["title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            let a = UIAlertController(title: title ?? "选择要导入的内容", message: "可以选择一个或多个文件，也可以选择整个文件夹（文件夹中的全部文件会一并导入）。", preferredStyle: .actionSheet)
+            a.addAction(UIAlertAction(title: "选择文件", style: .default) { [weak self] _ in self?.presentPicker(m, props: props, mode: .files, completion: completion) })
+            a.addAction(UIAlertAction(title: "选择整个文件夹", style: .default) { [weak self] _ in self?.presentPicker(m, props: props, mode: .folder, completion: completion) })
+            a.addAction(UIAlertAction(title: "取消", style: .cancel) { _ in completion(true, []) })
+            if let pop = a.popoverPresentationController { pop.sourceView = container; pop.sourceRect = CGRect(x: container.bounds.midX, y: container.bounds.midY, width: 1, height: 1); pop.permittedArrowDirections = [] }
+            topController.present(a, animated: true)
+            return
+        }
+        presentPicker(m, props: props, mode: dirs ? .folder : .files, completion: completion)
+    }
+    private func presentPicker(_ m: [String: Any], props: [String], mode: PickMode, completion: @escaping (Bool, [String]) -> Void) {
+        let picker: UIDocumentPickerViewController
+        if mode == .folder {
+            picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false)
+            picker.allowsMultipleSelection = false
+        } else {
+            var types = [UTType]()
             for f in (m["filters"] as? [[String: Any]]) ?? [] {
-                for e in (f["extensions"] as? [String]) ?? [] where e != "*" { if let t = UTType(filenameExtension: e) { types.append(t) } }
+                for e in (f["extensions"] as? [String]) ?? [] where e != "*" { if let t = UTType(filenameExtension: e), !types.contains(t) { types.append(t) } }
             }
             if types.isEmpty { types = [.item] }
-            if dirs { types.append(.folder) } // files and folders (e.g. a dictionary folder with .mdx, .mdd and styles)
+            picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+            picker.allowsMultipleSelection = props.contains("multiSelections")
         }
-        // opened in place (security-scoped) and copied below: one folder per pick keeps companion files together
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: false)
-        picker.allowsMultipleSelection = props.contains("multiSelections")
         picker.delegate = self
+        picker.modalPresentationStyle = .formSheet
+        pickMode = mode
+        pickerReply?(true, []) // a picker that was never answered
         pickerReply = completion
         topController.present(picker, animated: true)
     }
@@ -493,16 +517,33 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
         let base = Paths.tmp.appendingPathComponent("picked/\(UUID().uuidString.prefix(8))", isDirectory: true)
         try? fm.createDirectory(at: base, withIntermediateDirectories: true)
         let reply = pickerReply; pickerReply = nil
-        // copied off the main thread: system images and dictionaries can be several GB
+        let mode = pickMode
+        let hud = PickProgressView.show(in: view, title: mode == .folder ? "正在从“文件”读取文件夹……" : "正在读取所选文件……")
         DispatchQueue.global(qos: .userInitiated).async {
-            var out = [String]()
+            var out = [String](), failed = [String]()
             for u in urls {
-                let scoped = u.startAccessingSecurityScopedResource()
-                defer { if scoped { u.stopAccessingSecurityScopedResource() } }
                 let dest = base.appendingPathComponent(u.lastPathComponent)
-                do { try fm.copyItem(at: u, to: dest); out.append(dest.path) } catch { NSLog("[aib] pick copy failed: \(error)") }
+                if mode == .files {
+                    // already a local copy made by the system: move it (fall back to a copy)
+                    do { try fm.moveItem(at: u, to: dest); out.append(dest.path) }
+                    catch { do { try fm.copyItem(at: u, to: dest); out.append(dest.path) } catch { failed.append(u.lastPathComponent) } }
+                } else {
+                    let scoped = u.startAccessingSecurityScopedResource()
+                    defer { if scoped { u.stopAccessingSecurityScopedResource() } }
+                    failed += FolderCopier.copy(u, to: dest) { done, total, name in
+                        DispatchQueue.main.async { hud.update(done: done, total: total, name: name) }
+                    }
+                    if fm.fileExists(atPath: dest.path) { out.append(dest.path) }
+                }
             }
-            DispatchQueue.main.async { reply?(false, out) }
+            DispatchQueue.main.async {
+                hud.dismiss()
+                if !failed.isEmpty {
+                    let list = failed.prefix(8).joined(separator: "\n") + (failed.count > 8 ? "\n……共 \(failed.count) 个" : "")
+                    self.alert(title: "部分文件未能读取", message: "以下文件未能从“文件”中读取（可能尚未下载到本机，或已被移动）：\n\(list)", buttons: ["好"]) { _ in }
+                }
+                reply?(false, out)
+            }
         }
     }
     func documentPickerWasCancelled(_ c: UIDocumentPickerViewController) { pickerReply?(true, []); pickerReply = nil }

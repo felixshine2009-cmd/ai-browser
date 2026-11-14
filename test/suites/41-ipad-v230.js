@@ -145,6 +145,27 @@ module.exports = async ({ test, group, assert, eq, until }) => {
       await app.invoke('tool:hide');
     });
 
+    await test('2.3.1：从“文件”导入整个词典文件夹（.mdx、.mdd 及样式），导入后清理临时副本', async () => {
+      const fx = path.join(__dirname, '..', 'fixtures', 'dict');
+      const base = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'aib-pick-')), 'picked', 'ab12cd34');
+      const folder = path.join(base, '测试词典包');
+      const sub = path.join(folder, 'OALD');
+      fs.mkdirSync(sub, { recursive: true });
+      for (const n of ['test.mdx', 'test.mdd']) fs.copyFileSync(path.join(fx, n), path.join(sub, n));
+      for (const n of fs.readdirSync(path.join(fx, 'res'))) fs.copyFileSync(path.join(fx, 'res', n), path.join(sub, n));
+      const before = (await app.invoke('ext:rpc', 'aib.dictionary', 'list', {})).length;
+      await app.openPaths([folder]).catch(() => {});
+      const r = await app.invoke('ext:rpc', 'aib.dictionary', 'pickAndAdd', {});
+      assert(r && r.added && r.added.length === 1 && !r.errors.length, JSON.stringify(r));
+      const l = await app.invoke('ext:rpc', 'aib.dictionary', 'list', {});
+      eq(l.length, before + 1);
+      assert(!fs.existsSync(base), 'temporary copy removed');
+      const d = l.find(x => x.name === r.added[0]);
+      const hits = await app.invoke('ext:rpc', 'aib.dictionary', 'lookup', { word: 'abandon' });
+      assert(hits.some(h => d && h.dictId === d.id), JSON.stringify(hits).slice(0, 300));
+      if (d) await app.invoke('ext:rpc', 'aib.dictionary', 'remove', { id: d.id });
+    });
+
     await test('F6：自定义系统镜像：导入 IMG（原始格式）与 QCOW2（转换），iPad 以 v86 启动', async () => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aib-img-'));
       // a boot sector that prints AIB-BOOT-OK through the BIOS (int 10h, teletype)
