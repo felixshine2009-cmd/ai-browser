@@ -142,7 +142,7 @@ Without a configured model, asking gives a friendly error — the app does not c
 
 ## Extensions
 
-* **Feature extensions** (`aib-feature/1`, see [`docs/EXTENSION_STANDARD.md`](docs/EXTENSION_STANDARD.md)): Dictionary, GeoGebra and Physics are pre-installed; extensions can declare agent tools in `manifest.contributes.tools`.
+* **Feature extensions** (`aib-feature/1`, see [`docs/EXTENSION_STANDARD.md`](docs/EXTENSION_STANDARD.md)): every built-in tool (Solve, Photo solve, GeoGebra, Physics, Wiki, Dictionary, Code, Read later, and Scan on iPad) is a pre-installed extension that can be turned off and on in Settings → Extensions. Extensions add tool-panel and home-page entries, answer blocks, file importers, settings pages and agent tools (`manifest.contributes`), and use the same format on the desktop and the iPad. The developer documentation is built in: Settings → Extensions → Developer Docs (`aibrowser://docs/extensions`).
 * **Chrome extensions** (MV3): installed from the Chrome Web Store inside the browser. Coverage is limited by Electron's extension API support (content scripts, service workers and `chrome.storage` are tested; toolbar popups are limited).
 * GeoGebra is bundled for **non-commercial** use under the [GeoGebra license](https://www.geogebra.org/license).
 

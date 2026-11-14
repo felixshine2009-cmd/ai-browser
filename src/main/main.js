@@ -48,6 +48,8 @@ function registerProtocols(proto = protocol) {
       // pages: the current light / dark palette is inlined so the first paint is already right
       if (fs.existsSync(f)) return new Response(appearance.injectHtml(fs.readFileSync(f, 'utf8')), { headers: { 'Content-Type': MIME.html, 'Access-Control-Allow-Origin': '*' } });
     }
+    // v3.1: aibrowser://<host> pages contributed by first-party extensions (urlSchemes), e.g. aibrowser://docs
+    if (!f) { const r = features.routeFor(u.hostname, decodeURIComponent(u.pathname)); if (r && fs.existsSync(r)) { if (/\.html$/i.test(r)) return new Response(appearance.injectHtml(fs.readFileSync(r, 'utf8')), { headers: { 'Content-Type': MIME.html, 'Access-Control-Allow-Origin': '*' } }); f = r; } }
     if (!f) return new Response('Not found', { status: 404 });
     return fileResponse(f);
   });
@@ -247,10 +249,9 @@ function registerIpc() {
   docSvc.setOnExported((r) => { try { store.downloads().unshift({ id: 'dl' + Date.now() + Math.random().toString(36).slice(2, 6), url: 'aibrowser://document', filename: r.file, path: r.path, received: r.bytes, total: r.bytes, state: 'completed', time: Date.now() }); store.saveDownloads(); broadcast('downloads:changed'); } catch {} });
   // answer blocks (```graph / ```word) from the chat page
   handle('answer:block', async (e, kind, payload) => {
-    const p = payload || {};
-    if (kind === 'graph') { const cmds = (Array.isArray(p.commands) ? p.commands : []).map(String).slice(0, 80); if (!cmds.length) return { error: 'no commands' }; try { return await require('./ai/tools').call('ggb_eval', { commands: cmds }, { wcId: e.sender.id }); } catch (err) { return { error: err.message }; } }
-    if (kind === 'word') { const w = String(p.word || '').trim().slice(0, 60); if (!/^[A-Za-z][A-Za-z' -]*$/.test(w)) return null; return require('./ai/doc-tools').lookupWord(w); }
-    return null;
+    // v3.1: the extension that contributes the block language handles it (graph → aib.geogebra, word → aib.dictionary)
+    try { const r = await features.runAnswerBlock(String(kind || ''), payload || {}, { wcId: e.sender.id }); return r && r.error === 'disabled' ? null : r; }
+    catch (err) { return { error: err.message }; }
   });
   handle('doc:html', (e, id) => docSvc.html(String(id), { bare: false, inlineFonts: true }));
   handle('doc:info', (e, id) => docSvc.E.summary(docSvc.get(String(id))));
@@ -418,6 +419,10 @@ function registerIpc() {
 
   // feature extensions
   handle('ext:list', () => features.list());
+  handle('ext:toolPanel', () => features.toolPanel());
+  handle('ext:contributions', (e, point) => features.contributions(String(point || '')));
+  handle('ext:framework', () => ({ level: features.FRAMEWORK, platform: features.platform(), answerBlocks: features.answerBlockLangs() }));
+  handle('ext:import', (e, id, paths) => features.runImporter(String(id || ''), Array.isArray(paths) ? paths.map(String) : [], { wcId: e.sender.id }));
   handle('ext:setEnabled', (e, id, v) => { features.setEnabled(id, v); broadcast('ext:changed'); return features.list(); });
   handle('ext:rpc', (e, id, name, args) => features.rpc(id, name, args, { wcId: e.sender.id }));
   handle('ext:checkUpdate', (e, id, install) => features.checkUpdate(id, install).then(r => { if (install) broadcast('ext:changed'); return r; }));
@@ -783,6 +788,16 @@ function registerIpc() {
 }
 
 // ------------------------------------------------------------ host services for built-in feature extensions
+// v3.1 importers: files opened with the browser from the system ("Open With" in Finder) go to the extension that
+// contributes an importer for their extension name (e.g. .mdx / .mdd → aib.dictionary)
+const pendingOpen = []; let openReady = false;
+async function importOpened(f) {
+  const imp = features.importerFor(path.extname(f));
+  if (!imp) return { error: '没有可以导入此类文件的拓展：' + path.basename(f) };
+  try { const r = await features.runImporter(imp.extId + ':' + imp.id, [f], {}); broadcast('ext:changed'); broadcast('ext:imported', { file: path.basename(f), extId: imp.extId, result: r }); return r; }
+  catch (e) { console.error('import', f, e.message); return { error: e.message }; }
+}
+if (app && typeof app.on === 'function') app.on('open-file', (e, f) => { try { e.preventDefault(); } catch {} if (openReady) importOpened(f); else pendingOpen.push(f); });
 function registerHostServices() {
   features.registerHost('dictionary', {
     lookup: (w) => dict.lookup(String(w)),
@@ -806,6 +821,16 @@ function registerHostServices() {
       const picked = await pick(ipad
         ? { properties: ['openFile', 'openDirectory', 'multiSelections'], filters: [{ name: 'MDict 词典及资源', extensions: ['mdx', 'mdd', 'css', 'js', 'ttf', 'otf', 'woff', 'woff2', 'png', 'jpg', 'gif', 'svg', 'mp3', 'spx'] }], title: '选择 .mdx 词典及同名 .mdd 资源（或整个词典文件夹）' }
         : { properties: ['openFile', 'multiSelections'], filters: [{ name: 'MDict', extensions: ['mdx'] }], title: '选择 .mdx 词典' });
+      return addPicked(picked, ipad);
+    },
+    // v3.1 importer contribution (aib.dictionary → .mdx / .mdd): files opened from elsewhere (Files app, drag and drop)
+    importPaths: (paths) => addPicked((Array.isArray(paths) ? paths : []).map(String).filter(Boolean), !!global.__aibIpad),
+    // ```word answer blocks (word cards in answers)
+    wordCard: (w) => { w = String(w || '').trim().slice(0, 60); if (!/^[A-Za-z][A-Za-z' -]*$/.test(w)) return null; return require('./ai/doc-tools').lookupWord(w); },
+    progress: () => dict.getProgress(),
+    listInfo: () => dict.listWithInfo()
+  });
+  async function addPicked(picked, ipad) {
       const files = [], mddOnly = [];
       const walk = (p, depth) => { let st; try { st = fs.statSync(p); } catch { return; } if (st.isDirectory()) { if (depth < 4) for (const n of fs.readdirSync(p)) walk(path.join(p, n), depth + 1); } else if (/\.mdx$/i.test(p)) files.push(p); else if (/\.mdd$/i.test(p)) mddOnly.push(p); };
       for (const f of picked) walk(f, 0);
@@ -823,10 +848,7 @@ function registerHostServices() {
       // iPad: the copies made out of the Files app (tmp/picked/<id>) are no longer needed once imported
       if (ipad) for (const d of new Set(picked.map((f) => path.dirname(f)))) { if (/[\\/]picked[\\/][^\\/]+$/.test(d)) { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} } }
       return { added, errors };
-    },
-    progress: () => dict.getProgress(),
-    listInfo: () => dict.listWithInfo()
-  });
+  }
   features.setHooks({
     openTab: (u) => tabsMod.createTab(u),
     ai: (messages) => llm.complete(messages),
@@ -925,6 +947,7 @@ if (!gotLock) { app.quit(); } else {
   dict.migrate().then(r => { if (r.copied.length || r.missing.length) { console.log('dictionary migration:', JSON.stringify(r)); broadcast('ext:changed'); } }).catch(e => console.error('dictionary migration failed', e));
     setupDownloads();
     features.reload();
+    openReady = true; for (const f of pendingOpen.splice(0)) importOpened(f);
     buildMenu();
     tabsMod.createWindow();
     chromeExt.init().catch(e => console.error('chrome ext init', e.message));

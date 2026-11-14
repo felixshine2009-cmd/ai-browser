@@ -2,7 +2,7 @@
   "standard": "aib-feature/1",
   "id": "aib.physics",
   "name": "高中物理可视化",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "description": "2D physics engine for Chinese high-school physics with AI scene JSON + canvas visualization.",
   "update_url": "https://example.invalid/aib/aib.physics/update.json",
   "permissions": [
@@ -308,6 +308,33 @@
         "location": "side"
       }
     ],
-    "inputHandlers": []
+    "inputHandlers": [],
+    "toolPanel": [
+      {
+        "id": "physics",
+        "label": {
+          "zh": "物理",
+          "en": "Physics"
+        },
+        "tip": {
+          "zh": "物理实验与仿真",
+          "en": "Physics experiments and simulation"
+        },
+        "icon": "builtin:physics",
+        "order": 40,
+        "action": {
+          "type": "toolView"
+        }
+      }
+    ],
+    "homepage": [
+      {
+        "tool": "physics",
+        "order": 40
+      }
+    ]
+  },
+  "engines": {
+    "framework": ">=2"
   }
 }

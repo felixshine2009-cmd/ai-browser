@@ -1,0 +1,17 @@
+{
+  "standard": "aib-feature/1",
+  "id": "aib.docs",
+  "name": "开发文档",
+  "version": "1.0.0",
+  "description": "拓展框架开发文档：清单格式、贡献点、权限、运行时接口与示例，可在浏览器内直接阅读。",
+  "engines": { "framework": ">=2" },
+  "permissions": [],
+  "entry": "main.js",
+  "i18n": {
+    "zh": { "name": "开发文档", "description": "拓展框架开发文档：清单格式、贡献点、权限、运行时接口与示例，可在浏览器内直接阅读。" },
+    "en": { "name": "Developer Documentation", "description": "Extension framework documentation (manifest, contribution points, permissions, runtime API, examples), readable in the browser." }
+  },
+  "contributes": {
+    "urlSchemes": [ { "scheme": "aibrowser", "host": "docs", "page": "index.html" } ]
+  }
+}

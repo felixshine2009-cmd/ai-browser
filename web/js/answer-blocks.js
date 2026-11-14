@@ -146,14 +146,20 @@
     })();
   }
 
+  // v3.1: ```graph / ```word are handled by extensions (aib.geogebra / aib.dictionary); when the extension is off the
+  // block stays readable code. chem is part of the core answer format.
+  let extLangs = null; // null = not known yet (treated as available)
+  const loadLangs = () => { if (window.aib && window.aib.invoke) window.aib.invoke('ext:framework').then(f => { extLangs = new Set((f && f.answerBlocks) || []); }).catch(() => {}); };
+  loadLangs(); if (window.aib && window.aib.on) window.aib.on('ext:changed', loadLangs);
+  const extOn = (kind) => !extLangs || extLangs.has(kind);
   function enhance(root, opts = {}) {
     if (!root) return;
     root.querySelectorAll('.ablock:not([data-done])').forEach((b) => {
       b.dataset.done = '1';
       try {
         if (b.dataset.kind === 'chem') renderChem(b);
-        else if (b.dataset.kind === 'graph') renderGraph(b, !!opts.live);
-        else if (b.dataset.kind === 'word') renderWords(b);
+        else if (b.dataset.kind === 'graph') { if (extOn('graph')) renderGraph(b, !!opts.live); else b.dataset.off = '1'; }
+        else if (b.dataset.kind === 'word') { if (extOn('word')) renderWords(b); else b.dataset.off = '1'; }
       } catch (e) { console.error('answer block', e); }
     });
   }

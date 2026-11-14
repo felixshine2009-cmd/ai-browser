@@ -331,7 +331,22 @@
     "confirm.part.cache": "浏览器缓存",
     "confirm.part.cookies": "Cookie 与网站数据（会退出已登录的网站）",
     "confirm.agent.hist.title": "AI 请求清除历史记录",
-    "confirm.agent.hist.msg": "AI 助手请求删除【{range}】的 {n} 条历史记录。是否允许？"
+    "confirm.agent.hist.msg": "AI 助手请求删除【{range}】的 {n} 条历史记录。是否允许？",
+    "ext.docs": "开发文档",
+    "ext.docs.tip": "拓展框架开发文档：清单格式、贡献点、权限与示例",
+    "ext.contrib": "贡献：",
+    "ext.contrib.toolPanel": "工具面板",
+    "ext.contrib.homepage": "主页入口",
+    "ext.contrib.answerBlocks": "回答内容块",
+    "ext.contrib.tools": "AI 工具",
+    "ext.contrib.settingsPages": "设置页面",
+    "ext.contrib.importers": "文件导入",
+    "ext.contrib.urlSchemes": "内部地址",
+    "ext.contrib.nativeViews": "原生视图",
+    "ext.contrib.inputHandlers": "输入处理",
+    "ext.contrib.panels": "面板",
+    "ext.platform.ipad": "仅 iPad",
+    "ext.platform.desktop": "仅桌面版"
   },
   "en": {
     "tab.newtab": "New Tab",
@@ -665,6 +680,21 @@
     "confirm.part.cache": "Browser cache",
     "confirm.part.cookies": "Cookies and site data (signs you out of websites)",
     "confirm.agent.hist.title": "AI asks to clear history",
-    "confirm.agent.hist.msg": "The AI assistant asks to delete {n} history entries ({range}). Allow?"
+    "confirm.agent.hist.msg": "The AI assistant asks to delete {n} history entries ({range}). Allow?",
+    "ext.docs": "Developer Docs",
+    "ext.docs.tip": "Extension framework documentation: manifest, contribution points, permissions and examples",
+    "ext.contrib": "Contributes: ",
+    "ext.contrib.toolPanel": "tool panel",
+    "ext.contrib.homepage": "home page",
+    "ext.contrib.answerBlocks": "answer blocks",
+    "ext.contrib.tools": "AI tools",
+    "ext.contrib.settingsPages": "settings pages",
+    "ext.contrib.importers": "file import",
+    "ext.contrib.urlSchemes": "internal pages",
+    "ext.contrib.nativeViews": "native views",
+    "ext.contrib.inputHandlers": "input handlers",
+    "ext.contrib.panels": "panels",
+    "ext.platform.ipad": "iPad only",
+    "ext.platform.desktop": "Desktop only"
   }
 }

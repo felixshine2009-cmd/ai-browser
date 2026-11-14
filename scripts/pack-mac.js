@@ -28,7 +28,9 @@ function zipDir(dir, out, keepParent) {
     dir: stageDir, out, name: APP_NAME, platform: 'darwin', arch: 'arm64', electronVersion,
     asar: false, prune: false, overwrite: true, appBundleId: 'com.felix.aibrowser', appCategoryType: 'public.app-category.productivity',
     appVersion: require('../package.json').version,
-    extendInfo: { CFBundleDisplayName: 'AI浏览器', LSMinimumSystemVersion: '12.0' },
+    // v3.1 importers: Finder can open MDict files with the browser ("Open With"); they go to the dictionary extension
+    extendInfo: { CFBundleDisplayName: 'AI浏览器', LSMinimumSystemVersion: '12.0',
+      CFBundleDocumentTypes: [{ CFBundleTypeName: 'MDict 词典', CFBundleTypeRole: 'Viewer', LSHandlerRank: 'Alternate', CFBundleTypeExtensions: ['mdx', 'mdd'] }] },
     // electron's own prebuilt (ad-hoc signed) bundle; re-signing happens on the Mac in install.command
     icon: path.join(ROOT, 'build', 'icon.icns'),
     osxSign: false, quiet: false

@@ -1,0 +1,48 @@
+{
+  "standard": "aib-feature/1",
+  "id": "aib.solve",
+  "name": "解题",
+  "version": "1.0.0",
+  "description": "解题工具：输入、粘贴或上传题目，由 AI 分步解答。",
+  "engines": {
+    "framework": ">=2"
+  },
+  "permissions": [],
+  "entry": "main.js",
+  "i18n": {
+    "zh": {
+      "name": "解题",
+      "description": "解题工具：输入、粘贴或上传题目，由 AI 分步解答。"
+    },
+    "en": {
+      "name": "Solve",
+      "description": "Solve: type, paste or upload a problem; AI solves it step by step."
+    }
+  },
+  "contributes": {
+    "toolPanel": [
+      {
+        "id": "solve",
+        "label": {
+          "zh": "解题",
+          "en": "Solve"
+        },
+        "tip": {
+          "zh": "解题：输入或拍摄题目，由 AI 分步解答",
+          "en": "Solve: type or photograph a problem; AI solves it step by step"
+        },
+        "icon": "builtin:solve",
+        "order": 10,
+        "action": {
+          "type": "toolView"
+        }
+      }
+    ],
+    "homepage": [
+      {
+        "tool": "solve",
+        "order": 10
+      }
+    ]
+  }
+}

@@ -16,7 +16,13 @@ module.exports = {
       };
     }
   },
+  // v3.1 answerBlocks contribution: ```word blocks (word cards) in an answer
+  answerBlocks: {
+    word: function (payload) { return aib.host.dictionary.wordCard(payload && payload.word); }
+  },
   rpc: {
+    // v3.1 importers contribution: .mdx / .mdd files opened from elsewhere
+    importFiles: function (a) { return aib.host.dictionary.importPaths((a && a.paths) || []); },
     list: function () { return aib.host.dictionary.list(); },
     progress: function () { return aib.host.dictionary.progress(); },
     pickAndAdd: function () { return aib.host.dictionary.pickAndAdd(); },

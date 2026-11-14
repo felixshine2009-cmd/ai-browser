@@ -14,10 +14,19 @@
 
   let cwsNote = null; // survives re-render (installing triggers an ext:changed refresh)
   const showCws = () => { const st = document.getElementById('cwsstat'); if (st && cwsNote) { st.className = 'test-result ' + cwsNote.cls; st.textContent = cwsNote.text; } };
+  // v3.1: what each extension contributes (tool panel, home page, answer blocks …) and where it runs
+  const POINTS = ['toolPanel', 'homepage', 'tools', 'answerBlocks', 'inputHandlers', 'panels', 'settingsPages', 'importers', 'urlSchemes', 'nativeViews'];
+  function contribLine(e) {
+    const c = e.contributes || {};
+    const has = POINTS.filter(k => Array.isArray(c[k]) ? c[k].length : (k === 'settingsPages' && c.settingsPage));
+    const pf = Array.isArray(e.platforms) && e.platforms.length === 1 ? t('ext.platform.' + e.platforms[0]) : '';
+    if (!has.length && !pf) return '';
+    return `<div class="ext-contrib meta-quiet" data-points="${esc(has.join(' '))}">${has.length ? esc(t('ext.contrib') + has.map(k => t('ext.contrib.' + k)).join('、')) : ''}${pf ? `<span class="tag-bi">${esc(pf)}</span>` : ''}</div>`;
+  }
   function render() {
     root.innerHTML = `<div class="ext-page"><h1>${esc(t('ext.pageTitle'))}</h1><div class="sub">${esc(t('ext.pageSub'))}</div>
       <div class="std-note-plain">${esc(t('ext.std.note'))}</div>
-      <div class="ext-sec-title"><span>${esc(t('ext.cat.feature'))}</span><span class="meta-quiet">${esc(t('ext.cat.feature.hint'))}</span><button class="btn-ghost-load" id="loadfeat">${esc(t('ext.load'))}</button></div>
+      <div class="ext-sec-title"><span>${esc(t('ext.cat.feature'))}</span><span class="meta-quiet">${esc(t('ext.cat.feature.hint'))}</span><button class="btn-ghost-load" id="loadfeat">${esc(t('ext.load'))}</button><button class="btn-ghost-load" id="extdocs" title="${esc(t('ext.docs.tip'))}">${esc(t('ext.docs'))}</button></div>
       <div class="ext-grid tight" id="feats"></div>
       <div class="ext-sec-title"><span>${esc(t('ext.cat.normal'))}</span><span class="meta-quiet">${esc(t('ext.cat.normal.hint'))}</span></div>
       <div class="cws-row"><input type="text" id="cwsin" spellcheck="false" placeholder="${esc(t('cws.placeholder'))}"/><button class="btn-primary" id="cwsgo">${esc(t('cws.addFromStore'))}</button><button class="btn-ghost-load" id="cwsopen">${esc(t('cws.openStore'))}</button><span class="test-result" id="cwsstat"></span></div>
@@ -31,13 +40,16 @@
     feats.forEach(e => {
       const c = document.createElement('div'); c.className = 'ext-card'; c.dataset.ext = e.id;
       c.innerHTML = `<div class="info"><div class="name">${esc(nm(e))}${e.builtin ? `<span class="tag-bi">${esc(t('ext.badge.preinstall'))}</span>` : ''}<span class="ver">v${esc(e.version)}</span></div>
-        <div class="desc">${esc(ds(e))}</div>${e.error ? `<div class="err">${esc(e.error)}</div>` : ''}
+        <div class="desc">${esc(ds(e))}</div>${contribLine(e)}${e.error ? `<div class="err">${esc(e.error)}</div>` : ''}
         <div class="meta-row"><button class="btn-update" data-act="update">${esc(t('ext.checkUpdate'))}</button>${e.settingsPage ? `<button class="btn-update" data-act="settings">${esc(t('ext.settings'))}</button>` : ''}${e.builtin ? '' : `<button class="btn-update" data-act="remove">${esc(t('common.delete'))}</button>`}<span class="upd-msg"></span></div></div>
         <div class="side-col">${toggle(e.enabled, 'data-act="toggle"')}</div>`;
       c.onclick = async (ev) => {
         const act = ev.target.dataset.act; if (!act) return;
         if (act === 'toggle') { feats = await window.aib.invoke('ext:setEnabled', e.id, !e.enabled); render(); }
-        else if (act === 'settings') { if (hooks.openSettings) hooks.openSettings('dict'); else location.href = 'aibrowser://settings#dict'; }
+        else if (act === 'settings') {
+          if (e.id === 'aib.dictionary') { if (hooks.openSettings) hooks.openSettings('dict'); else location.href = 'aibrowser://settings#dict'; }
+          else window.aib.invoke('nav:openUrl', e.settingsPage); // another extension's own settings page
+        }
         else if (act === 'remove') { await window.aib.invoke('ext:uninstall', e.id); load(); }
         else if (act === 'update') {
           const m = c.querySelector('.upd-msg'); m.textContent = t('ext.checking');
@@ -68,6 +80,7 @@
     });
     const stat = (s, bad) => { const x = document.getElementById('aistat'); x.className = 'test-result ' + (bad ? 'bad' : ''); x.textContent = s; };
     const guard = async (fn) => { try { return await fn(); } catch (e) { stat(e.message, true); } };
+    document.getElementById('extdocs').onclick = () => window.aib.invoke('nav:openUrl', 'aibrowser://docs/extensions');
     document.getElementById('loadfeat').onclick = () => guard(async () => { const m = await window.aib.invoke('ext:installDir'); if (m) { stat(t('ext.installed') + ': ' + m.name); load(); } });
     document.getElementById('cwsgo').onclick = async () => {
       const inp = document.getElementById('cwsin'), st = document.getElementById('cwsstat'), go = document.getElementById('cwsgo');

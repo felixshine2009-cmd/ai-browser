@@ -13,7 +13,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     const ch = await app.chrome();
     await until(async () => (await app.tabsState()).tabs.length === 1, 10000, 'one tab');
     const home = await app.waitPage('aibrowser://home');
-    assert(await home.locator('#greet').innerText() === 'Felix，请问需要什么帮助？', 'greeting');
+    assert(await home.locator('#greet').innerText() === 'Felix，请问需要什么帮助？', 'greeting: ' + await home.locator('#greet').innerText());
     assert(await home.locator('#q').getAttribute('placeholder') === '请输入问题', 'placeholder');
     const bad = app.logs.join('').split('\n').filter(l => /Uncaught|TypeError|ReferenceError|UnhandledPromise|Error: /.test(l) && !/dbus|bluez|vaapi|Failed to connect/.test(l));
     assert(bad.length === 0, 'errors in log: ' + bad.slice(0, 3).join(' || '));

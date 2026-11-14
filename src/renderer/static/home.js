@@ -11,10 +11,27 @@
   };
   // tools (U8): the same hand-drawn icons and Chinese captions as the toolbar; each tool opens in its own view (U1)
   const IC = window.AIB_ICONS;
-  const tools = ['solve', 'geogebra', 'physics', 'wiki', 'dict', 'code', 'readlater'];
+  // v3.1: the home tools are the extensions' homepage contributions (each tool is a bundled first-party extension)
   const host = document.getElementById('hometools');
-  host.innerHTML = tools.map(id => `<button type="button" class="ticon labeled" data-tool="${id}" title="${IC ? IC.tip(id) : id}" aria-label="${IC ? IC.label(id) : id}">${IC ? IC.svg(id) : ''}<span class="ticon-label">${IC ? IC.label(id) : id}</span></button>`).join('');
-  host.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => window.aib.invoke('tool:open', b.dataset.tool));
+  const escA = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const svgOf = (t) => {
+    if (t.icon && typeof t.icon === 'object' && t.icon.svg) return `<svg class="hd-icon" viewBox="0 0 16 16" aria-hidden="true">${t.icon.svg}</svg>`;
+    const n = typeof t.icon === 'string' && t.icon.startsWith('builtin:') ? t.icon.slice(8) : t.id;
+    return IC && IC.list[n] ? IC.svg(n) : (IC ? IC.svg('spaces') : '');
+  };
+  let homeTiles = ['solve', 'geogebra', 'physics', 'wiki', 'dict', 'code', 'readlater'].map(id => ({ key: id, id, label: IC ? IC.label(id) : id, tip: IC ? IC.tip(id) : id, icon: 'builtin:' + id, action: { type: 'toolView' } }));
+  const paintHomeTools = () => {
+    host.innerHTML = homeTiles.map(t => `<button type="button" class="ticon labeled" data-tool="${escA(t.key)}" title="${escA(t.tip)}" aria-label="${escA(t.label)}">${svgOf(t)}<span class="ticon-label">${escA(t.label)}</span></button>`).join('');
+    host.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => {
+      const t = homeTiles.find(x => x.key === b.dataset.tool) || {}; const a = t.action || {};
+      if (a.type === 'command') return window.aib.invoke(a.command);
+      if (a.type === 'page' || a.type === 'panel') return t.url && window.aib.invoke('nav:openUrl', t.url);
+      return window.aib.invoke('tool:open', t.id);
+    });
+  };
+  const loadHomeTools = async () => { try { const t = await window.aib.invoke('ext:toolPanel'); if (Array.isArray(t)) { homeTiles = t.filter(x => x.home); paintHomeTools(); } } catch (e) { console.warn('toolPanel', e); } };
+  paintHomeTools(); loadHomeTools();
+  if (window.aib.on) window.aib.on('ext:changed', loadHomeTools);
   const paintWork = () => document.querySelectorAll('#workswitch button').forEach(b => b.classList.toggle('on', b.dataset.work === (S.workMode || 'chat')));
   document.querySelectorAll('#workswitch button').forEach(b => b.onclick = async () => { S = await window.aib.invoke('settings:patch', { workMode: b.dataset.work }); paintWork(); });
   const set = () => {

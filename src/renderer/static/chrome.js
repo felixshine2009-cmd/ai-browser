@@ -12,10 +12,27 @@
   const ICONS = window.AIB_ICONS;
   const IPAD = !!(window.aib && window.aib.ipad);
   // toolbar tools (U8): hand-drawn icons with a visible Chinese caption; one view per tool (U1)
-  const TOOLS = ['solve', 'snap', 'geogebra', 'physics', 'wiki', 'dict', 'code', 'readlater'].concat(IPAD ? ['scan'] : []);
-  {
+  // v3.1: the tools come from the extensions' toolPanel contributions (each built-in tool is a bundled first-party
+  // extension); disabling an extension removes its tool. The list below is only the first paint before the answer.
+  const FALLBACK = ['solve', 'snap', 'geogebra', 'physics', 'wiki', 'dict', 'code', 'readlater'].concat(IPAD ? ['scan'] : []);
+  let TILES = FALLBACK.map(id => ({ key: id, id, label: ICONS ? ICONS.label(id) : id, tip: ICONS ? ICONS.tip(id) : id, icon: 'builtin:' + id, action: { type: ['snap', 'scan'].includes(id) ? 'command' : 'toolView', command: id === 'snap' ? 'snap:solve' : id === 'scan' ? 'scan:qr' : undefined } }));
+  const escA = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const tileSvg = (t) => {
+    if (t.icon && typeof t.icon === 'object' && t.icon.svg) return `<svg class="hd-icon" viewBox="0 0 16 16" aria-hidden="true">${t.icon.svg}</svg>`; // sanitized by the host
+    const n = typeof t.icon === 'string' && t.icon.startsWith('builtin:') ? t.icon.slice(8) : t.id;
+    return ICONS && ICONS.list[n] ? ICONS.svg(n) : (ICONS ? ICONS.svg('spaces') : '');
+  };
+  function paintTools() {
     const box = $('toolicons');
-    if (box && ICONS) box.innerHTML = TOOLS.map(id => `<button type="button" class="ticon labeled" data-tool="${id}" title="${ICONS.tip(id)}" aria-label="${ICONS.label(id)}">${ICONS.svg(id)}<span class="ticon-label">${ICONS.label(id)}</span></button>`).join('');
+    if (box) box.innerHTML = TILES.map(t => `<button type="button" class="ticon labeled" data-tool="${escA(t.key)}" title="${escA(t.tip)}" aria-label="${escA(t.label)}">${tileSvg(t)}<span class="ticon-label">${escA(t.label)}</span></button>`).join('');
+    document.querySelectorAll('.ticon[data-tool]').forEach(b => b.onclick = () => toolAction(b.dataset.tool));
+    if (typeof render === 'function' && state.tabs.length) try { render(); } catch {}
+  }
+  async function loadTools() {
+    try { const t = await window.aib.invoke('ext:toolPanel'); if (Array.isArray(t)) { TILES = t; paintTools(); } } catch (e) { console.warn('toolPanel', e); }
+  }
+  {
+    paintTools();
     const sb = $('splitbtn'); if (sb && ICONS) sb.innerHTML = ICONS.svg('split');
   }
   const LOCK = '<svg width="12" height="12" viewBox="0 0 16 16"><rect x="4" y="7" width="8" height="7" rx="1.5" fill="none" stroke="currentColor"/><path d="M6 7V5a2 2 0 0 1 4 0v2" fill="none" stroke="currentColor"/></svg>';
@@ -151,13 +168,16 @@
       fold.setAttribute('aria-expanded', String(!collapsed));
     };
   }
-  function toolAction(id) {
-    if (id === 'scan') return window.aib.invoke('scan:qr');
-    if (id === 'snap') return window.aib.invoke('snap:solve');
-    if (state.activeTool === id) return window.aib.invoke('tool:hide'); // second tap returns to the page
-    return window.aib.invoke('tool:open', id);
+  function toolAction(key) {
+    const t = TILES.find(x => x.key === key) || { key, id: key, action: { type: 'toolView' } };
+    const a = t.action || {};
+    if (a.type === 'command') return window.aib.invoke(a.command);
+    if (a.type === 'page' || a.type === 'panel') return t.url ? window.aib.invoke('nav:openUrl', t.url) : Promise.resolve();
+    if (state.activeTool === t.id) return window.aib.invoke('tool:hide'); // second tap returns to the page
+    return window.aib.invoke('tool:open', t.id);
   }
-  document.querySelectorAll('.ticon[data-tool]').forEach(b => b.onclick = () => toolAction(b.dataset.tool));
+  loadTools();
+  if (window.aib.on) window.aib.on('ext:changed', loadTools);
   // iPad (v3.0.0): the tool strip is one Liquid Glass button; the native host shows the tools in a glass popover
   // that grows downward from under it (ipad/App/Chrome/ToolPopover.swift) and can expand to the whole content area.
   if (IPAD && ICONS) {
@@ -175,7 +195,7 @@
         open = true; gb.classList.add('open'); gb.setAttribute('aria-expanded', 'true');
         try {
           const r = gb.getBoundingClientRect(), tb = document.querySelector('.toolbar');
-          const items = TOOLS.map(id => ({ id, label: ICONS.label(id), tip: ICONS.tip(id), active: state.activeTool === id }));
+          const items = TILES.map(t => ({ id: t.key, label: t.label, tip: t.tip, active: state.activeTool === t.key }));
           const res = await window.aib.invoke('tools:popover', { x: r.left, y: r.top, w: r.width, h: r.height }, items, tb ? tb.getBoundingClientRect().bottom : r.bottom);
           if (res && res.unsupported) { cluster.classList.remove('glass-mode'); return; } // older host: back to the strip
           // v3.0.1: the button is free again as soon as the popover closes, not only once the chosen tool has

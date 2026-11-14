@@ -142,7 +142,7 @@ IPA **未签名**，请使用 AltStore、Sideloadly 等工具以您自己的 App
 
 ## 拓展
 
-* **功能拓展**（`aib-feature/1`，见 [`docs/EXTENSION_STANDARD.md`](docs/EXTENSION_STANDARD.md)）：预装词典、GeoGebra 和物理仿真；拓展可在 `manifest.contributes.tools` 中声明 Agent 工具。
+* **功能拓展**（`aib-feature/1`，见 [`docs/EXTENSION_STANDARD.md`](docs/EXTENSION_STANDARD.md)）：全部内置工具（解题、拍题、GeoGebra、物理、百科、词典、代码、稍后读，以及 iPad 上的扫码）均为预装拓展，可在“设置 → 拓展”中停用或启用。拓展可提供工具面板与主页入口、回答内容块、文件导入、设置页和 Agent 工具（`manifest.contributes`），桌面版与 iPad 版使用同一格式。开发文档内置于应用：设置 → 拓展 → 开发文档（`aibrowser://docs/extensions`）。
 * **Chrome 拓展**（MV3）：在浏览器内直接从 Chrome 应用商店安装。覆盖范围受 Electron 扩展 API 限制（已测试内容脚本、service worker、`chrome.storage`；工具栏弹窗有限）。
 * GeoGebra 仅限**非商业**使用，遵循 [GeoGebra 许可](https://www.geogebra.org/license)。
 

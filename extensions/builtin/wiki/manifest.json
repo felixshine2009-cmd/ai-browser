@@ -1,0 +1,48 @@
+{
+  "standard": "aib-feature/1",
+  "id": "aib.wiki",
+  "name": "百科",
+  "version": "1.0.0",
+  "description": "离线百科：导入 ZIM 文件后离线浏览与搜索百科条目。",
+  "engines": {
+    "framework": ">=2"
+  },
+  "permissions": [],
+  "entry": "main.js",
+  "i18n": {
+    "zh": {
+      "name": "百科",
+      "description": "离线百科：导入 ZIM 文件后离线浏览与搜索百科条目。"
+    },
+    "en": {
+      "name": "Encyclopedia",
+      "description": "Offline encyclopedia: browse and search ZIM files offline."
+    }
+  },
+  "contributes": {
+    "toolPanel": [
+      {
+        "id": "wiki",
+        "label": {
+          "zh": "百科",
+          "en": "Encyclopedia"
+        },
+        "tip": {
+          "zh": "离线百科（ZIM）",
+          "en": "Offline encyclopedia (ZIM)"
+        },
+        "icon": "builtin:wiki",
+        "order": 50,
+        "action": {
+          "type": "toolView"
+        }
+      }
+    ],
+    "homepage": [
+      {
+        "tool": "wiki",
+        "order": 50
+      }
+    ]
+  }
+}

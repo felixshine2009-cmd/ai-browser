@@ -4,7 +4,11 @@
 接管某类输入的处理（例如“单词 → 词典”）、给 LLM 提供**工具**（例如“画函数图像”）、
 在页面侧边提供**面板**（例如 GeoGebra）。它与 Chrome 扩展（“普通浏览器拓展”）相互独立。
 
-预装的 **词典**（`aib.dictionary`）和 **GeoGebra 作图**（`aib.geogebra`）就是按本标准写的，
+> 框架 2 级（v3.1 起）的完整开发文档内置于应用：设置 → 拓展 → 开发文档（`aibrowser://docs/extensions`），
+> 源文件位于 `extensions/builtin/docs/`（`extensions.md` 开发指南、`contributions.md` 贡献点参考、`migration.md` 迁移记录）。
+> 本文件保留 `aib-feature/1` 的基础说明。
+
+全部内置工具（解题、拍题、GeoGebra、物理、百科、词典、代码、稍后读、扫码）以及开发文档本身都是按本标准写的第一方拓展，
 源码在 `extensions/builtin/`，可直接当示例阅读。
 
 ## 1. 目录结构

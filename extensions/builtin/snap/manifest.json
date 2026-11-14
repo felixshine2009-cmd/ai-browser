@@ -1,0 +1,43 @@
+{
+  "standard": "aib-feature/1",
+  "id": "aib.snap",
+  "name": "拍题",
+  "version": "1.0.0",
+  "description": "拍题即解：用相机拍摄题目，识别文字后在解题工具中作答。",
+  "engines": {
+    "framework": ">=2"
+  },
+  "permissions": [],
+  "entry": "main.js",
+  "i18n": {
+    "zh": {
+      "name": "拍题",
+      "description": "拍题即解：用相机拍摄题目，识别文字后在解题工具中作答。"
+    },
+    "en": {
+      "name": "Snap",
+      "description": "Snap and solve: photograph a problem, recognise the text and solve it."
+    }
+  },
+  "contributes": {
+    "toolPanel": [
+      {
+        "id": "snap",
+        "label": {
+          "zh": "拍题",
+          "en": "Snap"
+        },
+        "tip": {
+          "zh": "拍题即解：拍摄题目后识别文字并打开解题",
+          "en": "Snap and solve: photograph a problem, recognise the text and open Solve"
+        },
+        "icon": "builtin:snap",
+        "order": 20,
+        "action": {
+          "type": "command",
+          "command": "snap:solve"
+        }
+      }
+    ]
+  }
+}

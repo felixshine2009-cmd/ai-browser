@@ -1,0 +1,49 @@
+{
+  "standard": "aib-feature/1",
+  "id": "aib.scan",
+  "name": "扫码",
+  "version": "1.0.0",
+  "description": "扫描二维码，网址直接打开。",
+  "engines": {
+    "framework": ">=2"
+  },
+  "permissions": [],
+  "entry": "main.js",
+  "i18n": {
+    "zh": {
+      "name": "扫码",
+      "description": "扫描二维码，网址直接打开。"
+    },
+    "en": {
+      "name": "Scan",
+      "description": "Scan QR codes; links open directly."
+    }
+  },
+  "contributes": {
+    "toolPanel": [
+      {
+        "id": "scan",
+        "label": {
+          "zh": "扫码",
+          "en": "Scan"
+        },
+        "tip": {
+          "zh": "扫描二维码",
+          "en": "Scan a QR code"
+        },
+        "icon": "builtin:scan",
+        "order": 90,
+        "action": {
+          "type": "command",
+          "command": "scan:qr"
+        },
+        "platforms": [
+          "ipad"
+        ]
+      }
+    ]
+  },
+  "platforms": [
+    "ipad"
+  ]
+}

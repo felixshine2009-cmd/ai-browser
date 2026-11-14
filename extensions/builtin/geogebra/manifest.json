@@ -2,7 +2,7 @@
   "standard": "aib-feature/1",
   "id": "aib.geogebra",
   "name": "GeoGebra Math Apps",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Offline GeoGebra Math Apps (graphing, geometry, 3D, CAS, scientific, suite) with WEB math keyboard; AI-driven via evalCommand.",
   "update_url": "https://example.invalid/aib/aib.geogebra/update.json",
   "permissions": [
@@ -127,6 +127,39 @@
         "page": "panel.html",
         "location": "side"
       }
+    ],
+    "toolPanel": [
+      {
+        "id": "geogebra",
+        "label": {
+          "zh": "GeoGebra",
+          "en": "GeoGebra"
+        },
+        "tip": {
+          "zh": "GeoGebra 数学作图",
+          "en": "GeoGebra math graphing"
+        },
+        "icon": "builtin:geogebra",
+        "order": 30,
+        "action": {
+          "type": "toolView"
+        }
+      }
+    ],
+    "homepage": [
+      {
+        "tool": "geogebra",
+        "order": 30
+      }
+    ],
+    "answerBlocks": [
+      {
+        "lang": "graph",
+        "handler": "graph"
+      }
     ]
+  },
+  "engines": {
+    "framework": ">=2"
   }
 }

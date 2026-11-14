@@ -1,0 +1,48 @@
+{
+  "standard": "aib-feature/1",
+  "id": "aib.readlater",
+  "name": "稍后读",
+  "version": "1.0.0",
+  "description": "稍后阅读：保存网页的离线副本并集中管理。",
+  "engines": {
+    "framework": ">=2"
+  },
+  "permissions": [],
+  "entry": "main.js",
+  "i18n": {
+    "zh": {
+      "name": "稍后读",
+      "description": "稍后阅读：保存网页的离线副本并集中管理。"
+    },
+    "en": {
+      "name": "Read Later",
+      "description": "Read later: save offline copies of pages and manage them."
+    }
+  },
+  "contributes": {
+    "toolPanel": [
+      {
+        "id": "readlater",
+        "label": {
+          "zh": "稍后读",
+          "en": "Read Later"
+        },
+        "tip": {
+          "zh": "稍后阅读与离线保存",
+          "en": "Read later and offline copies"
+        },
+        "icon": "builtin:readlater",
+        "order": 80,
+        "action": {
+          "type": "toolView"
+        }
+      }
+    ],
+    "homepage": [
+      {
+        "tool": "readlater",
+        "order": 80
+      }
+    ]
+  }
+}

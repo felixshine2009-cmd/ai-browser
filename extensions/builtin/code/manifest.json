@@ -1,0 +1,48 @@
+{
+  "standard": "aib-feature/1",
+  "id": "aib.code",
+  "name": "代码",
+  "version": "1.0.0",
+  "description": "代码编辑器与文件管理，可在内置 Python 与 Linux 虚拟机中运行。",
+  "engines": {
+    "framework": ">=2"
+  },
+  "permissions": [],
+  "entry": "main.js",
+  "i18n": {
+    "zh": {
+      "name": "代码",
+      "description": "代码编辑器与文件管理，可在内置 Python 与 Linux 虚拟机中运行。"
+    },
+    "en": {
+      "name": "Code",
+      "description": "Code editor and file manager running in the built-in Python and Linux VM."
+    }
+  },
+  "contributes": {
+    "toolPanel": [
+      {
+        "id": "code",
+        "label": {
+          "zh": "代码",
+          "en": "Code"
+        },
+        "tip": {
+          "zh": "代码编辑器与文件管理（Python、Linux 虚拟机）",
+          "en": "Code editor and files (Python, Linux VM)"
+        },
+        "icon": "builtin:code",
+        "order": 70,
+        "action": {
+          "type": "toolView"
+        }
+      }
+    ],
+    "homepage": [
+      {
+        "tool": "code",
+        "order": 70
+      }
+    ]
+  }
+}

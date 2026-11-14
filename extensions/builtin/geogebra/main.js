@@ -9,6 +9,14 @@ function call(ctx, method, args) {
   });
 }
 module.exports = {
+  // v3.1 answerBlocks contribution: ```graph blocks in an answer are drawn in this extension's panel
+  answerBlocks: {
+    graph: function (payload, ctx) {
+      var cmds = (payload && Array.isArray(payload.commands) ? payload.commands : []).map(String).slice(0, 80);
+      if (!cmds.length) return { error: 'no commands' };
+      return module.exports.tools.ggb_eval({ commands: cmds }, ctx);
+    }
+  },
   tools: {
     ggb_eval: function (args, ctx) {
       var cmds = (args && args.commands) || [];

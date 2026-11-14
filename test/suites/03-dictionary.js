@@ -20,7 +20,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   await test('内置“词典”拓展预装、默认启用，遵循功能拓展标准清单', async () => {
     const l = await ch.evaluate(() => window.aib.invoke('ext:list'));
     const d = l.find(e => e.id === 'aib.dictionary');
-    assert(d && d.builtin && d.enabled && d.version === '1.0.0' && d.update_url && d.permissions.includes('host.dictionary'), JSON.stringify(d));
+    assert(d && d.builtin && d.enabled && d.version === '1.1.0' && d.update_url && d.permissions.includes('host.dictionary'), JSON.stringify(d));
     assert(d.contributes.inputHandlers[0].types.includes('word') && d.settingsPage.startsWith('aibext://aib.dictionary/'));
   });
   await test('设置页“词典”：通过文件选择导入 .mdx（同名 .mdd 自动加载）', async () => {

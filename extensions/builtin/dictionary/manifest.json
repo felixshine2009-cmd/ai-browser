@@ -2,21 +2,96 @@
   "standard": "aib-feature/1",
   "id": "aib.dictionary",
   "name": "词典",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "支持 MDX/MDD 词典；多词典、划词查词、释义与例句。",
   "update_url": "https://example.invalid/aib/aib.dictionary/update.json",
-  "permissions": ["host.dictionary"],
+  "permissions": [
+    "host.dictionary"
+  ],
   "entry": "main.js",
   "i18n": {
-    "zh": { "name": "词典", "description": "支持 MDX/MDD 词典；划词查词、释义与例句。" },
-    "en": { "name": "Dictionary", "description": "MDX/MDD dictionaries; lookups, definitions, and examples." }
+    "zh": {
+      "name": "词典",
+      "description": "支持 MDX/MDD 词典；划词查词、释义与例句。"
+    },
+    "en": {
+      "name": "Dictionary",
+      "description": "MDX/MDD dictionaries; lookups, definitions, and examples."
+    }
   },
   "contributes": {
     "inputHandlers": [
-      { "id": "lookup", "types": ["word"], "priority": 100 }
+      {
+        "id": "lookup",
+        "types": [
+          "word"
+        ],
+        "priority": 100
+      }
     ],
     "tools": [],
     "settingsPage": "settings.html",
-    "panels": []
+    "panels": [],
+    "toolPanel": [
+      {
+        "id": "dict",
+        "label": {
+          "zh": "词典",
+          "en": "Dictionary"
+        },
+        "tip": {
+          "zh": "词典（MDX）",
+          "en": "Dictionary (MDX)"
+        },
+        "icon": "builtin:dict",
+        "order": 60,
+        "action": {
+          "type": "toolView"
+        }
+      }
+    ],
+    "homepage": [
+      {
+        "tool": "dict",
+        "order": 60
+      }
+    ],
+    "answerBlocks": [
+      {
+        "lang": "word",
+        "handler": "word"
+      }
+    ],
+    "importers": [
+      {
+        "id": "mdict",
+        "title": {
+          "zh": "MDict 词典",
+          "en": "MDict dictionary"
+        },
+        "extensions": [
+          "mdx",
+          "mdd"
+        ],
+        "utTypes": [
+          "com.aibrowser.mdict-mdx",
+          "com.aibrowser.mdict-mdd"
+        ],
+        "rpc": "importFiles"
+      }
+    ],
+    "settingsPages": [
+      {
+        "id": "dictionaries",
+        "title": {
+          "zh": "词典",
+          "en": "Dictionaries"
+        },
+        "page": "settings.html"
+      }
+    ]
+  },
+  "engines": {
+    "framework": ">=2"
   }
 }
