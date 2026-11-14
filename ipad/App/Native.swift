@@ -8,6 +8,7 @@ import PDFKit
 /// Native services used by the 2.3.0 features: camera photos (拍题即解 and every image input), Apple Vision text
 /// recognition, QR code scanning (VisionKit DataScanner, AVFoundation fallback), PDF text for page summaries (PDFKit)
 /// and offline web archives (read later). Commands are `native.*` from ipad/node/electron (electron.__ipad.native()).
+@MainActor
 final class NativeServices: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     static let shared = NativeServices()
     private var cameraDone: ((UIImage?) -> Void)?
@@ -86,7 +87,7 @@ final class NativeServices: NSObject, UIImagePickerControllerDelegate, UINavigat
     func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
         picker.dismiss(animated: true) { [weak self] in let d = self?.cameraDone; self?.cameraDone = nil; d?(nil) }
     }
-    static func scale(_ img: UIImage, maxDim: CGFloat) -> UIImage {
+    nonisolated static func scale(_ img: UIImage, maxDim: CGFloat) -> UIImage {
         let s = img.size
         let f = min(1, maxDim / max(s.width, s.height, 1))
         let size = CGSize(width: floor(s.width * f), height: floor(s.height * f))
@@ -95,7 +96,7 @@ final class NativeServices: NSObject, UIImagePickerControllerDelegate, UINavigat
     }
 
     // ---- Apple Vision text recognition (Chinese + English; formulas are left to a vision-capable model)
-    static func ocr(_ img: UIImage, done: @escaping (String, [[String: Any]]) -> Void) {
+    nonisolated static func ocr(_ img: UIImage, done: @escaping (String, [[String: Any]]) -> Void) {
         guard let cg = img.cgImage else { done("", []); return }
         let req = VNRecognizeTextRequest { r, _ in
             let obs = (r.results as? [VNRecognizedTextObservation]) ?? []
@@ -120,7 +121,7 @@ final class NativeServices: NSObject, UIImagePickerControllerDelegate, UINavigat
             catch { DispatchQueue.main.async { done("", []) } }
         }
     }
-    static func orientation(_ img: UIImage) -> CGImagePropertyOrientation {
+    nonisolated static func orientation(_ img: UIImage) -> CGImagePropertyOrientation {
         switch img.imageOrientation {
         case .up: return .up
         case .down: return .down
@@ -136,6 +137,7 @@ final class NativeServices: NSObject, UIImagePickerControllerDelegate, UINavigat
 }
 
 /// QR code scanner: VisionKit DataScannerViewController (iPadOS 16, A12 or newer) with an AVFoundation fallback.
+@MainActor
 final class QRScanSession: NSObject, AVCaptureMetadataOutputObjectsDelegate {
     private var done: ((String?) -> Void)?
     private var presented: UIViewController?
@@ -199,8 +201,9 @@ final class QRScanSession: NSObject, AVCaptureMetadataOutputObjectsDelegate {
             }
         }
     }
-    func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
-        if let o = metadataObjects.first as? AVMetadataMachineReadableCodeObject, let s = o.stringValue { finish(s) }
+    nonisolated func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
+        // delivered on the main queue (setMetadataObjectsDelegate(queue: .main))
+        if let o = metadataObjects.first as? AVMetadataMachineReadableCodeObject, let s = o.stringValue { Task { @MainActor in self.finish(s) } }
     }
 }
 
