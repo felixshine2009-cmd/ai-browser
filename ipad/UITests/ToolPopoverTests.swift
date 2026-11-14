@@ -9,11 +9,14 @@ final class ToolPopoverTests: XCTestCase {
 
     override func setUpWithError() throws { continueAfterFailure = true }
 
-    private func value(_ e: XCUIElement) -> String { guard e.exists else { return "" }; return (e.value as? String).flatMap { $0.isEmpty ? nil : $0 } ?? e.label }
+    private func value(_ e: XCUIElement) -> String {
+        guard let s = try? e.snapshot() else { return "" }
+        return (s.value as? String).flatMap { $0.isEmpty ? nil : $0 } ?? s.label
+    }
     @discardableResult
     private func wait(_ e: XCUIElement, _ timeout: TimeInterval, file: StaticString = #filePath, line: UInt = #line, _ ok: (String) -> Bool) -> String {
         let end = Date().addingTimeInterval(timeout); var last = ""
-        while Date() < end { if e.exists { last = value(e); if ok(last) { return last } }; Thread.sleep(forTimeInterval: 0.4) }
+        while Date() < end { let v = value(e); if !v.isEmpty { last = v; if ok(v) { return v } }; Thread.sleep(forTimeInterval: 0.4) }
         XCTFail("timeout; last value: \(last)", file: file, line: line); return last
     }
     private func shot(_ name: String) {

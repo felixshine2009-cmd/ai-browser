@@ -274,7 +274,10 @@ final class ToolPopoverService: NativeService {
         let toolbarBottom = src.convert(CGPoint(x: 0, y: num(m["toolbarBottom"]) > 0 ? num(m["toolbarBottom"]) : local.maxY), to: nil).y
         let full = src.convert(src.bounds, to: nil)
         let area = CGRect(x: full.minX, y: toolbarBottom, width: full.width, height: full.maxY - toolbarBottom)
-        let vc = ToolPopoverController(items: items, anchor: anchor, area: area) { id in ok(["id": (id.map { $0 as Any }) ?? NSNull()]) }
+        let vc = ToolPopoverController(items: items, anchor: anchor, area: area) { [weak self] id in
+            self?.current = nil // closed: the next tap on the button opens a new popover
+            ok(["id": (id.map { $0 as Any }) ?? NSNull()])
+        }
         vc.overrideUserInterfaceStyle = src.overrideUserInterfaceStyle
         current = vc
         ctx.top.present(vc, animated: false)

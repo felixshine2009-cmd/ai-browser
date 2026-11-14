@@ -178,7 +178,10 @@
           const items = TOOLS.map(id => ({ id, label: ICONS.label(id), tip: ICONS.tip(id), active: state.activeTool === id }));
           const res = await window.aib.invoke('tools:popover', { x: r.left, y: r.top, w: r.width, h: r.height }, items, tb ? tb.getBoundingClientRect().bottom : r.bottom);
           if (res && res.unsupported) { cluster.classList.remove('glass-mode'); return; } // older host: back to the strip
-          if (res && res.id) await toolAction(res.id);
+          // v3.0.1: the button is free again as soon as the popover closes, not only once the chosen tool has
+          // finished opening (a tool or the camera can take a while, and the next tap on the button was ignored)
+          open = false; gb.classList.remove('open'); gb.setAttribute('aria-expanded', 'false');
+          if (res && res.id) toolAction(res.id).catch((e) => console.warn('tool', res.id, e));
         } catch (e) { console.warn('tools popover', e); }
         finally { open = false; gb.classList.remove('open'); gb.setAttribute('aria-expanded', 'false'); }
       };

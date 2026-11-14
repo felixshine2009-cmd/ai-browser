@@ -19,13 +19,18 @@ final class ImportTests: XCTestCase {
         waitLabel(st, timeout: 240) { $0 == "ready" }
         shot("00-ready")
     }
-    private func label(_ e: XCUIElement) -> String { (e.value as? String).flatMap { $0.isEmpty ? nil : $0 } ?? e.label }
+    // read through a snapshot: an element that disappears between the existence check and the read (a sheet or picker
+    // presented over the panel) gives "" instead of recording a "Failed to get matching snapshot" failure
+    private func label(_ e: XCUIElement) -> String {
+        guard let s = try? e.snapshot() else { return "" }
+        return (s.value as? String).flatMap { $0.isEmpty ? nil : $0 } ?? s.label
+    }
     @discardableResult
     private func waitLabel(_ e: XCUIElement, timeout: TimeInterval, file: StaticString = #filePath, line: UInt = #line, _ ok: (String) -> Bool) -> String {
         let end = Date().addingTimeInterval(timeout)
         var last = ""
         while Date() < end {
-            if e.exists { last = label(e); if ok(last) { return last } }
+            let v = label(e); if !v.isEmpty { last = v; if ok(v) { return v } }
             Thread.sleep(forTimeInterval: 0.5)
         }
         XCTFail("timeout; last value: \(last)", file: file, line: line)
