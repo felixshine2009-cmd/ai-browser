@@ -31,6 +31,15 @@ function list() {
 function mutate(id, fn) { const d = get(id); current = d.id; const r = fn(d); save(d); return r; }
 
 // ---------------------------------------------------------------- hidden web view
+// iPad: a page loaded from a file may only read its own directory, so fonts (KaTeX, CJK document fonts) are copied
+// once into documents/assets and referenced relatively; elsewhere the engine uses file URLs
+function assetUrl(abs) {
+  if (!global.__aibIpad) return null;
+  const dir = path.join(baseDir(), 'assets'); const name = path.basename(abs); const dest = path.join(dir, name);
+  try { const st = fs.statSync(abs); let ok = false; try { ok = fs.statSync(dest).size === st.size; } catch {} if (!ok) { fs.mkdirSync(dir, { recursive: true }); fs.copyFileSync(abs, dest); } } catch { return null; }
+  return 'assets/' + encodeURIComponent(name);
+}
+const render = (doc, o) => E.renderHtml(doc, Object.assign({ assetUrl }, o));
 const PX = 96 / 25.4;
 async function withView(html, size, fn) {
   if (!electron || !electron.BrowserWindow) throw new Error('当前环境无法渲染文档');
@@ -52,7 +61,7 @@ async function measure(doc) {
   for (let pass = 0; pass < 2; pass++) {
     const [W, H] = E.pageDims(doc.page);
     let heights = null;
-    try { heights = await withView(E.renderHtml(doc, { bare: true }), [W * PX, H * PX], (wc) => wc.executeJavaScript(E.MEASURE_JS)); } catch { return { measured: false, changed }; }
+    try { heights = await withView(render(doc, { bare: true }), [W * PX, H * PX], (wc) => wc.executeJavaScript(E.MEASURE_JS)); } catch { return { measured: false, changed }; }
     const c = E.applyMeasurements(doc, heights || {});
     changed += c; if (!c) break;
   }
@@ -70,7 +79,7 @@ async function preview(id, opts = {}) {
   const images = [];
   for (const p of pages) {
     try {
-      const png = await withView(E.renderHtml(doc, { bare: true, page: p }), [W * PX, H * PX], async (wc) => {
+      const png = await withView(render(doc, { bare: true, page: p }), [W * PX, H * PX], async (wc) => {
         let img = null;
         const rect = { x: 0, y: 0, width: Math.round(W * PX), height: Math.round(H * PX) };
         for (let i = 0; i < 3 && (!img || img.isEmpty()); i++) { try { img = await wc.capturePage(rect, { stayHidden: true }); } catch { try { img = await wc.capturePage(rect); } catch {} } if (!img || img.isEmpty()) await new Promise(r => setTimeout(r, 200)); }
@@ -94,7 +103,7 @@ async function exportDoc(id, format = 'pdf') {
   if (fmt === 'html') fs.writeFileSync(dest, E.renderHtml(doc, { inlineFonts: true }));
   else {
     const [W, H] = E.pageDims(doc.page);
-    const buf = await withView(E.renderHtml(doc, { bare: true }), [W * PX, H * PX], (wc) => wc.printToPDF({ printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' }, pageSize: { width: W / 25.4, height: H / 25.4 },
+    const buf = await withView(render(doc, { bare: true }), [W * PX, H * PX], (wc) => wc.printToPDF({ printBackground: true, preferCSSPageSize: true, margins: { marginType: 'none' }, pageSize: { width: W / 25.4, height: H / 25.4 },
       // iPad host: one PDF page per page rectangle (CSS px), merged natively (Services/PDFPages.swift)
       aibPageRects: Array.from({ length: doc.pages }, (_, i) => ({ x: 0, y: Math.round(i * H * PX * 100) / 100, width: Math.round(W * PX * 100) / 100, height: Math.round(H * PX * 100) / 100 })) }));
     if (!buf || !buf.length) throw new Error('PDF 生成失败');
@@ -105,7 +114,7 @@ async function exportDoc(id, format = 'pdf') {
   return r;
 }
 function html(id, opts) { return E.renderHtml(get(id), opts || { inlineFonts: true }); }
-function openFile(id) { const doc = get(id); const p = path.join(baseDir(), 'view-' + doc.id + '.html'); fs.writeFileSync(p, E.renderHtml(doc, {})); return require('url').pathToFileURL(p).href; }
+function openFile(id) { const doc = get(id); const p = path.join(baseDir(), 'view-' + doc.id + '.html'); fs.writeFileSync(p, render(doc, {})); return require('url').pathToFileURL(p).href; }
 // a compact result object for tool calls: the chat page renders it as a document card
 function card(doc, extra = {}) { return Object.assign({ doc: { id: doc.id, title: doc.title, kind: doc.kind, pages: doc.pages, size: doc.page.size } }, extra); }
 

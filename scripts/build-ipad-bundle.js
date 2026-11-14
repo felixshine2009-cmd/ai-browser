@@ -25,6 +25,8 @@ fs.mkdirSync(NP, { recursive: true });
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 delete pkg.devDependencies; delete pkg.scripts; delete pkg.build;
 pkg.main = 'main-ipad.js';
+// Settings → About shows the iPad app version (ipad/project.yml MARKETING_VERSION), not the desktop version
+{ const m = fs.readFileSync(path.join(ROOT, 'ipad', 'project.yml'), 'utf8').match(/MARKETING_VERSION:\s*"?([\d.]+)"?/); if (m) { pkg.desktopVersion = pkg.version; pkg.version = m[1]; } }
 // iconv-lite: TextDecoder fallback for encodings nodejs-mobile (no ICU) lacks (ipad/node/encoding-shim.js)
 pkg.dependencies = Object.assign({}, pkg.dependencies, { jsdom: '22.1.0', 'iconv-lite': '0.6.3' });
 delete pkg.dependencies['node-llama-cpp'];

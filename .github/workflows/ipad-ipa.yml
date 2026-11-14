@@ -130,6 +130,8 @@ jobs:
         run: node scripts/build-ipad-bundle.js ipad/build/aibapp
       - name: "Payload: Pyodide (embedded Python)"
         run: node scripts/fetch-ipad-pyodide.js ipad/build/aibapp --cache "$RUNNER_TEMP/pyodide"
+      - name: CJK document fonts (Noto Serif SC, LXGW WenKai)
+        run: bash scripts/fetch-ipad-fonts.sh ipad/build/aibapp "$RUNNER_TEMP/fonts"
       - name: "Payload: Linux VM emulator (v86 only; the Alpine image is downloaded on first use)"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

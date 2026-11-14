@@ -17,8 +17,8 @@ const PAGE_SIZES = { A4: [210, 297], A5: [148, 210], A3: [297, 420], B5: [176, 2
 const MARGINS = { none: 0, narrow: 12, normal: 20, wide: 28 };
 const FONTS = {
   sans: "'PingFang SC','Hiragino Sans GB','Noto Sans CJK SC','Source Han Sans SC','Microsoft YaHei',system-ui,sans-serif",
-  serif: "'Songti SC','Noto Serif CJK SC','Source Han Serif SC','SimSun','Times New Roman',serif",
-  kai: "'Kaiti SC','STKaiti','KaiTi','Noto Serif CJK SC',serif",
+  serif: "'Songti SC','Noto Serif CJK SC','AIB Serif SC','Source Han Serif SC','SimSun','Times New Roman',serif",
+  kai: "'Kaiti SC','STKaiti','KaiTi','AIB Kai SC','Noto Serif CJK SC',serif",
   hei: "'Heiti SC','PingFang SC','Noto Sans CJK SC','SimHei',sans-serif",
   mono: "ui-monospace,'SF Mono',Menlo,Consolas,'Noto Sans Mono CJK SC',monospace",
   rounded: "'PingFang SC','Hiragino Maru Gothic ProN','Noto Sans CJK SC',system-ui,sans-serif"
@@ -423,7 +423,25 @@ function rich(text) {
   return out.join('').replace(/\u0001(\d+)\u0002/g, (m, n) => math[Number(n)] || '').replace(/\u0005(\d+)\u0006/g, (m, n) => `<span class="blank" style="width:${Math.min(30, blanks[Number(n)] * 0.55).toFixed(1)}em"></span>`);
 }
 const hasMath = (doc) => doc.elements.some(e => e.type === 'math' || /\$|\\\(/.test(String(e.text || '') + (e.rows || []).join('') + (e.columns || []).join('')));
-function katexCss(inlineFonts) {
+// Bundled CJK document fonts (iPad payload fonts/, or AIB_DOC_FONTS): iPadOS has PingFang but no Songti / Kaiti preinstalled,
+// so serif and kai documents use Noto Serif SC and LXGW WenKai from the app. Not inlined into exported HTML (size).
+const DOC_FONT_FILES = [['AIB Serif SC', 400, 'NotoSerifSC-Regular.otf', 'opentype'], ['AIB Serif SC', 700, 'NotoSerifSC-Bold.otf', 'opentype'], ['AIB Kai SC', 400, 'LXGWWenKai-Regular.ttf', 'truetype']];
+function docFontsDir() {
+  const path = require('path');
+  if (process.env.AIB_DOC_FONTS) return process.env.AIB_DOC_FONTS;
+  const ip = global.__aibIpad; return ip && ip.resources ? path.join(ip.resources, 'fonts') : '';
+}
+function docFontsCss(inlineFonts, assetUrl) {
+  if (inlineFonts) return '';
+  try {
+    const path = require('path'), fs = require('fs'); const dir = docFontsDir(); if (!dir) return '';
+    return DOC_FONT_FILES.filter(f => fs.existsSync(path.join(dir, f[2]))).map(([fam, w, file, fmt]) => `@font-face{font-family:'${fam}';font-weight:${w};src:url("${assetHref(path.join(dir, file), assetUrl)}") format("${fmt}")}`).join('\n');
+  } catch { return ''; }
+}
+// URL of a font file for a rendered page: file URL, or assetUrl(absPath) (the iPad copies assets next to the page,
+// because a WKWebView loading a file may only read the page's own directory)
+function assetHref(abs, assetUrl) { if (assetUrl) { try { const u = assetUrl(abs); if (u) return u; } catch {} } return require('url').pathToFileURL(abs).href; }
+function katexCss(inlineFonts, assetUrl) {
   try {
     const path = require('path'), fs = require('fs');
     const dir = path.join(__dirname, '..', '..', 'renderer', 'static', 'vendor', 'katex');
@@ -431,7 +449,7 @@ function katexCss(inlineFonts) {
     css = css.replace(/url\((?:'|")?fonts\/([^)'"]+)(?:'|")?\)\s*format\((?:'|")?([a-z0-9]+)(?:'|")?\)/g, (m, f, fmt) => {
       if (!/\.woff2$/.test(f)) return 'url(data:,)';
       if (inlineFonts) { try { return `url(data:font/woff2;base64,${fs.readFileSync(path.join(dir, 'fonts', f)).toString('base64')}) format("woff2")`; } catch { return 'url(data:,)'; } }
-      return `url("${require('url').pathToFileURL(path.join(dir, 'fonts', f)).href}") format("woff2")`;
+      return `url("${assetHref(path.join(dir, 'fonts', f), assetUrl)}") format("woff2")`;
     });
     return css;
   } catch { return ''; }
@@ -528,13 +546,14 @@ function renderHtml(doc, opts = {}) {
 .el-math .katex-display{margin:0}.mathbox.inline{display:inline-block}.eqlabel{position:absolute;right:0;top:50%;transform:translateY(-50%)}.el svg{display:block}
 .hf{position:absolute;font:8.5pt ${FONTS[th.font]};color:${color(doc, 'muted')};display:flex;justify-content:space-between}.hd{justify-content:center}
 @media print{body{background:none}.page{margin:0;box-shadow:none}}
-${math ? katexCss(!!opts.inlineFonts) : ''}`;
+${docFontsCss(!!opts.inlineFonts, opts.assetUrl)}
+${math ? katexCss(!!opts.inlineFonts, opts.assetUrl) : ''}`;
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(doc.title)}</title><style>${css}</style></head><body>${pages.join('\n')}</body></html>`;
 }
 // JavaScript run inside a rendered page: returns { id: heightMm } of every element (natural content height)
 const MEASURE_JS = `(() => { const pxPerMm = 96 / 25.4; const out = {}; document.querySelectorAll('.el[data-id]').forEach(n => { if (n.style.height) return; out[n.dataset.id] = Math.round(n.scrollHeight / pxPerMm * 100) / 100; }); return out; })()`;
 
-module.exports = {
+module.exports = { docFontsCss, DOC_FONT_FILES,
   PAGE_SIZES, MARGINS, FONTS, SIZES, COLORS, WEIGHTS, ALIGNS, VALIGNS, LINE_HEIGHTS, PADDINGS, BORDERS, RADII, SPACING, ANCHORS, SHAPES, THEMES, ROLES, ENUMS, STYLE_KEYS, TYPES,
   createDoc, setPage, addElement, updateElement, removeElement, pageBreak, reflow, check, fixOverlaps, applyMeasurements, summary, renderHtml, contentBox, pageDims, box, heightOf, estimateHeight, rich, tex, esc, MEASURE_JS, newId
 };

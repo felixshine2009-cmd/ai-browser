@@ -20,6 +20,27 @@ module.exports = async ({ test, group, assert, eq }) => {
       const pages = (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
       eq(pages, r.doc.pages, 'one PDF page per document page');
     }, { timeout: 120000 });
+    await test('设置 → 关于：显示 iPad 版本号（ipad/project.yml），而非桌面版版本号', async () => {
+      const want = fs.readFileSync(path.join(__dirname, '..', '..', 'ipad', 'project.yml'), 'utf8').match(/MARKETING_VERSION:\s*"?([\d.]+)/)[1];
+      const info = await app.invoke('app:info');
+      eq(info.version, want);
+    });
+    await test('iPad 中文文档字体：宋体 / 楷体文本使用随应用提供的 Noto Serif SC 与霞鹜文楷，并复制到文档目录供页面读取', async () => {
+      const bundle = process.env.AIB_IPAD_BUNDLE || path.join(__dirname, '..', '..', 'dist', 'ipad-bundle');
+      if (!fs.existsSync(path.join(bundle, 'fonts', 'LXGWWenKai-Regular.ttf'))) {
+        try { require('child_process').execFileSync('bash', [path.join(__dirname, '..', '..', 'scripts', 'fetch-ipad-fonts.sh'), bundle, path.join(os.tmpdir(), 'aib-fonts')], { stdio: 'ignore', timeout: 300000 }); }
+        catch { return 'skip: fonts could not be downloaded'; }
+      }
+      const d = await app.tool('doc_new', { title: '字体', size: 'A5' });
+      const id = d.doc.id;
+      await app.tool('doc_add_text', { doc: id, text: '宋体：床前明月光', style: { font: 'serif', size: 'xl' } });
+      await app.tool('doc_add_text', { doc: id, text: '楷体：疑是地上霜', style: { font: 'kai', size: 'xl', weight: 'bold' } });
+      const ex = await app.tool('doc_export', { doc: id, format: 'pdf' });
+      const pdf = fs.readFileSync(ex.exported.path).toString('latin1');
+      assert(/LXGWWenKai/.test(pdf), 'kai text embedded with LXGW WenKai');
+      const assets = path.join(ud, 'documents', 'assets');
+      assert(fs.existsSync(path.join(assets, 'LXGWWenKai-Regular.ttf')) && fs.existsSync(path.join(assets, 'NotoSerifSC-Regular.otf')), 'fonts copied next to the page');
+    }, { timeout: 400000 });
     await test('iPad 思维导图与幻灯片助手：生成文档卡片数据', async () => {
       const m = await app.tool('mindmap_agent', { outline: '# 力学\n## 运动学\n- 位移\n- 速度\n## 动力学\n- 牛顿定律' });
       eq(m.doc.kind, 'mindmap'); eq(m.doc.pages, 1);

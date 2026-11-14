@@ -17,6 +17,7 @@ cannot be built there, build locally with the steps below.
 npm ci
 node scripts/build-ipad-bundle.js ipad/build/aibapp          # desktop main process + pages + iPad layer
 node scripts/fetch-ipad-pyodide.js ipad/build/aibapp          # Pyodide 314 (CPython 3.14 WASM) + numpy/scipy/sympy/pandas/matplotlib/Pillow
+bash scripts/fetch-ipad-fonts.sh ipad/build/aibapp            # CJK document fonts: Noto Serif SC, LXGW WenKai (~48 MB)
 gh release download v5.6.0 -R felixshine2009-cmd/ai-browser -p linux-vm-x86-v86.tar.gz
 tar -C ipad/build/aibapp -xzf linux-vm-x86-v86.tar.gz \
   vm/libv86.js vm/v86.wasm vm/seabios.bin vm/vgabios.bin vm/LICENSE-v86.txt   # emulator only, no disk image
