@@ -325,7 +325,7 @@ function summarize(name, args, result) {
   const j = (v) => String(typeof v === 'string' ? v : JSON.stringify(v));
   const a = args || {};
   const firstLine = (c) => String(c || '').split('\n').map(x => x.trim()).filter(x => x && !x.startsWith('#') && !/^(import|from) /.test(x))[0] || String(c || '').split('\n')[0];
-  const key = (a.code && firstLine(a.code)) || a.command || a.tool || (a.action && [a.action, a.id || a.name || a.query || ''].filter(Boolean).join(' ')) || a.mode || a.kind || (Array.isArray(a.packages) && a.packages.join(' ')) || a.path || a.url || a.query || a.word || a.page || a.text || a.sentence || a.id || (a.commands && a.commands.length + ' cmd') || (a.scene && 'scene') || '';
+  const key = (a.code && firstLine(a.code)) || a.command || a.tool || (typeof a.title === 'string' && a.title) || (a.action && [a.action, a.id || a.name || a.query || ''].filter(Boolean).join(' ')) || a.mode || a.kind || (Array.isArray(a.packages) && a.packages.join(' ')) || a.path || a.url || a.query || a.word || a.page || a.text || a.tex || (a.outline && String(a.outline).split('\n')[0].replace(/^#+\s*/, '')) || a.sentence || a.id || (a.commands && a.commands.length + ' cmd') || (a.scene && 'scene') || '';
   let tail = '';
   if (result && result.error) tail = ' ✕ ' + j(result.error).split('\n').filter(Boolean).slice(-1)[0].slice(0, 80);
   else if (result && typeof result.exitCode === 'number' && result.exitCode !== 0) tail = ' ✕ exit ' + result.exitCode;

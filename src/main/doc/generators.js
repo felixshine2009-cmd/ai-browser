@@ -354,7 +354,8 @@ function mindmapSvg(tree, opts = {}) {
   const kids = tree.children;
   let left = [], right = kids;
   if (both && kids.length > 2) { let tot = kids.reduce((s, c) => s + leaves(c), 0), acc = 0; right = []; left = []; for (const c of kids) { (acc < tot / 2 ? right : left).push(c); acc += leaves(c); } }
-  const colW = (d) => (d === 1 ? 190 : 170);
+  const maxW = {}; const walk = (n, d) => { maxW[d] = Math.max(maxW[d] || 0, wOf(n.text, d)); n.children.forEach(c => walk(c, d + 1)); }; kids.forEach(c => walk(c, 1));
+  const colW = (d) => (maxW[d] || 80) + 30;
   const depthOf = (n) => (n.children.length ? 1 + Math.max(...n.children.map(depthOf)) : 0);
   const dR = right.length ? Math.max(...right.map(depthOf)) + 1 : 0, dL = left.length ? Math.max(...left.map(depthOf)) + 1 : 0;
   const rootW = wOf(tree.text, 0) + 20;
@@ -362,18 +363,19 @@ function mindmapSvg(tree, opts = {}) {
   const W = Math.max(500, rootW + span('r', dR) + span('l', dL) + 40);
   const H = Math.max(260, Math.max(right.reduce((s, c) => s + leaves(c), 0), left.reduce((s, c) => s + leaves(c), 0)) * rowH + 40);
   const cx = 20 + span('l', dL) + rootW / 2, cy = H / 2;
-  const out = [];
+  const out = []; const bb = { x0: cx - rootW / 2, x1: cx + rootW / 2, y0: cy - 24, y1: cy + 24 };
   const place = (nodes, dir, depth, x0, yTop, parent, colorIdx) => {
     let y = yTop;
     nodes.forEach((n, i) => {
       const h = leaves(n) * rowH; const ny = y + h / 2; const ci = depth === 1 ? i + (dir < 0 ? right.length : 0) : colorIdx;
       const col = PALETTE[ci % 8]; const w = wOf(n.text, depth);
-      const nx = dir > 0 ? x0 + 24 : x0 - 24 - w;
+      const nx = dir > 0 ? x0 + (depth === 1 ? 40 : 24) : x0 - (depth === 1 ? 40 : 24) - w;
       const px = parent.x, py = parent.y;
       const ex = dir > 0 ? nx : nx + w;
       out.push(`<path d="M${px.toFixed(1)},${py.toFixed(1)} C${((px + ex) / 2).toFixed(1)},${py.toFixed(1)} ${((px + ex) / 2).toFixed(1)},${ny.toFixed(1)} ${ex.toFixed(1)},${ny.toFixed(1)}" fill="none" stroke="${col}" stroke-width="${depth === 1 ? 2.6 : 1.6}"/>`);
       if (depth === 1) out.push(`<rect x="${nx.toFixed(1)}" y="${(ny - 13).toFixed(1)}" width="${w.toFixed(1)}" height="26" rx="13" fill="${col}"/><text x="${(nx + w / 2).toFixed(1)}" y="${(ny + 5).toFixed(1)}" text-anchor="middle" fill="#fff" font-size="15" font-weight="700">${esc(n.text)}</text>`);
       else out.push(`<text x="${(nx + (dir > 0 ? 4 : w - 4)).toFixed(1)}" y="${(ny - 3).toFixed(1)}" text-anchor="${dir > 0 ? 'start' : 'end'}" fill="#333" font-size="13">${esc(n.text)}</text><line x1="${nx.toFixed(1)}" x2="${(nx + w).toFixed(1)}" y1="${(ny + 2).toFixed(1)}" y2="${(ny + 2).toFixed(1)}" stroke="${col}" stroke-width="1.6"/>`);
+      bb.x0 = Math.min(bb.x0, nx); bb.x1 = Math.max(bb.x1, nx + w); bb.y0 = Math.min(bb.y0, ny - 16); bb.y1 = Math.max(bb.y1, ny + 14);
       const anchor = { x: dir > 0 ? nx + w : nx, y: depth === 1 ? ny : ny + 2 };
       if (n.children.length) place(n.children, dir, depth + 1, dir > 0 ? nx + w : nx, y, anchor, ci);
       y += h;
@@ -383,7 +385,8 @@ function mindmapSvg(tree, opts = {}) {
   place(right, 1, 1, cx + rootW / 2, cy - hR / 2, { x: cx + rootW / 2 - 6, y: cy }, 0);
   place(left, -1, 1, cx - rootW / 2, cy - hL / 2, { x: cx - rootW / 2 + 6, y: cy }, 0);
   out.push(`<rect x="${(cx - rootW / 2).toFixed(1)}" y="${(cy - 22).toFixed(1)}" width="${rootW.toFixed(1)}" height="44" rx="12" fill="#1f2329"/><text x="${cx.toFixed(1)}" y="${(cy + 7).toFixed(1)}" text-anchor="middle" fill="#fff" font-size="${fs0}" font-weight="700">${esc(tree.text)}</text>`);
-  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" width="100%" height="100%" font-family="PingFang SC, Noto Sans CJK SC, Microsoft YaHei, sans-serif">${out.join('')}</svg>`, aspect: W / H };
+  const vx = bb.x0 - 12, vy = bb.y0 - 10, vw = bb.x1 - bb.x0 + 24, vh = bb.y1 - bb.y0 + 20;
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vx.toFixed(0)} ${vy.toFixed(0)} ${vw.toFixed(0)} ${vh.toFixed(0)}" width="100%" height="100%" font-family="PingFang SC, Noto Sans CJK SC, Microsoft YaHei, sans-serif">${out.join('')}</svg>`, aspect: vw / vh };
 }
 function mindmap(a = {}) {
   const tree = normTree(a.outline ? outlineToTree(a.outline) : { text: a.root || a.title || '主题', children: a.children || a.branches || [] });
@@ -391,7 +394,7 @@ function mindmap(a = {}) {
   const { svg, aspect } = mindmapSvg(tree, { direction: a.direction });
   const { doc, warnings } = svc.create({ title: a.title || tree.text || '思维导图', kind: 'mindmap', size: a.size || 'A4', orientation: aspect >= 1 ? 'landscape' : 'portrait', theme: 'modern', margin: 'narrow' });
   const cb = E.contentBox(doc);
-  E.addElement(doc, { type: 'text', text: a.title || tree.text, style: { size: 'xl', weight: 'bold', align: 'center', spacing: 's' } });
+  E.addElement(doc, { type: 'text', text: a.title || tree.text, style: { size: 'xxl', weight: 'bold', align: 'center', spacing: 'm' } });
   const availH = cb.height - 14; let w = cb.width; if (w / aspect > availH) w = availH * aspect;
   E.addElement(doc, { type: 'svg', svg, aspect, w, x: cb.left + (cb.width - w) / 2 });
   svc.save(doc);

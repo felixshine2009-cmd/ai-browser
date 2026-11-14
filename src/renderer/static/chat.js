@@ -361,8 +361,8 @@
   }
   function renderTools() {
     if (!els.toolsrow) return;
-    const short = (a) => { try { if (a && a.code) return String(a.code).split('\n').find(l => l.trim() && !/^\s*(#|import |from )/.test(l)) || '…'; if (a && a.command) return a.command; if (a && a.packages) return [].concat(a.packages).join(' '); if (a && a.path) return a.path; const c = a && a.commands; return c ? c.join('; ') : JSON.stringify(a || {}); } catch { return ''; } };
-    els.toolsrow.innerHTML = `<div class="tools-row"><span>${esc(t('chat.toolsUsed'))}</span> ` + st.tools.map(x => `<span class="tool-chip ${x.error ? 'err' : ''}" title="${esc(x.error || x.name)}">${esc(toolLabel(x.name))}(${esc(short(x.args).slice(0, 80))})</span>`).join('') + '</div>';
+    const short = (a) => { try { if (a && a.code) return String(a.code).split('\n').find(l => l.trim() && !/^\s*(#|import |from )/.test(l)) || '…'; if (a && a.command) return a.command; if (a && a.packages) return [].concat(a.packages).join(' '); if (a && a.path) return a.path; const c = a && a.commands; if (c) return c.join('; '); for (const k of ['title', 'tool', 'action', 'query', 'word', 'url', 'text', 'tex', 'name', 'id']) if (a && a[k] != null && typeof a[k] !== 'object') return String(a[k]).split('\n')[0]; const v = a && Object.values(a).find(x => typeof x === 'string' || typeof x === 'number'); return v != null ? String(v).split('\n')[0] : ''; } catch { return ''; } };
+    els.toolsrow.innerHTML = `<div class="tools-row"><span>${esc(t('chat.toolsUsed'))}</span> ` + st.tools.map(x => `<span class="tool-chip ${x.error ? 'err' : ''}" title="${esc(x.error || x.name)}">${esc(toolLabel(x.name))}${(s => s ? '(' + esc(s.slice(0, 80)) + ')' : '')(short(x.args))}</span>`).join('') + '</div>';
   }
 
   // ----- GeoGebra / panels

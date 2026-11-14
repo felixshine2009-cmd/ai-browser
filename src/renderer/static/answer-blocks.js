@@ -116,9 +116,10 @@
     const wrap = document.createElement('div'); wrap.className = 'ab-words';
     block.innerHTML = ''; block.appendChild(wrap);
     words.forEach((w) => {
-      const c = document.createElement('button'); c.type = 'button'; c.className = 'ab-word';
+      const c = document.createElement('div'); c.setAttribute('role', 'button'); c.tabIndex = 0; c.className = 'ab-word';
       c.innerHTML = `<span class="ab-w">${esc(w)}</span><span class="ab-ph"></span><span class="ab-mean">${zh() ? '正在查询…' : 'Looking up…'}</span>`;
       c.onclick = () => { const r = c.getBoundingClientRect(); window.aib.invoke('lookup:show', w, { x: Math.round(r.left), y: Math.round(r.bottom + 4) }); };
+      c.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.onclick(); } };
       wrap.appendChild(c);
     });
     // look the words up one after another (the dictionary model runs one request at a time)

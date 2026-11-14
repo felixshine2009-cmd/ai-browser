@@ -16,12 +16,12 @@
 const PAGE_SIZES = { A4: [210, 297], A5: [148, 210], A3: [297, 420], B5: [176, 250], Letter: [215.9, 279.4], slide16x9: [254, 142.875], slide4x3: [254, 190.5], card: [90, 54], square: [200, 200] };
 const MARGINS = { none: 0, narrow: 12, normal: 20, wide: 28 };
 const FONTS = {
-  sans: '"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",system-ui,sans-serif',
-  serif: '"Songti SC","Noto Serif CJK SC","Source Han Serif SC","SimSun","Times New Roman",serif',
-  kai: '"Kaiti SC","STKaiti","KaiTi","Noto Serif CJK SC",serif',
-  hei: '"Heiti SC","PingFang SC","Noto Sans CJK SC","SimHei",sans-serif',
-  mono: 'ui-monospace,"SF Mono",Menlo,Consolas,"Noto Sans Mono CJK SC",monospace',
-  rounded: '"PingFang SC","Hiragino Maru Gothic ProN","Noto Sans CJK SC",system-ui,sans-serif'
+  sans: "'PingFang SC','Hiragino Sans GB','Noto Sans CJK SC','Source Han Sans SC','Microsoft YaHei',system-ui,sans-serif",
+  serif: "'Songti SC','Noto Serif CJK SC','Source Han Serif SC','SimSun','Times New Roman',serif",
+  kai: "'Kaiti SC','STKaiti','KaiTi','Noto Serif CJK SC',serif",
+  hei: "'Heiti SC','PingFang SC','Noto Sans CJK SC','SimHei',sans-serif",
+  mono: "ui-monospace,'SF Mono',Menlo,Consolas,'Noto Sans Mono CJK SC',monospace",
+  rounded: "'PingFang SC','Hiragino Maru Gothic ProN','Noto Sans CJK SC',system-ui,sans-serif"
 };
 const SIZES = { xs: 8, s: 9.5, m: 11, l: 13.5, xl: 17, xxl: 22, h1: 28, display: 40 }; // pt
 const COLORS = {
@@ -406,20 +406,21 @@ function rich(text) {
   let s = src.replace(/\$\$([\s\S]+?)\$\$/g, (m, t) => { math.push(tex(t.trim(), true)); return '\u0001' + (math.length - 1) + '\u0002'; })
     .replace(/\\\(([\s\S]+?)\\\)/g, (m, t) => { math.push(tex(t.trim(), false)); return '\u0001' + (math.length - 1) + '\u0002'; })
     .replace(/(^|[^\\$\w])\$(?!\s)([^$\n]{1,400}?)\$(?![\w$])/g, (m, pre, t) => { math.push(tex(t, false)); return pre + '\u0001' + (math.length - 1) + '\u0002'; });
+  const blanks = []; s = s.replace(/_{3,}/g, (m) => { blanks.push(m.length); return '\u0005' + (blanks.length - 1) + '\u0006'; });
   s = esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<i>$2</i>').replace(/__([^_]+)__/g, '<u>$1</u>');
   const lines = s.split('\n'); const out = []; let list = null;
-  const flush = () => { if (list) { out.push(`<${list.t}>${list.items.map(i => '<li>' + i + '</li>').join('')}</${list.t}>`); list = null; } };
+  const flush = () => { if (list) { out.push(`<${list.t}${list.start > 1 ? ` start="${list.start}"` : ''}>${list.items.map(i => '<li>' + i + '</li>').join('')}</${list.t}>`); list = null; } };
   let para = [];
   const flushP = () => { if (para.length) { out.push('<p>' + para.join('<br>') + '</p>'); para = []; } };
   for (const ln of lines) {
     let m;
     if ((m = ln.match(/^\s*[-*•]\s+(.*)/))) { flushP(); if (!list || list.t !== 'ul') { flush(); list = { t: 'ul', items: [] }; } list.items.push(m[1]); }
-    else if ((m = ln.match(/^\s*\d+[.)、]\s+(.*)/))) { flushP(); if (!list || list.t !== 'ol') { flush(); list = { t: 'ol', items: [] }; } list.items.push(m[1]); }
+    else if ((m = ln.match(/^\s*(\d+)[.)、]\s+(.*)/))) { flushP(); if (!list || list.t !== 'ol') { flush(); list = { t: 'ol', items: [], start: Number(m[1]) }; } list.items.push(m[2]); }
     else if (!ln.trim()) { flush(); flushP(); }
     else { flush(); para.push(ln); }
   }
   flush(); flushP();
-  return out.join('').replace(/\u0001(\d+)\u0002/g, (m, n) => math[Number(n)] || '');
+  return out.join('').replace(/\u0001(\d+)\u0002/g, (m, n) => math[Number(n)] || '').replace(/\u0005(\d+)\u0006/g, (m, n) => `<span class="blank" style="width:${Math.min(30, blanks[Number(n)] * 0.55).toFixed(1)}em"></span>`);
 }
 const hasMath = (doc) => doc.elements.some(e => e.type === 'math' || /\$|\\\(/.test(String(e.text || '') + (e.rows || []).join('') + (e.columns || []).join('')));
 function katexCss(inlineFonts) {
@@ -442,7 +443,7 @@ function styleCss(doc, el, s) {
   if (s.italic) css.push('font-style:italic');
   if (s.background && s.background !== 'none') css.push(`background:${color(doc, s.background)}`);
   if (PADDINGS[s.padding]) css.push(`padding:${PADDINGS[s.padding]}mm`);
-  if (BORDERS[s.border]) css.push(`border:${BORDERS[s.border]} ${color(doc, s.borderColor || 'lightgray')}`);
+  if (BORDERS[s.border] && el.type !== 'shape') css.push(`border:${BORDERS[s.border]} ${color(doc, s.borderColor || 'lightgray')}`);
   if (s.borderLeft) css.push(`border-left:1mm solid ${color(doc, 'accent')}`);
   if (RADII[s.radius]) css.push(`border-radius:${s.radius === 'pill' ? '999px' : RADII[s.radius] + 'mm'}`);
   if (s.opacity != null && s.opacity < 1) css.push(`opacity:${s.opacity}`);
@@ -486,17 +487,19 @@ function elementHtml(doc, el) {
     case 'image': { const src = safeSrc(el.src); inner = (src ? `<img src="${esc(src)}" style="object-fit:${el.fit}" alt="">` : '<div class="imgmissing">图片无法载入</div>') + (el.caption ? `<div class="cap">${rich(el.caption)}</div>` : ''); st.push('display:flex', 'flex-direction:column'); break; }
     case 'svg': inner = el.svg; break;
     case 'shape': {
-      const c = color(doc, s.borderColor || s.color === 'theme' ? 'accent' : s.color);
+      const c = color(doc, s.borderColor || (s.color === 'theme' ? 'accent' : s.color));
       const bw = s.border && BORDERS[s.border] ? BORDERS[s.border].split(' ')[0] : '0.4mm';
-      if (el.shape === 'rect') st.push(`border:${bw} solid ${c}`);
-      else if (el.shape === 'circle') st.push(`border:${bw} solid ${c}`, 'border-radius:50%');
+      const bs = s.border && BORDERS[s.border] ? BORDERS[s.border].split(' ')[1] : 'solid';
+      const noBorder = s.border === 'none' && el.style && el.style.border === 'none';
+      if (el.shape === 'rect') { if (!noBorder) st.push(`border:${bw} ${bs} ${c}`); }
+      else if (el.shape === 'circle') st.push(noBorder ? '' : `border:${bw} ${bs} ${c}`, 'border-radius:50%');
       else if (el.shape === 'line' || el.shape === 'hline') { inner = `<div style="position:absolute;left:0;right:0;top:50%;border-top:${bw} ${s.border === 'dashed' ? 'dashed' : 'solid'} ${c}"></div>`; }
       else if (el.shape === 'arrow') inner = `<svg viewBox="0 0 100 10" preserveAspectRatio="none" style="width:100%;height:100%;overflow:visible"><line x1="0" y1="5" x2="96" y2="5" stroke="${c}" stroke-width="1.2" vector-effect="non-scaling-stroke"/><path d="M90,1 L100,5 L90,9" fill="${c}"/></svg>`;
       break;
     }
     case 'lines': inner = Array.from({ length: el.count }, (_, i) => `<div style="position:absolute;left:0;right:0;top:${r2((i + 1) * el.gap - 0.5)}mm;border-bottom:0.25mm solid ${color(doc, 'lightgray')}"></div>`).join(''); break;
   }
-  return `<div class="el el-${el.type}" data-id="${esc(el.id)}" style="${css.concat(st).join(';')}">${inner}</div>`;
+  return `<div class="el el-${el.type}" data-id="${esc(el.id)}" style="${css.concat(st).join(';').replace(/"/g, "'")}">${inner}</div>`;
 }
 function renderHtml(doc, opts = {}) {
   const [W, H] = pageDims(doc.page);
@@ -520,6 +523,7 @@ function renderHtml(doc, opts = {}) {
 .el table{width:100%;border-collapse:collapse;table-layout:fixed}.el th,.el td{padding:1.1mm 1.4mm;vertical-align:top;text-align:left}.el th{font-weight:700}
 .t-grid th,.t-grid td{border:0.25mm solid ${color(doc, 'lightgray')}}.t-lines thead th{border-bottom:0.5mm solid ${color(doc, 'theme')}}.t-lines td{border-bottom:0.2mm solid ${color(doc, 'lightgray')}}.t-lines{border-top:0.5mm solid ${color(doc, 'theme')};border-bottom:0.5mm solid ${color(doc, 'theme')}}
 .t-zebra tbody tr:nth-child(even) td{background:rgba(127,127,127,.08)}.t-plain th,.t-plain td{border:0}
+.blank{display:inline-block;border-bottom:0.25mm solid currentColor;height:1em;vertical-align:-0.15em;margin:0 .15em}
 .cap{font-size:.85em;color:${color(doc, 'muted')};text-align:center;margin-top:1mm}.el img{width:100%;flex:1;min-height:0;display:block}.imgmissing{flex:1;display:flex;align-items:center;justify-content:center;border:0.3mm dashed #aaa;color:#888}
 .el-math .katex-display{margin:0}.mathbox.inline{display:inline-block}.eqlabel{position:absolute;right:0;top:50%;transform:translateY(-50%)}.el svg{display:block}
 .hf{position:absolute;font:8.5pt ${FONTS[th.font]};color:${color(doc, 'muted')};display:flex;justify-content:space-between}.hd{justify-content:center}
