@@ -480,7 +480,7 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
     private func openPicker(_ m: [String: Any], completion: @escaping (Bool, [String]) -> Void) {
         let props = (m["properties"] as? [String]) ?? ["openFile"]
         let dirs = props.contains("openDirectory"), files = props.contains("openFile") || !dirs
-        if dirs && files {
+        if false && dirs && files {
             let title = (m["title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
             let a = UIAlertController(title: title ?? "选择要导入的内容", message: "可以选择一个或多个文件，也可以选择整个文件夹（文件夹中的全部文件会一并导入）。", preferredStyle: .actionSheet)
             a.addAction(UIAlertAction(title: "选择文件", style: .default) { [weak self] _ in self?.presentPicker(m, props: props, mode: .files, completion: completion) })
@@ -490,7 +490,7 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
             topController.present(a, animated: true) { if UITest.enabled { UITest.event("sheet") } }
             return
         }
-        presentPicker(m, props: props, mode: dirs ? .folder : .files, completion: completion)
+        presentPicker(m, props: props, mode: (dirs && !files) ? .folder : .files, completion: completion)
     }
     private func presentPicker(_ m: [String: Any], props: [String], mode: PickMode, completion: @escaping (Bool, [String]) -> Void) {
         let picker: UIDocumentPickerViewController
@@ -503,7 +503,8 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
                 for e in (f["extensions"] as? [String]) ?? [] where e != "*" { if let t = UTType(filenameExtension: e), !types.contains(t) { types.append(t) } }
             }
             if types.isEmpty { types = [.item] }
-            picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+            if props.contains("openDirectory") { types.append(.folder) }
+            picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: false)
             picker.allowsMultipleSelection = props.contains("multiSelections")
         }
         picker.delegate = self
@@ -528,8 +529,9 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
                 let dest = base.appendingPathComponent(u.lastPathComponent)
                 if mode == .files {
                     // already a local copy made by the system: move it (fall back to a copy)
-                    do { try fm.moveItem(at: u, to: dest); out.append(dest.path) }
-                    catch { do { try fm.copyItem(at: u, to: dest); out.append(dest.path) } catch { failed.append(u.lastPathComponent) } }
+                    let scoped = u.startAccessingSecurityScopedResource()
+                    defer { if scoped { u.stopAccessingSecurityScopedResource() } }
+                    do { try fm.copyItem(at: u, to: dest); out.append(dest.path) } catch { NSLog("[aib] pick copy failed: \(error)"); failed.append(u.lastPathComponent) }
                 } else {
                     let scoped = u.startAccessingSecurityScopedResource()
                     defer { if scoped { u.stopAccessingSecurityScopedResource() } }
