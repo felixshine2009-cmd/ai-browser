@@ -101,8 +101,19 @@ async function httpError(res) {
 }
 
 // ---------- OpenAI-compatible
+// Thinking models that call tools (Moonshot Kimi, DeepSeek, Qwen …) expect the reasoning of an assistant tool-call message
+// to be sent back as reasoning_content; otherwise they reject the request or stall. OpenAI itself does not take it.
+function openAiMessages(messages, cfg) {
+  const official = /(^|\.)openai\.com/i.test(String(cfg.baseUrl || '')) || cfg.preset === 'openai';
+  return messages.map((m) => {
+    if (!m || typeof m !== 'object' || !('reasoning' in m || 'thinkingBlocks' in m)) return m;
+    const { reasoning, thinkingBlocks, ...rest } = m;
+    if (!official && m.role === 'assistant' && m.tool_calls && m.tool_calls.length) rest.reasoning_content = reasoning || '';
+    return rest;
+  });
+}
 async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, signal, maxTokens, jsonSchema, onThinking, thinkingLevel }) {
-  const body = { model: cfg.model, messages, stream: true, temperature: temperature ?? cfg.temperature };
+  const body = { model: cfg.model, messages: openAiMessages(messages, cfg), stream: true, temperature: temperature ?? cfg.temperature };
   try {
     const level = thinkingLevel || require('../store').getSettings().thinkingLevel;
     const v36 = require('../v36/v36');
@@ -124,7 +135,7 @@ async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, sig
     res = await fetch(joinUrl(cfg.baseUrl, '/chat/completions'), { method: 'POST', headers, body: JSON.stringify(body), signal });
     if (!res.ok) throw await httpError(res);
   }
-  let content = '';
+  let content = '', reasoning = '';
   const calls = [];
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('event-stream')) { // server ignored stream:true
@@ -132,9 +143,11 @@ async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, sig
     let j; try { j = JSON.parse(raw); } catch { const e = new Error('not json'); e.apiCode = 'badformat'; e.snippet = raw.replace(/\s+/g, ' ').slice(0, 120); throw e; }
     if (!j || !Array.isArray(j.choices)) { const e = new Error('no choices'); e.apiCode = 'badformat'; e.snippet = raw.replace(/\s+/g, ' ').slice(0, 120); throw e; }
     const m = j.choices?.[0]?.message || {};
+    const rsn = typeof m.reasoning_content === 'string' ? m.reasoning_content : (typeof m.reasoning === 'string' ? m.reasoning : '');
+    if (rsn) onThinking && onThinking(rsn);
     if (m.content) { content = m.content; onDelta && onDelta(content); }
     for (const tc of m.tool_calls || []) calls.push({ id: tc.id, name: tc.function.name, arguments: tc.function.arguments || '{}' });
-    return { content, toolCalls: calls };
+    return { content, toolCalls: calls, reasoning: rsn };
   }
   for await (const line of sseLines(res, signal)) {
     if (!line.startsWith('data:')) continue;
@@ -145,7 +158,7 @@ async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, sig
     if (!d) continue;
     let thinkBit = '';
     try { thinkBit = require('../v36/v36').extractThinkingDelta(d) || require('../v36/v36').extractThinkingDelta(j); } catch { thinkBit = d.reasoning_content || (typeof d.reasoning === 'string' ? d.reasoning : ''); }
-    if (thinkBit) onThinking && onThinking(thinkBit);
+    if (thinkBit) { reasoning += thinkBit; onThinking && onThinking(thinkBit); }
     if (d.content) { content += d.content; onDelta && onDelta(d.content); }
     for (const tc of d.tool_calls || []) {
       const i = tc.index ?? 0;
@@ -155,7 +168,7 @@ async function chatOpenAI(cfg, key, { messages, tools, temperature, onDelta, sig
       if (tc.function?.arguments) calls[i].arguments += tc.function.arguments;
     }
   }
-  return { content, toolCalls: calls.filter(Boolean).map((c, i) => ({ ...c, id: c.id || 'call_' + i, arguments: c.arguments || '{}' })) };
+  return { content, reasoning, toolCalls: calls.filter(Boolean).map((c, i) => ({ ...c, id: c.id || 'call_' + i, arguments: c.arguments || '{}' })) };
 }
 
 // ---------- images in tool results (computer-use screenshots)
@@ -199,7 +212,8 @@ function toAnthropic(messages) {
       const imgs = (m.images || []).map(anthropicImage).filter(Boolean);
       out.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: m.tool_call_id, content: imgs.length ? [{ type: 'text', text: String(m.content) }].concat(imgs) : String(m.content) }] });
     } else if (m.role === 'assistant' && m.tool_calls?.length) {
-      const blocks = [];
+      // with extended thinking, the thinking blocks (with their signatures) must precede tool_use
+      const blocks = (m.thinkingBlocks || []).filter(b => b && (b.type === 'redacted_thinking' || (b.type === 'thinking' && b.signature)));
       if (m.content) blocks.push({ type: 'text', text: m.content });
       for (const tc of m.tool_calls) {
         let input = {}; try { input = JSON.parse(tc.function.arguments || '{}'); } catch {}
@@ -245,21 +259,25 @@ async function chatAnthropic(cfg, key, { messages, tools, temperature, onDelta, 
     res = await post();
     if (!res.ok) throw await httpError(res);
   }
-  let content = '';
-  const calls = {};
+  let content = '', reasoning = '';
+  const calls = {}, thinking = {};
   for await (const line of sseLines(res, signal)) {
     if (!line.startsWith('data:')) continue;
     let j; try { j = JSON.parse(line.slice(5)); } catch { continue; }
     if (j.type === 'content_block_start' && j.content_block?.type === 'tool_use') calls[j.index] = { id: j.content_block.id, name: j.content_block.name, arguments: '' };
+    else if (j.type === 'content_block_start' && j.content_block?.type === 'thinking') thinking[j.index] = { type: 'thinking', thinking: j.content_block.thinking || '', signature: j.content_block.signature || '' };
+    else if (j.type === 'content_block_start' && j.content_block?.type === 'redacted_thinking') thinking[j.index] = { type: 'redacted_thinking', data: j.content_block.data };
     else if (j.type === 'content_block_delta') {
       if (j.delta.type === 'thinking_delta') {
         const bit = j.delta.thinking || j.delta.text || '';
-        if (bit) onThinking && onThinking(bit);
-      } else if (j.delta.type === 'text_delta') { content += j.delta.text; onDelta && onDelta(j.delta.text); }
+        if (thinking[j.index]) thinking[j.index].thinking += bit;
+        if (bit) { reasoning += bit; onThinking && onThinking(bit); }
+      } else if (j.delta.type === 'signature_delta') { if (thinking[j.index]) thinking[j.index].signature += j.delta.signature || ''; }
+      else if (j.delta.type === 'text_delta') { content += j.delta.text; onDelta && onDelta(j.delta.text); }
       else if (j.delta.type === 'input_json_delta' && calls[j.index]) calls[j.index].arguments += j.delta.partial_json;
     }
   }
-  return { content, toolCalls: Object.values(calls).map(c => ({ ...c, arguments: c.arguments || '{}' })) };
+  return { content, reasoning, thinkingBlocks: Object.keys(thinking).sort((a, b) => a - b).map(k => thinking[k]), toolCalls: Object.values(calls).map(c => ({ ...c, arguments: c.arguments || '{}' })) };
 }
 
 // Per-conversation model override: chat.js runs a session inside withModel({provider, model}, fn);
@@ -356,7 +374,7 @@ async function chatLocalRouted(c, opts) {
 
 async function chat(opts) {
   const c = currentConfig();
-  if (c.source === 'local') return chatLocalRouted(c, opts.messages ? { ...opts, messages: stripImages(opts.messages) } : opts);
+  if (c.source === 'local') return chatLocalRouted(c, opts.messages ? { ...opts, messages: stripImages(opts.messages).map(m => (m && ('reasoning' in m || 'thinkingBlocks' in m)) ? (({ reasoning, thinkingBlocks, ...r }) => r)(m) : m) } : opts);
   if (opts.messages) {
     const caps = modelCaps(c.api.preset, c.api.model);
     opts = { ...opts, messages: prepImages(opts.messages, { vision: !(caps && caps.vision === false), format: c.api.format }) };

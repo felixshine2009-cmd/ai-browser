@@ -84,6 +84,31 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     await sleep(400); await shot('03-chat');
   });
 
+  await test('Chat 对话串（v3.0.0）：追问追加在下方、思考过程折叠、停止按钮保留部分回答并标记“已中止”', async () => {
+    llm.state.script = ({ system, lastUser }) => {
+      if (!/web-research agent/.test(system)) return null;
+      if (/IPADQ2/.test(lastUser)) return { reasoning: '分析第二个问题。', text: ('IPADSLOW-').repeat(400), delay: 60 };
+      if (/IPADQ1/.test(lastUser)) return { reasoning: '分析第一个问题。', text: 'IPAD-ANSWER-1 第一个回答。' };
+      return null;
+    };
+    try {
+      await app.invoke('nav:openUrl', 'aibrowser://home'); await sleep(500);
+      await ch.click('#modeseg [data-mode="chat"]').catch(() => {});
+      await app.submit('IPADQ1 悬链线是什么？');
+      // the page of this conversation (an earlier test left another chat tab open)
+      const cp = await until(async () => { for (const p of app.ctx.pages()) if (p.url().startsWith('aibrowser://chat') && /IPADQ1/.test(await p.locator('#turns').innerText().catch(() => ''))) return p; return null; }, 15000, 'chat page');
+      await until(async () => /IPAD-ANSWER-1/.test(await cp.locator('#turns').innerText().catch(() => '')) && (await cp.locator('#followgo').innerText()) === '↵', 20000, 'answer 1');
+      eq(await cp.locator('details.think-box').first().evaluate(d => d.open), false, 'thinking collapsed');
+      await cp.fill('#followq', 'IPADQ2 请继续详细展开？'); await cp.press('#followq', 'Enter');
+      await until(async () => (await cp.locator('.chat-turn').count()) === 2 && /IPADSLOW/.test(await cp.locator('.chat-turn').nth(1).innerText()), 20000, 'streaming 2');
+      eq(await cp.locator('#followgo').innerText(), '■', 'stop button');
+      await cp.click('#followgo');
+      await until(async () => /已中止/.test(await cp.locator('.chat-turn').nth(1).locator('.turn-meta').innerText().catch(() => '')), 5000, 'stopped');
+      assert(/IPAD-ANSWER-1/.test(await cp.locator('.chat-turn').nth(0).innerText()), 'first turn still shown');
+      await sleep(300); await shot('03b-chat-thread');
+    } finally { llm.state.script = null; }
+  });
+
   await test('Python（内置 Pyodide，隐藏 web 视图内核）：AI 调用 python_run → sympy / numpy 结果', async () => {
     const bundle = process.env.AIB_IPAD_BUNDLE || '';
     if (!bundle || !fs.existsSync(path.join(bundle, 'pyodide', 'pyodide.mjs'))) return console.log('    (跳过：负载中没有 Pyodide，先运行 scripts/fetch-ipad-pyodide.js)');

@@ -55,6 +55,7 @@
         <div class="row-actions">
           <div class="model-host" id="askModel"></div>
           <button type="button" class="primary" id="btnSend" data-i18n="send">Send</button>
+          <button type="button" id="btnNewChat" data-i18n="newChat">New chat</button>
           <button type="button" id="btnLocal" data-i18n="localModels">Local models</button>
         </div>
         <div class="home-tools" id="hometools"></div>
@@ -117,7 +118,7 @@
       </div>
       <div id="tools" class="status"></div>
       <div id="status" class="status"></div>
-      <div id="thinking" class="thinking-box" hidden></div>
+      <details id="thinkbox" class="think-box" hidden><summary id="thinksum"></summary><div id="thinking" class="think-body"></div></details>
       <div id="answer" class="answer"></div>
       <h3 data-i18n="kb">KB</h3>
       <textarea id="kbText" rows="2" placeholder="Paste text…"></textarea>
@@ -199,6 +200,7 @@
     <p class="note-desk" data-i18n="deskNote"></p>
   </div>
 </div>
+<script src="js/thread.js"></script>
 <script src="js/v36.js"></script>
 <script src="js/model-catalog.js"></script>
 <script src="js/model-picker.js"></script>

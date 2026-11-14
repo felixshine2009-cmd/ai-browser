@@ -2,10 +2,33 @@
 (async function () {
   await I18N.init();
   const params = new URLSearchParams(location.search);
-  const sid = params.get('sid');
+  // v3.0.0: one page per conversation thread. Earlier turns stay above (frozen), the live turn streams below, and the
+  // input stays at the bottom; a follow-up is appended under the last answer instead of opening a new page.
+  let sid = params.get('sid');
   const root = document.getElementById('root');
   const esc = MD.esc;
-  const st = { kind: null, input: '', answer: '', sources: [], cites: {}, tools: [], queries: [], pages: [], done: false, error: null, direct: false, phase: 'init', pngs: [] };
+  const freshState = () => ({ kind: null, input: '', answer: '', sources: [], cites: {}, tools: [], queries: [], pages: [], done: false, error: null, direct: false, phase: 'init', pngs: [], think: '', thinkStart: 0, thinkEnd: 0 });
+  let st = freshState();
+  root.innerHTML = '<div class="chat-app"><div class="chat-scroll" id="chatscroll"><div class="chat-turns" id="turns"></div></div><div id="followhost"></div></div>';
+  const turnsEl = document.getElementById('turns'), scroller = document.getElementById('chatscroll');
+  let live = null; // container of the turn being rendered
+  function newTurn(input, kind) {
+    const w = document.createElement('div'); w.className = 'chat-turn';
+    if (kind && kind !== 'question') { const u = document.createElement('div'); u.className = 'chat-user'; u.innerHTML = '<div class="bubble selectable"></div>'; u.firstChild.textContent = input; w.appendChild(u); }
+    const body = document.createElement('div'); body.className = 'chat-turn-body'; w.appendChild(body);
+    turnsEl.appendChild(w); return body;
+  }
+  // keeps a finished turn on the page: element ids are removed so the next turn can use them
+  function freeze() {
+    if (!live) return;
+    const w = live.parentElement; w.classList.add('frozen');
+    w.querySelectorAll('[id]').forEach(n => { n.dataset.fid = n.id; n.removeAttribute('id'); });
+    w.querySelectorAll('iframe[data-ext]').forEach(f => { f.dataset.frozenExt = f.dataset.ext; f.removeAttribute('data-ext'); });
+    w.querySelectorAll('.q-edit, .rerun').forEach(n => { n.disabled = true; });
+    live = null; els = {}; runs = null;
+  }
+  const nearBottom = () => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 160;
+  const toBottom = (force) => { if (force || nearBottom()) scroller.scrollTop = scroller.scrollHeight; };
   let els = {};
   let runs = null;
   let renderQueued = false;
@@ -15,26 +38,35 @@
 
   // ----- skeletons per kind
   function buildQuestion() {
-    root.innerHTML = '';
+    live.innerHTML = '';
     const page = el('div', 'ai-page');
     const qbar = el('div', 'ai-query-bar');
     qbar.innerHTML = `<div class="q selectable" id="q"></div><div class="ai-label" id="qlabel" style="margin-top:8px;display:none"></div><div class="query-rewrites" id="rewrites"></div>`;
     const body = el('div', 'ai-body');
     const main = el('div', 'ai-main');
-    main.innerHTML = `<div class="ai-label" id="alabel"></div><div id="status" class="status-line"></div><div id="thinking" class="thinking-box"></div><div id="toolsrow"></div><div id="trace" class="trace"></div><div id="runs" class="runs"></div><div class="ai-answer selectable" id="answer"></div><div id="figs" class="run-figs"></div><div id="pngs"></div><div id="err"></div>`;
+    main.innerHTML = `<div class="ai-label" id="alabel"></div><div id="status" class="status-line"></div><details class="think-box" id="thinkbox" hidden><summary id="thinksum"></summary><div class="think-body selectable" id="thinking"></div></details><div id="toolsrow"></div><div id="trace" class="trace"></div><div id="runs" class="runs"></div><div class="ai-answer selectable" id="answer"></div><div id="figs" class="run-figs"></div><div id="pngs"></div><div id="err"></div>`;
     const side = el('div', 'ai-side');
     side.style.display = 'none';
     side.innerHTML = `<div class="ai-label" id="plabel"></div><div class="pages-read" id="pages"></div><div class="ai-label" id="slabel"></div><div id="sources"></div>`;
     body.append(main, side);
-    const follow = el('div', 'chat-follow');
-    follow.innerHTML = `<div class="chat-follow-bar"><div id="followmodel"></div></div><div class="home-search-box chat-follow-box"><textarea id="followq" rows="1" spellcheck="false" placeholder=""></textarea><button type="button" class="go" id="followgo" title="Send">↵</button></div><div id="vkhost"></div>`;
-    page.append(qbar, body, follow);
-    root.appendChild(page);
-    els = { q: qs('q'), qlabel: qs('qlabel'), rewrites: qs('rewrites'), alabel: qs('alabel'), status: qs('status'), trace: qs('trace'), answer: qs('answer'), toolsrow: qs('toolsrow'), pngs: qs('pngs'), err: qs('err'), side, plabel: qs('plabel'), pages: qs('pages'), slabel: qs('slabel'), sources: qs('sources'), body, main, followq: qs('followq') };
+    page.append(qbar, body);
+    live.appendChild(page);
+    els = { q: qs('q'), qlabel: qs('qlabel'), rewrites: qs('rewrites'), alabel: qs('alabel'), status: qs('status'), trace: qs('trace'), answer: qs('answer'), toolsrow: qs('toolsrow'), pngs: qs('pngs'), err: qs('err'), side, plabel: qs('plabel'), pages: qs('pages'), slabel: qs('slabel'), sources: qs('sources'), body, main, thinkbox: qs('thinkbox'), thinksum: qs('thinksum'), thinking: qs('thinking') };
     els.runs = qs('runs'); els.figs = qs('figs');
     runs = window.RunPanels ? RunPanels.create(els.runs, els.figs, { lang: () => I18N.lang, onStop: (id) => window.aib.invoke('chat:stopTool', id) }) : null;
     els.q.textContent = st.input;
     els.alabel.textContent = t('chat.answer') + (st.modelLabel ? ' · ' + st.modelLabel : '');
+    els.plabel.textContent = t('chat.pagesRead');
+    els.slabel.textContent = t('chat.sources');
+  }
+  const qs = id => document.getElementById(id);
+
+  // ----- the input at the bottom (one per page): model switcher, send / stop, new conversation
+  let fq = null, goBtn = null;
+  function buildFollow() {
+    const host = qs('followhost');
+    host.className = 'chat-follow';
+    host.innerHTML = `<div class="chat-follow-bar"><div id="followmodel"></div><button type="button" class="chip chat-new" id="newchat"></button></div><div class="home-search-box chat-follow-box"><textarea id="followq" rows="1" spellcheck="false" placeholder=""></textarea><button type="button" class="go" id="followgo"></button></div><div id="vkhost"></div>`;
     // per-conversation model switcher: applies to follow-up questions in this conversation
     if (window.AIBModelPicker && qs('followmodel')) {
       const mp = AIBModelPicker.mount(qs('followmodel'), {
@@ -48,16 +80,14 @@
       window.__AIB_MP__ = mp;
       if (!window.__AIB_MP_SUB__) { window.__AIB_MP_SUB__ = true; window.aib.on('models:changed', () => window.__AIB_MP__ && window.__AIB_MP__.refresh()); }
     }
-    els.plabel.textContent = t('chat.pagesRead');
-    els.slabel.textContent = t('chat.sources');
-    const fq = qs('followq'); fq.placeholder = t('home.placeholder');
-    const sendFollow = async () => {
-      const v = fq.value.trim(); if (!v) return;
-      const nsid = await window.aib.invoke('chat:follow', sid, v);
-      if (nsid) location.href = 'aibrowser://chat?sid=' + nsid;
-    };
-    qs('followgo').onclick = sendFollow;
-    fq.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendFollow(); } });
+
+    fq = qs('followq'); goBtn = qs('followgo');
+    fq.placeholder = t('home.placeholder');
+    const nb = qs('newchat'); nb.textContent = I18N.lang === 'en' ? 'New chat' : '新对话'; nb.title = nb.textContent;
+    nb.onclick = () => { location.href = 'aibrowser://home'; };
+    goBtn.onclick = () => (busy() ? stop() : sendFollow());
+    fq.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!busy()) sendFollow(); } });
+    fq.addEventListener('input', () => { fq.style.height = 'auto'; fq.style.height = Math.min(200, fq.scrollHeight) + 'px'; });
     if (window.VKeyboard) {
       const vk = VKeyboard.mount(qs('vkhost'), { getTarget: () => fq, collapsed: true });
       window.__AIB_VK__ = vk;
@@ -70,24 +100,51 @@
         else if (msg.action === 'tab' && msg.tab) vk.setTab(msg.tab);
       });
     }
+    setBusy(false);
   }
-  const qs = id => document.getElementById(id);
+  let liveBusy = false;
+  const busy = () => liveBusy;
+  function setBusy(b) {
+    liveBusy = !!b;
+    if (!goBtn) return;
+    goBtn.classList.toggle('stop', liveBusy);
+    goBtn.textContent = liveBusy ? '■' : '↵';
+    goBtn.title = liveBusy ? (I18N.lang === 'en' ? 'Stop (Esc)' : '停止生成（Esc）') : (I18N.lang === 'en' ? 'Send' : '发送');
+    goBtn.setAttribute('aria-label', goBtn.title);
+  }
+  async function stop() { if (!liveBusy || !sid) return; await window.aib.invoke('chat:cancel', sid); }
+  document.addEventListener('keydown', (e) => {
+    if (!liveBusy) return;
+    if (e.key === 'Escape' || ((e.metaKey || e.ctrlKey) && e.key === '.')) { e.preventDefault(); stop(); }
+  });
+  // the address stays on the newest turn, so reopening the tab (or a restart) shows the whole thread again
+  function setUrl(id) { try { if (new URLSearchParams(location.search).get('sid') !== id) history.replaceState(null, '', '?sid=' + encodeURIComponent(id)); } catch (e) { console.warn('replaceState', e && e.message); } }
+  async function sendFollow() {
+    const v = fq.value.trim(); if (!v || !sid) return;
+    fq.value = ''; fq.style.height = '';
+    const nsid = await window.aib.invoke('chat:follow', sid, v);
+    if (!nsid) return;
+    freeze();
+    sid = nsid;
+    setUrl(nsid);
+    await startLive(nsid, v);
+  }
 
   function buildSentence() {
-    root.innerHTML = `<div class="sent-page"><h2>${esc(t('sent.orig'))}</h2><div id="sorig" class="sent-orig selectable"></div>
+    live.innerHTML = `<div class="sent-page"><h2>${esc(t('sent.orig'))}</h2><div id="sorig" class="sent-orig selectable"></div>
       <div class="legend" id="legend"></div><div id="strans"></div><h2 id="sbh" style="display:none">${esc(t('sent.breakdown'))}</h2><div id="sbreak"></div><div id="status" class="status-line"></div><div id="err"></div></div>`;
     qs('sorig').textContent = st.input;
     qs('status').textContent = t('chat.thinking');
     els = { status: qs('status'), err: qs('err') };
   }
   function buildArticle() {
-    root.innerHTML = `<div class="article-page"><div class="article-toolbar"><div style="font-weight:600">${esc(t('article.title'))}</div><div><button class="btn-secondary copy-btn" id="copybtn">${esc(t('article.copy'))}</button></div></div>
+    live.innerHTML = `<div class="article-page"><div class="article-toolbar"><div style="font-weight:600">${esc(t('article.title'))}</div><div><button class="btn-secondary copy-btn" id="copybtn">${esc(t('article.copy'))}</button></div></div>
       <div class="article-cols"><div class="article-col selectable" id="asrc"><div class="lang">${esc(t('article.src'))}</div></div><div class="article-col selectable" id="adst"><div class="lang">${esc(t('article.dst'))}</div><div id="atext"></div></div></div><div id="err" style="padding:0 28px"></div></div>`;
     els = { asrc: qs('asrc'), atext: qs('atext'), err: qs('err') };
     qs('copybtn').onclick = () => { navigator.clipboard && navigator.clipboard.writeText(qs('atext').innerText); };
   }
   function buildWord() {
-    root.innerHTML = `<div class="dict-page" id="dictpage"><div class="dict-title" id="dtitle"></div><div id="dwrap" style="flex:1;min-height:0;display:flex;flex-direction:column"></div><div id="err" style="padding:0 40px"></div></div>`;
+    live.innerHTML = `<div class="dict-page" id="dictpage"><div class="dict-title" id="dtitle"></div><div id="dwrap" style="flex:1;min-height:0;display:flex;flex-direction:column"></div><div id="err" style="padding:0 40px"></div></div>`;
     els = { dwrap: qs('dwrap'), dtitle: qs('dtitle'), err: qs('err'), dictpage: qs('dictpage') };
     els.dtitle.innerHTML = `<span class="dict-headword" style="font-size:28px;color:var(--text-primary)">${esc(st.input)}</span>`;
     els.dwrap.innerHTML = `<div class="status-line" style="padding:0 40px">${esc(t('chat.thinking'))}</div>`;
@@ -99,23 +156,24 @@
       case 'kind':
         st.kind = ev.kind === 'solve' ? 'question' : ev.kind;
         ({ word: buildWord, sentence: buildSentence, article: buildArticle }[ev.kind] || buildQuestion)();
+        if (st.kind !== 'question' && live && !live.parentElement.querySelector('.chat-user')) { const u = el('div', 'chat-user'); u.innerHTML = '<div class="bubble selectable"></div>'; u.firstChild.textContent = st.input; live.parentElement.insertBefore(u, live); }
         break;
       case 'queries': st.queries = ev.queries; st.direct = ev.direct; renderQueries(); if (ev.direct) setStatus(t('chat.generating')); else if (!ev.queries.length) setStatus(t('chat.thinking')); break;
       case 'search-start': break;
       case 'model': st.modelLabel = ev.label || ''; if (els.alabel) els.alabel.textContent = t('chat.answer') + (st.modelLabel ? ' · ' + st.modelLabel : ''); break;
       case 'status': setStatus(ev.text); addTrace(ev.text); break;
-      case 'thinking': st.think = (st.think || '') + ev.text; if (els.thinking) els.thinking.textContent = '正在处理\n' + st.think.slice(-500); break;
+      case 'thinking': st.think = (st.think || '') + ev.text; if (!st.thinkStart) st.thinkStart = Date.now(); st.thinkEnd = Date.now(); renderThinking(); break;
       case 'translate-error': setStatus((t('chat.translateFail') || 'Translation failed') + ': ' + (ev.error || '')); addTrace('✕ ' + (ev.error || '')); break;
       case 'answer-reset': st.answer = ''; st.translation = ''; queueRender(); break;
       case 'serp': break;
       case 'pages': st.pages = ev.pages; els.side.style.display = ''; renderPages(); break;
       case 'page-update': { const p = st.pages.find(x => x.n === ev.n); if (p) { p.status = ev.status; if (ev.title) p.title = ev.title; renderPages(); } break; }
       case 'sources': st.sources = ev.sources; st.cites = {}; ev.sources.forEach(s => st.cites[s.n] = s); renderSources(); setStatus(t('chat.generating')); break;
-      case 'answer-delta': st.answer += ev.text; setStatus(''); queueRender(); break;
-      case 'tool-step': if (!(runs && runs.step(ev))) traceStep(ev); break;
+      case 'answer-delta': st.answer += ev.text; setStatus(''); if (st.think && !st.thinkDone) { st.thinkDone = true; renderThinking(); } queueRender(); break;
+      case 'tool-step': if (!(runs && runs.step(ev))) traceStep(ev); thinkStep(ev); break;
       case 'tool-stream': if (runs) runs.stream(ev); break;
       case 'notice': if (els.trace) { const d = el('div', 'trace-line notice'); d.textContent = ev.text; els.trace.appendChild(d); } break;
-      case 'tool': st.tools.push(ev); renderTools(); if (runs) runs.tool(ev); if (ev.name === 'ggb_eval' || ev.name === 'ggb_clear' || ev.name === 'ggb_export_png') ensurePlotLayout(); break;
+      case 'tool': st.tools.push(ev); renderTools(); if (runs) runs.tool(ev); if (!replaying && (ev.name === 'ggb_eval' || ev.name === 'ggb_clear' || ev.name === 'ggb_export_png')) ensurePlotLayout(); break;
       case 'handler-result': renderHandlerResult(ev); break;
       case 'ai-entry-pending': els.dwrap.innerHTML = `<div class="status-line" style="padding:0 40px">${esc(t('dict.aiGenerating'))}</div>`; break;
       case 'ai-entry': {
@@ -131,8 +189,44 @@
       case 'article-src': buildArticleSrc(ev); break;
       case 'translation-delta': st.translation = (st.translation || '') + ev.text; renderTranslation(); break;
       case 'error': showError(ev); break;
-      case 'done': st.done = true; setStatus(''); if (st.kind === 'question') finalizeQuestion(); break;
+      case 'stopped': st.stopped = true; break;
+      case 'done': st.done = true; st.thinkDone = true; setStatus(''); if (st.kind === 'question') finalizeQuestion(); renderThinking(ev.thinkMs); renderMeta(ev); setBusy(false); break;
     }
+  }
+  // ----- thinking (collapsed by default; streams while expanded) and tool steps
+  function thinkSecs(ms) { return Math.max(1, Math.round(ms / 1000)); }
+  function renderThinking(storedMs) {
+    if (!els.thinkbox || (!st.think && !(st.thinkSteps || []).length)) return;
+    els.thinkbox.hidden = false;
+    const ms = storedMs || (st.thinkStart ? (st.thinkDone ? st.thinkEnd : Date.now()) - st.thinkStart : 0);
+    const en = I18N.lang === 'en', fin = st.thinkDone || st.done;
+    els.thinksum.textContent = (en ? 'Thinking' : '思考过程') + ' · ' + (fin ? (en ? `thought for ${thinkSecs(ms)} s` : `已思考 ${thinkSecs(ms)} 秒`) : (en ? 'thinking…' : '正在思考…'));
+    els.thinking.textContent = st.think || '';
+    (st.thinkSteps || []).forEach(x => { const d = el('div', 'think-step'); d.textContent = x; els.thinking.appendChild(d); });
+    if (els.thinkbox.open) els.thinking.scrollTop = els.thinking.scrollHeight;
+    if (!st.thinkTimer && !fin) {
+      const box = els.thinkbox, mine = st;
+      mine.thinkTimer = setInterval(() => { if (mine.thinkDone || mine.done || !box.isConnected || st !== mine) { clearInterval(mine.thinkTimer); return; } renderThinking(); }, 1000);
+    }
+  }
+  function thinkStep(ev) {
+    if (ev.status === 'run' || !ev.label) return;
+    st.thinkSteps = st.thinkSteps || [];
+    st.thinkSteps.push((ev.status === 'ok' ? '✓ ' : '✕ ') + ev.label + (ev.ms != null ? ` · ${(ev.ms / 1000).toFixed(1)} 秒` : ''));
+    renderThinking();
+  }
+  function renderMeta(ev) {
+    if (!live) return;
+    const host = els.main || live;
+    let m = host.querySelector('.turn-meta');
+    if (!m) { m = el('div', 'turn-meta'); host.appendChild(m); }
+    const stopped = !!(st.stopped || (ev && ev.stopped));
+    const parts = [];
+    const line = ev && ev.stats && ev.stats.line; if (line) parts.push(line);
+    if (stopped) parts.push(I18N.lang === 'en' ? 'Stopped' : '已中止');
+    m.textContent = parts.join(' · ');
+    m.classList.toggle('stopped', stopped);
+    if (!parts.length) m.remove();
   }
   function traceStep(ev) {
     if (!els.trace) return;
@@ -155,12 +249,12 @@
   }
 
   // ----- question rendering
-  function queueRender() { if (renderQueued) return; renderQueued = true; requestAnimationFrame(() => { renderQueued = false; renderAnswer(); }); }
+  function queueRender() { if (renderQueued) return; renderQueued = true; requestAnimationFrame(() => { renderQueued = false; const stick = nearBottom(); renderAnswer(); if (stick) toBottom(true); }); }
   function renderAnswer() { if (els.answer) els.answer.innerHTML = MD.render(String(st.answer || '').replace(/(^|\n).*((调用了|使用了).{0,16}工具|I used the \w+ tool).*/gi, '$1'), st.cites); }
   function finalizeQuestion() { renderAnswer(); renderAnswerActions(); }
   function renderAnswerActions() {
     if (!st.answer || qs('actions')) return;
-    const a = el('div'); a.id = 'actions'; a.style.cssText = 'display:flex;gap:8px;margin-top:12px';
+    const a = el('div', 'turn-actions'); a.id = 'actions'; a.style.cssText = 'display:flex;gap:8px;margin-top:12px';
     const copy = el('button', 'chip'); copy.textContent = t('chat.copy'); copy.onclick = () => navigator.clipboard && navigator.clipboard.writeText(st.answer);
     a.appendChild(copy); els.main.appendChild(a);
   }
@@ -172,7 +266,7 @@
     const b = el('button', 'btn-ghost rerun'); b.textContent = t('chat.rerun'); b.onclick = rerun; els.rewrites.appendChild(b);
   }
   async function rerun() {
-    const qsx = Array.from(document.querySelectorAll('.q-edit')).map(i => i.value.trim()).filter(Boolean);
+    const qsx = Array.from(document.querySelectorAll('.q-edit:not(:disabled)')).map(i => i.value.trim()).filter(Boolean);
     if (!qsx.length) return;
     const nsid = await window.aib.invoke('chat:rerun', sid, qsx);
     if (nsid) location.href = 'aibrowser://chat?sid=' + nsid;
@@ -301,13 +395,56 @@
   I18N.onChange(() => { if (st.kind === 'question' && els.alabel) { els.alabel.textContent = t('chat.answer'); els.plabel.textContent = t('chat.pagesRead'); els.slabel.textContent = t('chat.sources'); renderQueries(); } });
 
   // ----- start
-  let ready = false; const buf = [];
-  window.aib.on('chat:event', (ev) => { if (ev.sid !== sid) return; if (!ready) buf.push(ev); else onEvent(ev); });
-  const snap = await window.aib.invoke('chat:attach', sid);
-  if (!snap) { root.innerHTML = `<div class="empty">${esc(t('chat.expired'))}</div>`; return; }
-  st.input = snap.input;
-  document.title = snap.input.slice(0, 60);
-  for (const ev of snap.events) onEvent(ev);
-  ready = true; buf.splice(0).forEach(onEvent);
-  if (!st.kind) { buildQuestion(); setStatus(t('chat.thinking')); st.kind = null; }
+  let liveReady = false; const liveBuf = [];
+  window.aib.on('chat:event', (ev) => { if (ev.sid !== sid || !live) return; if (!liveReady) liveBuf.push(ev); else { onEvent(ev); toBottom(); } });
+  async function startLive(id, input) {
+    liveReady = false; liveBuf.length = 0;
+    st = freshState(); st.input = input || '';
+    live = newTurn(st.input, null);
+    buildQuestion(); if (els.q) els.q.textContent = st.input; setStatus(t('chat.thinking')); st.kind = null;
+    setBusy(true); toBottom(true);
+    const snap = await window.aib.invoke('chat:attach', id);
+    if (!snap) { live.innerHTML = `<div class="empty">${esc(t('chat.expired'))}</div>`; setBusy(false); return false; }
+    st.input = snap.input; if (els.q) els.q.textContent = st.input;
+    for (const ev of snap.events) onEvent(ev);
+    liveReady = true; liveBuf.splice(0).forEach(onEvent);
+    if (snap.done || st.done) setBusy(false);
+    if (els.q && st.kind === 'question') els.q.textContent = st.input;
+    toBottom(true);
+    return true;
+  }
+  // a stored turn rendered with the same code as a live one (answers become synthetic events)
+  let replaying = false;
+  function replayTurn(tn) {
+    st = freshState(); st.input = tn.input;
+    const evs = tn.events && tn.events.length ? tn.events.slice() : [];
+    live = newTurn(tn.input, null);
+    if (!evs.length) {
+      evs.push({ type: 'kind', kind: 'question' });
+      if (tn.model) evs.push({ type: 'model', label: tn.model });
+      if (tn.thinking) evs.push({ type: 'thinking', text: tn.thinking });
+      (tn.tools || []).forEach(x => evs.push({ type: 'tool', name: x.name, args: {}, error: x.error }));
+      if ((tn.sources || []).length) evs.push({ type: 'sources', sources: tn.sources });
+      if (tn.answer) evs.push({ type: 'answer-delta', text: tn.answer });
+      if (tn.error) evs.push({ type: 'error', message: tn.error });
+    }
+    if (!evs.some(e => e.type === 'kind')) evs.unshift({ type: 'kind', kind: 'question' });
+    const body = evs.filter(e => e.type !== 'done' && e.type !== 'stopped');
+    if (tn.stopped) body.push({ type: 'stopped' });
+    body.push({ type: 'done', stopped: !!tn.stopped, thinkMs: tn.thinkMs, stats: { line: tn.line || '' } });
+    replaying = true;
+    for (const ev of body) { try { onEvent(ev); } catch (e) { console.error('replay', e); } }
+    replaying = false;
+    if (st.kind === 'question') { renderAnswer(); if (els.q) els.q.textContent = tn.input; }
+    freeze();
+  }
+  buildFollow();
+  const th = await window.aib.invoke('chat:thread', sid).catch(() => null);
+  if (th && th.turns) for (const tn of th.turns) replayTurn(tn);
+  if (th && th.title) document.title = th.title;
+  if (th && th.liveSid) { sid = th.liveSid; setUrl(sid); const ok = await startLive(sid, ''); if (ok && !th.turns.length) document.title = st.input.slice(0, 60) || document.title; }
+  else if (!th || !th.turns.length) turnsEl.innerHTML = `<div class="empty">${esc(t('chat.expired'))}</div>`;
+  else { sid = th.turns[th.turns.length - 1].sid || sid; setUrl(sid); setBusy(false); }
+  toBottom(true);
+  window.__AIB_CHAT__ = { sid: () => sid, busy, stop };
 })();

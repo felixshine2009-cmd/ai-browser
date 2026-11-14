@@ -131,7 +131,7 @@ async function runPipeline(s, ctx, D, queries, direct) {
   let userContent = q;
   if (sources.length) userContent = 'Web sources:\n' + sources.map(p => `[${p.n}] ${p.title} (${p.url})\n${(p.text || p.snippet || '').slice(0, isLocal() ? 1400 : 3800)}`).join('\n\n') + `\n\nQuestion: ${q}`;
   else if (!direct && queries.length) userContent = q + '\n\n(Note: web search found no relevant pages; say so briefly, then answer from general knowledge and mark it as such.)';
-  const messages = [{ role: 'system', content: P.answer({ date: today(), local: isLocal() }) + '\n' + v36.answerAddendum(store.getSettings().answerStyle) }, { role: 'user', content: userContent }];
+  const messages = [{ role: 'system', content: P.answer({ date: today(), local: isLocal() }) + '\n' + v36.answerAddendum(store.getSettings().answerStyle) }, ...(s.prior || []), { role: 'user', content: userContent }];
   const tools = llm.activeSource() === 'local' ? [] : registry.all({ web: false }).map(registry.def);
   await answerLoop(s, ctx, D, messages, tools, () => null);
 }
@@ -195,7 +195,7 @@ async function answerLoop(s, ctx, D, messages, tools, extra, maxRounds = 5) {
     const r = await llm.chat({ messages, tools, signal: s.ac.signal, onDelta: t => emit(s, { type: 'answer-delta', text: t }) });
     if (!r.toolCalls.length) return;
     if (r.content) emit(s, { type: 'answer-reset' });
-    messages.push({ role: 'assistant', content: r.content || null, tool_calls: r.toolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: tc.arguments } })) });
+    messages.push({ role: 'assistant', content: r.content || null, reasoning: r.reasoning || '', thinkingBlocks: r.thinkingBlocks || [], tool_calls: r.toolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: tc.arguments } })) });
     for (const tc of r.toolCalls) {
       let args = {}; try { args = JSON.parse(tc.arguments || '{}'); } catch {}
       let result;
@@ -271,7 +271,7 @@ async function runAgent(s, ctx, D) {
     }
     if (!r.toolCalls.length) break;
     if (r.content) emit(s, { type: 'answer-reset' });
-    messages.push({ role: 'assistant', content: r.content || null, tool_calls: r.toolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: tc.arguments } })) });
+    messages.push({ role: 'assistant', content: r.content || null, reasoning: r.reasoning || '', thinkingBlocks: r.thinkingBlocks || [], tool_calls: r.toolCalls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: tc.arguments } })) });
     // run web tools of one round concurrently, keep order
     const results = await Promise.all(r.toolCalls.map(async tc => {
       let args = {}; try { args = JSON.parse(tc.arguments || '{}'); } catch {}

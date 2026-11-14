@@ -287,7 +287,13 @@ function saveDownloads() { downloadsFile.save(); }
 
 function listChats() { return chatBag ? chatBag.list() : []; }
 function getChat(id) { return chatBag ? chatBag.get(id) : null; }
-function upsertChat(rec) { const row = chatBag.upsert(rec); chatFile.save(); return row; }
+function upsertChat(rec) {
+  const row = chatBag.upsert(rec);
+  // keep the newest threads only (v3.0.0 threads store every turn)
+  const all = chatBag.all(); if (all.length > 300) { all.sort((a, b) => (b.updated || 0) - (a.updated || 0)); all.length = 300; }
+  chatFile.save(); return row;
+}
+function deleteChat(id) { const all = chatBag ? chatBag.all() : []; const i = all.findIndex(x => x.id === id); if (i < 0) return false; all.splice(i, 1); chatFile.save(true); return true; }
 
 function flushAll() { [settingsFile, historyFile, bookmarksFile, downloadsFile, chatFile].forEach(f => f && f.flush()); }
 
@@ -295,5 +301,5 @@ module.exports = {
   init, getSettings, getApiKey, getKbApiKey, getProviderKey, setActiveModel, decKey, publicSettings, patchSettings, searchUrl, searchEngineInfo, ENGINES,
   addHistory, updateHistoryTitle, listHistory, clearHistory, countHistory, deleteHistory,
   listBookmarks, isBookmarked, toggleBookmark, removeBookmark,
-  downloads, saveDownloads, listChats, getChat, upsertChat, flushAll, DEFAULTS
+  downloads, saveDownloads, listChats, getChat, upsertChat, deleteChat, flushAll, DEFAULTS
 };

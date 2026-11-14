@@ -167,11 +167,27 @@ export async function deleteModelFiles(id){
 const fmtMB = (b) => (b >= 1e9 ? (b / 1e9).toFixed(2) + ' GB' : (b / 1e6).toFixed(1) + ' MB');
 export { fmtMB };
 
-export async function chat({ messages, temperature = 0.3, signal }){
+export async function chat({ messages, temperature = 0.3, signal, onDelta }){
   if (!engine) throw new Error('Local model not loaded. 本地模型尚未加载。');
   if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
-  const r = await engine.chat.completions.create({ messages, temperature, stream: false });
-  return r.choices?.[0]?.message?.content || '';
+  // Stop: interrupts the generation inside the engine; what was written so far stays
+  const onAbort = () => { try { engine.interruptGenerate && engine.interruptGenerate(); } catch {} };
+  if (signal) signal.addEventListener('abort', onAbort, { once: true });
+  try {
+    if (!onDelta) {
+      const r = await engine.chat.completions.create({ messages, temperature, stream: false });
+      return r.choices?.[0]?.message?.content || '';
+    }
+    let out = '';
+    const it = await engine.chat.completions.create({ messages, temperature, stream: true });
+    for await (const ch of it) {
+      const d = ch.choices?.[0]?.delta?.content || '';
+      if (d) { out += d; onDelta(d); }
+      if (signal && signal.aborted) break;
+    }
+    if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
+    return out;
+  } finally { if (signal) signal.removeEventListener('abort', onAbort); }
 }
 
 /** Agent-facing tool handlers (web). */

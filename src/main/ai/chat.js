@@ -12,6 +12,7 @@ const P = require('./prompts');
 const ipa = require('./ipa');
 const agent = require('./agent');
 const translator = require('./translate');
+const T = require('./thread');
 
 const sessions = new Map();
 
@@ -20,14 +21,30 @@ function today() { return new Date().toISOString().slice(0, 10); }
 function create(input, kindOverride, extra) {
   extra = extra || {};
   const sid = crypto.randomBytes(6).toString('hex');
-  const s = { sid, input, kindOverride: kindOverride || null, events: [], wcId: null, started: false, ac: new AbortController(), done: false, prior: extra.prior || [], refs: extra.refs || [], images: extra.images || [], threadId: extra.threadId || null };
+  const s = { sid, input, kindOverride: kindOverride || null, events: [], wcId: null, started: false, ac: new AbortController(), done: false, prior: extra.prior || [], priorTurns: extra.priorTurns || null, refs: extra.refs || [], images: extra.images || [], threadId: extra.threadId || null,
+    answer: '', thinking: '', sources: [], tools: [], model: '', kind: null, startedAt: 0, firstAt: 0, endedAt: 0, stopped: false, error: '' };
   s.threadId = s.threadId || sid;
   sessions.set(sid, s);
   if (sessions.size > 60) sessions.delete(sessions.keys().next().value);
   return sid;
 }
 
+function track(s, ev) {
+  switch (ev.type) {
+    case 'answer-delta': case 'translation-delta': if (!s.firstAt) s.firstAt = Date.now(); s.answer += ev.text || ''; break;
+    case 'answer-reset': s.answer = ''; break;
+    case 'thinking': if (!s.thinkStart) s.thinkStart = Date.now(); s.thinking += ev.text || ''; s.thinkEnd = Date.now(); break;
+    case 'sources': s.sources = ev.sources || []; break;
+    case 'tool': s.tools.push({ name: ev.name, error: ev.error ? String(ev.error).slice(0, 200) : '' }); break;
+    case 'model': s.model = ev.label || ''; break;
+    case 'kind': s.kind = ev.kind; break;
+    case 'error': s.error = String(ev.message || ''); break;
+  }
+}
 function emit(s, ev) {
+  // after Stop, late output of the aborted model / tools is dropped (the partial answer stays as it was)
+  if (s.stopped && ev.type !== 'stopped' && ev.type !== 'done') return;
+  track(s, ev);
   // coalesce consecutive deltas of the same stream to keep replay small
   const last = s.events[s.events.length - 1];
   if ((ev.type === 'answer-delta' || ev.type === 'translation-delta') && last && last.type === ev.type) last.text += ev.text;
@@ -51,10 +68,68 @@ function fail(s, e) {
   if (s.ac.signal.aborted) return;
   console.error('chat error:', e && e.message);
   emit(s, { type: 'error', message: String(e && e.message || e), code: e && e.code });
-  s.done = true; emit(s, { type: 'done' });
+  s.done = true; s.endedAt = Date.now(); emit(s, { type: 'done', stats: statsOf(s) }); saveTurn(s);
 }
-function cancel(sid) { const s = sessions.get(sid); if (s) { s.ac.abort(); s.done = true; } }
+/** Stop button / Esc: aborts the model stream, running tools and the agent loop; the partial answer is kept. */
+function cancel(sid) {
+  const s = sessions.get(sid);
+  if (!s || s.done) return false;
+  s.stopped = true; s.ac.abort();
+  s.done = true; s.endedAt = Date.now();
+  emit(s, { type: 'stopped' });
+  emit(s, { type: 'done', stopped: true, stats: statsOf(s) });
+  saveTurn(s);
+  return true;
+}
 function cancelForWebContents(wcId) { for (const s of sessions.values()) if (s.wcId === wcId && !s.done) s.ac.abort(); }
+
+// ---------- threads (v3.0.0): every finished turn is stored with its thread, so the page shows the whole conversation
+function statsOf(s) { return { startedAt: s.startedAt, firstAt: s.firstAt, endedAt: s.endedAt || Date.now(), answer: s.answer, line: T.statsLine({ startedAt: s.startedAt, firstAt: s.firstAt, endedAt: s.endedAt || Date.now(), answer: s.answer }) }; }
+function record(s) {
+  const r = T.turnRecord({ sid: s.sid, input: s.input, kind: s.kind, answer: s.answer, sources: s.sources, tools: s.tools, model: s.model, error: s.error, startedAt: s.startedAt, firstAt: s.firstAt, endedAt: s.endedAt });
+  r.thinking = String(s.thinking || '').slice(0, 20000);
+  r.thinkMs = s.thinkStart ? Math.max(0, (s.thinkEnd || s.endedAt) - s.thinkStart) : 0;
+  r.stopped = !!s.stopped;
+  // word / sentence / article results are replayed from their events (they are not plain answers)
+  if (s.kind && s.kind !== 'question') r.events = s.events.filter(e => e.type !== 'thinking').slice(0, 400);
+  return r;
+}
+function saveTurn(s) {
+  if (s.saved && !s.stopped) return; s.saved = true;
+  if (!s.input || s.ephemeral) return;
+  try {
+    const id = s.threadId || s.sid;
+    const row = store.getChat(id) || { id, title: T.title(s.input), kind: 'thread', turns: [] };
+    T.addTurn(row, record(s));
+    if (!row.title) row.title = T.title(row.turns[0].input);
+    store.upsertChat(row);
+  } catch (e) { console.error('chat save', e && e.message); }
+}
+function findThread(sid) {
+  const s = sessions.get(sid);
+  if (s) return store.getChat(s.threadId || s.sid);
+  return store.listChats().find(r => r.id === sid || (r.turns || []).some(t => t.sid === sid)) || null;
+}
+/** The whole stored thread of `sid`, plus the turn still being answered (not stored yet), if any. */
+function thread(sid) {
+  const s = sessions.get(sid);
+  const row = findThread(sid);
+  const threadId = s ? (s.threadId || s.sid) : (row ? row.id : null);
+  if (!threadId) return null;
+  const turns = (row && Array.isArray(row.turns) ? row.turns : []).map(t => Object.assign({}, t, { line: T.statsLine(t) }));
+  let liveSid = null;
+  for (const x of sessions.values()) if ((x.threadId || x.sid) === threadId && !x.done && !turns.some(t => t.sid === x.sid)) liveSid = x.sid;
+  // a turn that just started (or finished without being stored, e.g. an empty input) is attached live
+  if (!liveSid && s && !turns.some(t => t.sid === sid)) liveSid = sid;
+  return { threadId, title: row ? row.title : T.title(s && s.input), turns, liveSid };
+}
+function contextOpts() {
+  try {
+    if (isLocal()) return { local: true, contextTokens: Number(store.getSettings().ai.local.contextSize) || 4096 };
+    const m = llm.activeModel(); const caps = llm.modelCaps(m.provider, m.model);
+    return { local: false, contextTokens: (caps && (caps.ctx || caps.context)) || 32000 };
+  } catch { return { local: false, contextTokens: 32000 }; }
+}
 function get(sid) { return sessions.get(sid); }
 
 async function run(s) {
@@ -63,8 +138,11 @@ async function run(s) {
   // per-conversation model (chosen in this thread's switcher); otherwise the global current model
   const models = require('./models');
   const ref = models.threadModel(s.threadId || s.sid);
+  s.startedAt = s.startedAt || Date.now();
   try {
     await llm.withModel(ref, async () => {
+      // earlier turns of the thread, trimmed to the context budget of the model that answers this turn
+      if (s.priorTurns) s.prior = T.priorMessages(s.priorTurns, contextOpts());
       const m = llm.activeModel();
       emit(s, { type: 'model', provider: m.provider, model: m.model, label: ref ? models.labelOf(ref) : m.label, override: !!ref });
       await run0(s);
@@ -91,7 +169,7 @@ async function run0(s) {
   }
   finish(s);
 }
-function finish(s) { if (s.done) return; s.done = true; emit(s, { type: 'done' }); }
+function finish(s) { if (s.done) return; s.done = true; s.endedAt = Date.now(); emit(s, { type: 'done', stats: statsOf(s) }); saveTurn(s); }
 
 // ---------- word
 const isLocal = () => llm.activeSource() === 'local';
@@ -247,9 +325,15 @@ function answerText(s) {
 function follow(sid, text, extra) {
   extra = extra || {};
   const old = sessions.get(sid);
-  if (!old) return create(text, extra.kind || null, extra);
-  const prior = (old.prior || []).concat([{ role: 'user', content: old.input }, { role: 'assistant', content: answerText(old) }]);
-  return create(text, extra.kind || old.kindOverride, Object.assign({ prior, refs: (extra.refs || old.refs), images: (extra.images || old.images), threadId: old.threadId || old.sid }, extra));
+  // the stored thread (survives restarts); the current turn is stored as soon as it finishes or is stopped
+  if (old && !old.done) cancel(sid);
+  if (old) saveTurn(old);
+  const row = findThread(sid);
+  const priorTurns = row && Array.isArray(row.turns) ? row.turns.slice() : (old ? [record(old)] : []);
+  if (old && !priorTurns.some(t => t.sid === old.sid)) priorTurns.push(record(old));
+  const threadId = old ? (old.threadId || old.sid) : (row ? row.id : null);
+  const kind = extra.kind || (old && old.kindOverride === 'solve' ? 'solve' : null);
+  return create(text, kind, Object.assign({ priorTurns, refs: (extra.refs || (old && old.refs) || []), images: (extra.images || []), threadId }, extra));
 }
 async function runTask(s) {
   const v36 = require('../v36/v36');
@@ -261,6 +345,7 @@ async function runTask(s) {
     onStatus: (st) => emit(s, { type: 'status', text: st.label }),
     ask: ({ goal, context }) => llm.completeJson([
       { role: 'system', content: 'You control the browser to finish the user goal. Reply with JSON only: {"action":"navigate"|"click"|"type"|"read"|"done","args":{},"summary":""}. Use done when the goal is complete. ' + v36.answerAddendum(store.getSettings().answerStyle) },
+      ...(s.prior || []),
       { role: 'user', content: String(goal || '') + (context ? '\n' + context : '') }
     ], { signal: s.ac.signal, maxTokens: 500, temperature: 0.1 }),
     act: async (step) => {
@@ -285,4 +370,4 @@ function rerun(sid, queries) {
   return nsid;
 }
 
-module.exports = { create, attach, cancel, cancelForWebContents, rerun, follow, get, aiEntry, classify };
+module.exports = { create, attach, cancel, cancelForWebContents, rerun, follow, get, aiEntry, classify, thread };

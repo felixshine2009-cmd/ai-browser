@@ -8,10 +8,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function chunks(text, n = 6) { const out = []; for (let i = 0; i < text.length; i += n) out.push(text.slice(i, i + n)); return out; }
 
-async function streamOpenAI(res, { text, toolCalls, delay = 25 }) {
+async function streamOpenAI(res, { text, toolCalls, reasoning, delay = 25 }) {
   sse(res);
-  const send = (delta, fin) => res.write('data: ' + JSON.stringify({ id: 'x', object: 'chat.completion.chunk', choices: [{ index: 0, delta, finish_reason: fin || null }] }) + '\n\n');
+  const send = (delta, fin) => { if (!res.destroyed) res.write('data: ' + JSON.stringify({ id: 'x', object: 'chat.completion.chunk', choices: [{ index: 0, delta, finish_reason: fin || null }] }) + '\n\n'); };
   send({ role: 'assistant' });
+  // thinking models (DeepSeek / Kimi style): reasoning_content deltas before the answer
+  if (reasoning) for (const c of chunks(reasoning)) { if (res.destroyed) return; send({ reasoning_content: c }); await sleep(delay); }
   if (toolCalls) {
     for (let i = 0; i < toolCalls.length; i++) {
       const tc = toolCalls[i];
@@ -20,10 +22,10 @@ async function streamOpenAI(res, { text, toolCalls, delay = 25 }) {
     }
     send({}, 'tool_calls');
   } else {
-    for (const c of chunks(text)) { send({ content: c }); await sleep(delay); }
+    for (const c of chunks(text)) { if (res.destroyed) return; send({ content: c }); await sleep(delay); }
     send({}, 'stop');
   }
-  res.write('data: [DONE]\n\n'); res.end();
+  if (!res.destroyed) { res.write('data: [DONE]\n\n'); res.end(); }
 }
 
 const SENT_JSON = {
@@ -44,6 +46,9 @@ function createLlmServer({ key = 'test-key' } = {}) {
   const state = { slow: 25 };
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
+    // the web app calls the mock from another origin
+    res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', '*'); res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
     if (req.method === 'GET' && url.pathname === '/__requests') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(requests)); }
     if (req.method === 'POST' && url.pathname === '/__reset') { requests.length = 0; res.end('ok'); return; }
     let body = ''; for await (const c of req) body += c;
@@ -126,7 +131,7 @@ function createLlmServer({ key = 'test-key' } = {}) {
         reply = { text: 'Apple 的 M1 采用 5nm 工艺，M2 为增强版 [1]。M2 的内存带宽更高 [2]。\n\n**总结**：M2 在 CPU/GPU 上均小幅提升 [1][2]。' };
       } else reply = { text: '这是一个直接回答（没有网页来源）。' };
     }
-    const delay = state.slow;
+    const delay = reply.delay || state.slow;
     if (!j.stream) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: reply.text || null } }] }));

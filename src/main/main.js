@@ -329,6 +329,8 @@ function registerIpc() {
   // chat
   handle('chat:attach', (e, sid) => chat.attach(sid, e.sender.id));
   handle('chat:cancel', (e, sid) => chat.cancel(sid));
+  handle('chat:thread', (e, sid) => chat.thread(String(sid || '')));
+  handle('chat:deleteThread', (e, id) => { const ok = store.deleteChat(String(id || '')); broadcast('chats:changed'); return ok; });
   handle('chat:stopTool', (e, stepId) => require('./ai/agent').stopStep(stepId));
   // ---- embedded Python + Linux VM (settings page)
   const pyMod = () => require('./python');
@@ -543,7 +545,7 @@ function registerIpc() {
 
   const v36 = require('./v36/v36');
   handle('chat:follow', (e, sid, text, extra) => chat.follow(sid, String(text || ''), extra || {}));
-  handle('chat:list', () => store.listChats());
+  handle('chat:list', () => store.listChats().map(r => ({ id: r.id, title: r.title, preview: r.preview, updated: r.updated, turns: Array.isArray(r.turns) ? r.turns.length : 0, kind: r.kind })));
   handle('chat:title', async (e, sid) => {
     const s = chat.get(sid); if (!s) return '';
     let title = v36.fallbackTitle(s.input);

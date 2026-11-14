@@ -14,7 +14,7 @@ async function complete(settings, messages, signal, extra){
   extra = extra || {};
   if (settings.engine === 'local') {
     if (!localReady()) throw new Error(t('localNotLoaded'));
-    return localChat({ messages, signal });
+    return localChat({ messages, signal, onDelta: extra.onDelta });
   }
   return chatComplete({ ...settings.api, caps: capsFor(settings), messages, signal, thinkingLevel: settings.thinkingLevel, onThinking: extra.onThinking, onDelta: extra.onDelta });
 }
@@ -47,7 +47,8 @@ async function agentAnswer(settings, messages, els, signal, hooks, session){
   for (let round = 0; round < 40; round++) {
     if (signal && signal.aborted) throw new Error('已停止');
     streamed = '';
-    const onDelta = (d) => { streamed += d; els.answer.textContent = A ? A.redactToolTalk(streamed) : streamed; };
+    if (hooks.onReset) hooks.onReset();
+    const onDelta = (d) => { streamed += d; if (hooks.onDelta) hooks.onDelta(d); else els.answer.textContent = A ? A.redactToolTalk(streamed) : streamed; };
     let r;
     try { r = await chatTurn({ ...settings.api, caps: capsFor(settings), messages, tools, signal, thinkingLevel: settings.thinkingLevel, onThinking: hooks.onThinking, onDelta }); }
     catch (e) {
@@ -57,7 +58,8 @@ async function agentAnswer(settings, messages, els, signal, hooks, session){
     }
     if (!r.toolCalls.length) return r.content;
     const am = { role: 'assistant', content: r.content || '', tool_calls: r.toolCalls };
-    if (r.reasoning && /deepseek/i.test(settings.api.baseUrl || '') ) am.reasoning_content = r.reasoning;
+    // thinking models that call tools (DeepSeek, Kimi, Qwen …) expect their reasoning back; OpenAI itself does not take it
+    if (r.reasoning && !/(^|\.)openai\.com/i.test(settings.api.baseUrl || '')) am.reasoning_content = r.reasoning;
     messages.push(am);
     els.answer.textContent = '';
     for (const c of r.toolCalls) {
@@ -85,21 +87,43 @@ async function agentAnswer(settings, messages, els, signal, hooks, session){
   return streamed;
 }
 
+/**
+ * One turn of a chat thread (v3.0.0). `prior` holds the earlier turns as chat messages (already trimmed to the model's
+ * context budget). The answer streams into els.answer; Stop (signal) keeps what was written so far. Resolves with the
+ * turn record for the thread: { answer, thinking, thinkMs, stopped, error, startedAt, firstAt, endedAt, tools }.
+ */
 export async function handleAsk({q, settings, els, signal, prior, asDict}){
-  const text = (q||'').trim(); if (!text) return;
+  const text = (q||'').trim(); if (!text) return null;
   const A = window.AIB36;
+  const rec = { input: text, answer: '', thinking: '', thinkMs: 0, stopped: false, error: '', startedAt: Date.now(), firstAt: 0, endedAt: 0, tools: [] };
+  let thinkStart = 0, thinkEnd = 0, thinkTimer = 0;
   const intent = asDict ? { kind: 'dict' } : (A ? A.route(text) : { kind: looksMath(text) ? 'draw' : looksPhys(text) ? 'physics' : 'search' });
   els.status.textContent = A ? A.statusLabel('thinking', { solve: intent.kind === 'solve' }) : t('thinking');
   els.answer.textContent = '';
   if (els.tools) els.tools.innerHTML = '';
-  if (els.thinking) { els.thinking.hidden = false; els.thinking.textContent = ''; }
+  const en = () => (document.documentElement.lang || '').startsWith('en');
+  const paintThink = () => {
+    if (!els.thinksum) return;
+    const done = !!rec.firstAt || !!rec.endedAt;
+    const ms = (done ? thinkEnd : Date.now()) - thinkStart;
+    els.thinksum.textContent = (en() ? 'Thinking · ' : '思考过程 · ') + (done ? (en() ? `thought for ${Math.max(1, Math.round(ms / 1000))} s` : `已思考 ${Math.max(1, Math.round(ms / 1000))} 秒`) : (en() ? 'thinking…' : '正在思考…'));
+    if (done && thinkTimer) { clearInterval(thinkTimer); thinkTimer = 0; }
+  };
+  if (els.thinking) { els.thinking.textContent = ''; (els.thinkbox || els.thinking).hidden = true; if (els.thinkbox) els.thinkbox.open = false; }
   const thinkHooks = {
     onThinking(bit) {
+      rec.thinking += bit;
+      if (!thinkStart) { thinkStart = Date.now(); thinkTimer = setInterval(paintThink, 1000); }
+      thinkEnd = Date.now();
       if (!els.thinking) return;
-      els.thinking.hidden = false;
-      els.thinking.textContent = (els.thinking.textContent || '') + bit;
-    }
+      (els.thinkbox || els.thinking).hidden = false;
+      els.thinking.textContent = rec.thinking;
+      if (els.thinkbox && els.thinkbox.open) els.thinking.scrollTop = els.thinking.scrollHeight;
+      paintThink();
+    },
+    onFirst() { if (!rec.firstAt) { rec.firstAt = Date.now(); if (thinkStart) paintThink(); } }
   };
+  const streamTo = (d) => { thinkHooks.onFirst(); rec.answer += d; els.answer.textContent = A ? A.redactToolTalk(rec.answer) : rec.answer; if (els.onStream) els.onStream(); };
   const chips = [];
   try {
     if (!asDict && (intent.kind === 'physics' || looksPhys(text))) {
@@ -123,30 +147,33 @@ export async function handleAsk({q, settings, els, signal, prior, asDict}){
     let wiki = [];
     if (A) { try { wiki = A.wikiSearch(A.WIKI_SEED, text).slice(0, 3); if (wiki.length) chips.push('wiki_search'); } catch {} }
     if (chips.length) els.tools.innerHTML = chips.map(c => `<span class="chip">${c}</span>`).join(' ');
+    rec.tools = chips.slice();
     const style = A ? A.answerAddendum(settings.answerStyle || 'detailed') : '';
-    const hist = (prior || []).map(m => (m.role === 'assistant' ? '助手: ' : '用户: ') + m.text).join('\n');
-    const sys = `You are the AI assistant inside AI Browser (web). Reply in the user's language. ${style} ${kbHits.length? 'Knowledge-base snippets:\n'+kbHits.map(h=>h.text.slice(0,400)).join('\n---\n'):''} ${wiki.length? 'Offline wiki:\n'+wiki.map(h=>h.title+': '+h.text).join('\n'):''} ${hist? 'Earlier:\n'+hist:''}`;
+    const sys = `You are the AI assistant inside AI Browser (web). Reply in the user's language. ${style} ${kbHits.length? 'Knowledge-base snippets:\n'+kbHits.map(h=>h.text.slice(0,400)).join('\n---\n'):''} ${wiki.length? 'Offline wiki:\n'+wiki.map(h=>h.title+': '+h.text).join('\n'):''}`;
+    // earlier turns of the conversation go to the model as real chat messages
+    const earlier = (prior || []).filter(m => m && (m.role === 'user' || m.role === 'assistant')).map(m => ({ role: m.role, content: String(m.content != null ? m.content : (m.text || '')) }));
     if (asDict || looksWord(text)) {
       const entry = await complete(settings, [
         {role:'system', content:'Explain the English word: IPA, POS, Chinese gloss, 2 example sentences with translation. Markdown.'},
         {role:'user', content:text}
-      ], signal, thinkHooks);
-      els.answer.textContent = entry; els.status.textContent = t('dict'); return;
+      ], signal, Object.assign({}, thinkHooks, { onDelta: streamTo }));
+      rec.answer = entry || rec.answer; els.answer.textContent = rec.answer; els.status.textContent = t('dict');
+      rec.endedAt = Date.now(); paintThink(); return rec;
     }
-    const msgs = [ {role:'system', content:sys}, {role:'user', content:text} ];
+    const msgs = [ {role:'system', content:sys}, ...earlier, {role:'user', content:text} ];
     const out = settings.engine === 'local'
-      ? await complete(settings, msgs, signal, thinkHooks)
-      : await agentAnswer(settings, msgs, els, signal, thinkHooks, 'web');
-    els.answer.textContent = A ? A.redactToolTalk(out) : out;
+      ? await complete(settings, msgs, signal, Object.assign({}, thinkHooks, { onDelta: streamTo }))
+      : await agentAnswer(settings, msgs, els, signal, Object.assign({}, thinkHooks, { onDelta: streamTo, onReset: () => { rec.answer = ''; } }), 'web');
+    rec.answer = A ? A.redactToolTalk(out || rec.answer) : (out || rec.answer);
+    els.answer.textContent = rec.answer;
     els.status.textContent = '';
-    if (A && settings) {
-      const title = A.fallbackTitle(text);
-      const chats = JSON.parse(localStorage.getItem('aib.chats') || '[]');
-      chats.unshift({ id: Date.now().toString(36), title, preview: text.slice(0, 80), updated: Date.now(), messages: (prior||[]).concat([{role:'user', text}, {role:'assistant', text: els.answer.textContent}]) });
-      localStorage.setItem('aib.chats', JSON.stringify(chats.slice(0, 40)));
-    }
   } catch (e) {
     els.status.textContent = '';
-    els.answer.textContent = (e && e.message) || t('error');
+    if (signal && signal.aborted) { rec.stopped = true; els.answer.textContent = A ? A.redactToolTalk(rec.answer) : rec.answer; }
+    else { rec.error = (e && e.message) || t('error'); els.answer.textContent = (rec.answer ? rec.answer + '\n\n' : '') + rec.error; }
   }
+  rec.endedAt = Date.now();
+  if (thinkStart) { if (!thinkEnd) thinkEnd = rec.endedAt; paintThink(); }
+  if (thinkTimer) clearInterval(thinkTimer);
+  return rec;
 }

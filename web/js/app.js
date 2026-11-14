@@ -4,6 +4,7 @@ import { testConnection, cleanKey, cleanText, cleanBase } from './api.js';
 import { toast, wireDesktopOnly } from './desktop-disabled.js';
 import { mount as mountPanels, show as showPanel, closeOverlay } from './panels.js';
 import { handleAsk } from './chat.js';
+import { createThreadUI } from './thread-ui.js';
 import { addText as kbAdd, list as kbList, search as kbSearch, clear as kbClear, enableVector, disableVector } from './kb.js';
 import { CATALOG, detectWebGPU, loadModel, unload as unloadModel, getProgress, isReady, memoryWarning, listCachedModels, reasonText, isPhone, pauseLoad, getDownloadStatus, statusText, diskReport, clearModelCache, deleteModelFiles, fmtMB } from './local-model.js';
 import { confirmDialog, doneBanner } from './confirm.js';
@@ -322,19 +323,22 @@ function wire(){
     catch(e){ toast(String(e.message||e).slice(0,160)); }
   });
   document.querySelectorAll('#modeseg .seg').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+  // one conversation thread above the input; the send button is a stop button while an answer is generated
+  const threads = createThreadUI({ getSettings: () => settings, onBusy: (b) => {
+    const btn = document.getElementById('btnSend'); if (!btn) return;
+    btn.classList.toggle('stop', b); btn.textContent = b ? t('stop') : t('send'); btn.title = b ? t('stop') + ' (Esc)' : t('send');
+  } });
   bindClick('btnSend', async ()=>{
     const q = document.getElementById('q').value;
     if (document.querySelector('#modeseg .seg.active')?.dataset.mode==='search') return doSearch(q);
-    if (abort) abort.abort(); abort = new AbortController();
-    await handleAsk({ q, settings, signal:abort.signal, els:{
-      status:document.getElementById('status'),
-      answer:document.getElementById('answer'),
-      tools:document.getElementById('tools'),
-      thinking:document.getElementById('thinking'),
-    }});
+    if (threads.busy()) return threads.stop();
+    if (!q.trim()) return;
+    document.getElementById('q').value = '';
+    await threads.ask(q);
   });
+  bindClick('btnNewChat', () => threads.newChat());
   const qEl = document.getElementById('q');
-  if (qEl) qEl.addEventListener('keydown', ev=>{ if(ev.key==='Enter'&&!ev.shiftKey&&!ev.isComposing){ ev.preventDefault(); document.getElementById('btnSend')?.click(); }});
+  if (qEl) qEl.addEventListener('keydown', ev=>{ if(ev.key==='Enter'&&!ev.shiftKey&&!ev.isComposing){ ev.preventDefault(); if (!threads.busy()) document.getElementById('btnSend')?.click(); }});
   bindClick('btnClosePanel', closeOverlay);
   bindClick('ptGgb', ()=>showPanel('ggb'));
   bindClick('ptPhys', ()=>showPanel('phys'));
@@ -410,8 +414,7 @@ function wire(){
     if (!q && !solveImage) return;
     const ctx = A.solverContext({ refs, turns: [] });
     const imgNote = solveImage ? '\n[已附加题目图片 ' + solveImage.name + ']' : '';
-    if (abort) abort.abort(); abort = new AbortController();
-    await handleAsk({ q: (ctx ? ctx + '\n' : '') + q + imgNote, settings, signal: abort.signal, els: { status: document.getElementById('status'), answer: document.getElementById('answer'), tools: document.getElementById('tools'), thinking: document.getElementById('thinking') } });
+    await threads.ask((ctx ? ctx + '\n' : '') + q + imgNote);
   };
   const wikiForm = document.getElementById('wikiForm');
   const wikiQ = document.getElementById('wikiQ');
