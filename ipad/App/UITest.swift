@@ -14,7 +14,7 @@ enum UITest {
     static var autoFeed: Double? { ProcessInfo.processInfo.environment["AIB_UITEST_AUTOFEED"].flatMap(Double.init) }
     static var fixtures: URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("uitest", isDirectory: true) }
     private static weak var host: BrowserViewController?
-    private static let status = UILabel(), events = UILabel(), result = UILabel()
+    private static let status = UILabel(), events = UILabel(), result = UILabel(), toolLabel = UILabel()
     private static var eventList = [String]()
 
     struct Entry { let id: String; let title: String; let channel: String; let args: [Any] }
@@ -61,19 +61,31 @@ enum UITest {
             b.accessibilityIdentifier = "uitest.import.\(e.id)"
             panel.addArrangedSubview(b)
         }
-        // glass tool popover (v3.0.1): open it through the chrome page's own button, and read which tool is open
-        for (title, id, act) in [("工具面板", "uitest.tools.open", { openTools() }), ("工具状态", "uitest.tools.state", { toolState() })] as [(String, String, () -> Void)] {
-            var c = UIButton.Configuration.filled(); c.title = title; c.buttonSize = .mini
-            let b = UIButton(configuration: c, primaryAction: UIAction { _ in act() })
-            b.accessibilityIdentifier = id
-            panel.addArrangedSubview(b)
-        }
         vc.view.addSubview(panel)
         NSLayoutConstraint.activate([
             panel.trailingAnchor.constraint(equalTo: vc.view.safeAreaLayoutGuide.trailingAnchor, constant: -8),
             panel.bottomAnchor.constraint(equalTo: vc.view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
             panel.widthAnchor.constraint(lessThanOrEqualToConstant: 420),
         ])
+        // glass tool popover (v3.0.1), a separate row at the top left so the import panel keeps its place: a button that
+        // opens the popover through the chrome page's own button, and a label with the open tool (polled from the core)
+        let tools = UIStackView(); tools.axis = .horizontal; tools.spacing = 6; tools.alignment = .center
+        tools.translatesAutoresizingMaskIntoConstraints = false
+        var c = UIButton.Configuration.filled(); c.title = "工具面板"; c.buttonSize = .mini
+        let ob = UIButton(configuration: c, primaryAction: UIAction { _ in openTools() })
+        ob.accessibilityIdentifier = "uitest.tools.open"
+        tools.addArrangedSubview(ob)
+        toolLabel.font = .monospacedSystemFont(ofSize: 10, weight: .regular); toolLabel.textColor = .label
+        toolLabel.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.85)
+        toolLabel.accessibilityIdentifier = "uitest.tool"; toolLabel.isAccessibilityElement = true
+        toolLabel.text = "tool:none"; toolLabel.accessibilityValue = "tool:none"
+        tools.addArrangedSubview(toolLabel)
+        vc.view.addSubview(tools)
+        NSLayoutConstraint.activate([
+            tools.leadingAnchor.constraint(equalTo: vc.view.safeAreaLayoutGuide.leadingAnchor, constant: 8),
+            tools.bottomAnchor.constraint(equalTo: vc.view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
+        ])
+        Timer.scheduledTimer(withTimeInterval: 0.7, repeats: true) { _ in Task { @MainActor in UITest.toolState() } }
         // ready once the Node core answers an invoke
         func probe(_ n: Int) {
             Host.shared.invoke(["wcId": vc.windowHostId, "channel": "tabs:state", "args": [Any](), "url": "aibrowser://chrome/"]) { r in
@@ -121,7 +133,7 @@ enum UITest {
         Host.shared.invoke(["wcId": vc.windowHostId, "channel": "tabs:state", "args": [Any](), "url": "aibrowser://chrome/"]) { r in
             let st = (r as? [String: Any])?["result"] as? [String: Any]
             let t = (st?["activeTool"] as? String) ?? "none"
-            result.text = "tool:\(t)"; result.accessibilityValue = result.text
+            if toolLabel.text != "tool:\(t)" { toolLabel.text = "tool:\(t)"; toolLabel.accessibilityValue = toolLabel.text }
         }
     }
     private static func verdict(_ id: String, _ v: Any?) -> Bool {

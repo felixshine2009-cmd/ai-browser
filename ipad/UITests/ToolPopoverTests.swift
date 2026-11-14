@@ -9,7 +9,7 @@ final class ToolPopoverTests: XCTestCase {
 
     override func setUpWithError() throws { continueAfterFailure = true }
 
-    private func value(_ e: XCUIElement) -> String { (e.value as? String).flatMap { $0.isEmpty ? nil : $0 } ?? e.label }
+    private func value(_ e: XCUIElement) -> String { guard e.exists else { return "" }; return (e.value as? String).flatMap { $0.isEmpty ? nil : $0 } ?? e.label }
     @discardableResult
     private func wait(_ e: XCUIElement, _ timeout: TimeInterval, file: StaticString = #filePath, line: UInt = #line, _ ok: (String) -> Bool) -> String {
         let end = Date().addingTimeInterval(timeout); var last = ""
@@ -45,7 +45,7 @@ final class ToolPopoverTests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["-AIBUITest"]
         app.launch()
-        let status = app.staticTexts["uitest.status"], result = app.staticTexts["uitest.result"], events = app.staticTexts["uitest.events"]
+        let status = app.staticTexts["uitest.status"], events = app.staticTexts["uitest.events"]
         XCTAssertTrue(status.waitForExistence(timeout: 180), "test panel did not appear")
         wait(status, 240) { $0 == "ready" }
         Thread.sleep(forTimeInterval: 2)
@@ -78,10 +78,7 @@ final class ToolPopoverTests: XCTestCase {
             case "scan": wait(events, 15) { $0.contains("cmd:native.qrscan") }
             case "snap": wait(events, 15) { $0.contains("cmd:native.camera") || $0.contains("cmd:native.caps") }
             default:
-                let st = app.buttons["uitest.tools.state"]
-                let end = Date().addingTimeInterval(20); var last = ""
-                while Date() < end { st.tap(); Thread.sleep(forTimeInterval: 0.8); last = value(result); if last == "tool:\(id)" { break } }
-                XCTAssertEqual(last, "tool:\(id)", "tool \(id) did not open")
+                wait(app.staticTexts["uitest.tool"], 20) { $0 == "tool:\(id)" }
             }
             shot(String(format: "%02d-%@", i + 2, id))
             clearModals()
