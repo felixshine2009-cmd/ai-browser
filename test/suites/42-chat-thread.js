@@ -60,6 +60,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   seedSettings(ud, apiSettings(llm.port));
   llm.state.script = ({ system, lastUser }) => {
     if (!/web-research agent|AI Browser \(web\)/i.test(system)) return null;
+    if (/FMTWEB/.test(lastUser)) return { text: 'FMTWEB 结果\n\n| 物质 | 化学式 |\n|---|---|\n| 水 | $\\ce{H2O}$ |\n\n能量 $E=mc^2$。\n\n```chem\n2H2 + O2 -> 2H2O\n2H2 + O2 -> H2O\n```\n\n```word\napple\n```' };
     const m = /THREADQ(\d)/.exec(lastUser); if (!m) return null;
     const n = m[1];
     if (n === '3' || n === '4') return { reasoning: '先想一想第' + n + '个问题。', text: ('SLOW' + n + '-').repeat(400), delay: 60 };
@@ -252,6 +253,24 @@ module.exports = async ({ test, group, assert, eq, until }) => {
         wp.once('dialog', d => d.accept());
         await wp.click('#btnThreads'); await wp.fill('#tpQ', ''); await wp.locator('.tp-item').filter({ hasText: 'THREADQ6' }).locator('.tp-del').click();
         await until(async () => (await wp.locator('.tp-item').count()) === 1, 3000, 'web delete');
+      });
+      await test('网页版：回答按 Markdown 渲染（表格、KaTeX 公式），化学方程式检查配平，单词卡片点击即查词', async () => {
+        await wp.keyboard.press('Escape').catch(() => {});
+        await wp.click('#btnNewChat');
+        await wask('FMTWEB 给我一个例子');
+        await until(async () => (await wfrozen().count()) === 1 && (await wfrozen().first().locator('.answer.md').count()) === 1, 20000, 'rendered');
+        const a = wfrozen().first().locator('.answer');
+        eq(await a.locator('.md-table th').count(), 2, 'header cells'); eq(await a.locator('.md-table td').count(), 2, 'body cells');
+        assert(await a.locator('.katex').count() >= 2, 'katex formulas');
+        eq(await a.locator('.ab-chem-check[data-state="ok"]').count(), 1, 'balanced');
+        eq(await a.locator('.ab-chem-check[data-state="bad"]').count(), 1, 'unbalanced flagged');
+        await a.locator('.ab-word').first().click();
+        await until(async () => (await wfrozen().count()) === 2, 20000, 'dictionary turn');
+        assert(/apple/i.test(lastReq(/^apple$/).messages.slice(-1)[0].content), 'asked the word');
+        await wp.screenshot({ path: path.join(ROOT, 'shots', '42-web-answer-format.png') });
+      });
+      await test('web/js/md.js 与 answer-blocks.js 与桌面版完全一致', () => {
+        for (const f of ['md.js', 'answer-blocks.js']) eq(fs.readFileSync(path.join(ROOT, 'web/js', f), 'utf8'), fs.readFileSync(path.join(ROOT, 'src/renderer/static', f), 'utf8'), f);
       });
     } finally { await wapp.close().catch(() => {}); srv.close(); }
   }

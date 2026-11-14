@@ -45,7 +45,14 @@ export function createThreadUI({ getSettings, onBusy }) {
     if (t.stopped) parts.push(L('已中止', 'Stopped'));
     return parts.join(' · ');
   }
-  function frozenTurn(t) {
+  // v3.0.0: finished answers render as Markdown with formulas, tables and answer blocks (chem / graph / word)
+  function paintAnswer(el, text, live) {
+    if (window.MD && text) {
+      try { el.innerHTML = window.MD.render(text); el.classList.add('md'); if (window.AnswerBlocks) window.AnswerBlocks.enhance(el, { live: !!live }); return; } catch (e) { console.error('answer render', e); }
+    }
+    el.textContent = text;
+  }
+  function frozenTurn(t, live) {
     const d = document.createElement('div'); d.className = 'turn frozen';
     const u = document.createElement('div'); u.className = 'user-row'; const b = document.createElement('div'); b.className = 'user-bubble'; b.textContent = t.input; u.appendChild(b); d.appendChild(u);
     if (t.thinking) {
@@ -54,14 +61,14 @@ export function createThreadUI({ getSettings, onBusy }) {
       const body = document.createElement('div'); body.className = 'think-body'; body.textContent = t.thinking;
       det.append(sm, body); d.appendChild(det);
     }
-    const a = document.createElement('div'); a.className = 'answer'; a.textContent = t.answer || (t.error || ''); d.appendChild(a);
+    const a = document.createElement('div'); a.className = 'answer'; paintAnswer(a, t.answer || (t.error || ''), live); d.appendChild(a);
     const m = document.createElement('div'); m.className = 'turn-meta' + (t.stopped ? ' stopped' : ''); m.textContent = metaText(t); d.appendChild(m);
     return d;
   }
-  function render() {
+  function render(liveLast) {
     threadEl.innerHTML = '';
     const turns = row ? row.turns : [];
-    turns.forEach(t => threadEl.appendChild(frozenTurn(t)));
+    turns.forEach((t, i) => threadEl.appendChild(frozenTurn(t, liveLast && i === turns.length - 1)));
     convo.hidden = !turns.length && live.hidden;
   }
   function persist(rec) {
@@ -90,7 +97,7 @@ export function createThreadUI({ getSettings, onBusy }) {
     meta.textContent = metaText(full); meta.classList.toggle('stopped', full.stopped);
     persist(full);
     // the finished turn moves into the thread; the live area is ready for the next question
-    render(); live.hidden = true;
+    render(!full.stopped); live.hidden = true;
     q('answer').textContent = ''; q('status').textContent = ''; q('tools').innerHTML = ''; q('thinkbox').hidden = true; q('thinking').textContent = '';
     live.querySelectorAll('.runs, .run-figs').forEach(n => { n.innerHTML = ''; });
     convo.hidden = false;

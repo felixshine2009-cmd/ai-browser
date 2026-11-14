@@ -336,6 +336,8 @@ function wire(){
     document.getElementById('q').value = '';
     await threads.ask(q);
   });
+  // word cards in answers ask for the dictionary entry as the next turn
+  if (window.AnswerBlocksHost) window.AnswerBlocksHost.show = (w) => { if (!threads.busy()) threads.ask(w, { asDict: true }); };
   bindClick('btnNewChat', () => threads.newChat());
   bindClick('btnThreads', () => threads.toggleList());
   const qEl = document.getElementById('q');

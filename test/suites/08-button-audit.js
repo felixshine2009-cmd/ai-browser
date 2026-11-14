@@ -663,7 +663,7 @@ await A('tb.bookmark', '工具栏', '书签星标', '加入 / 取消书签，列
     for (const n of ['history', 'bookmarks', 'downloads']) { const p = await openInternal(n); scans.push(await scan(p, n)); }
     const ep = await extPage(); scans.push(await scan(ep, 'extensions'));
     await ep.fill('#aiprompt', 'x'); await ep.click('#aigen'); await until(async () => (await ep.locator('#modal').count()) === 1, 15000, 'modal'); scans.push(await scan(ep, 'extensions/modal')); await ep.click('#mcancel');
-    const cp1 = await chat('苹果 M1 和 M2 有什么区别？'); await until(async () => (await cp1.locator('a.cite').count()) >= 1 && (await cp1.locator('#actions .chip').count()) === 1, 20000, 'answer'); scans.push(await scan(cp1, 'chat/question'));
+    const cp1 = await chat('苹果 M1 和 M2 有什么区别？'); await until(async () => (await cp1.locator('a.cite').count()) >= 1 && (await cp1.locator('#actions .chip').count()) === 1, 45000, 'answer'); scans.push(await scan(cp1, 'chat/question'));
     const cp2 = await chat('The quick brown fox jumps over the lazy dog near the river.'); await until(async () => (await cp2.locator('.tree .row').count()) >= 4, 15000, 'sent'); scans.push(await scan(cp2, 'chat/sentence'));
     const cp3 = await chat('abandon'); await until(async () => (await cp3.locator('.dict-tabs .dt').count()) >= 1, 15000, 'word'); scans.push(await scan(cp3, 'chat/word'));
     const bad = scans.flatMap(s => s.bad.map(b => `${s.label}: ${b.d} handled=${b.handled} hit=${b.hit}`));

@@ -32,6 +32,16 @@ function ensureBox(els, key, cls, where){
   els[key] = d; return d;
 }
 
+// v3.0.0: answers are rendered as Markdown with KaTeX and answer blocks (md.js / answer-blocks.js, same as the desktop)
+const ANSWER_FORMAT = `
+Answer format (rendered by the app): Markdown (**bold** key terms, lists for steps, ## headings only for long answers, > quotes, GFM tables | a | b | with a |---| line when comparing several items). Maths in LaTeX: $…$ inline, $$…$$ on its own line; never in code blocks. Chemical equations in a \`\`\`chem block, one per line, mhchem syntax with caret charges (2H2 + O2 -> 2H2O, Cu^2+); balance every equation, the app checks it. Functions or figures worth seeing: a \`\`\`graph block with GeoGebra commands, one per line (f(x)=x^2-2x); the app can draw it. English words worth learning: a \`\`\`word block, one word per line.`;
+if (typeof window !== 'undefined') {
+  window.AnswerBlocksHost = {
+    graph: async (commands) => { showPanel('ggb'); return panelCall('ggb', 'eval', { commands }); },
+    show: (w) => { const box = document.getElementById('q'); if (box) { box.value = w; box.focus(); } }
+  };
+}
+
 async function agentAnswer(settings, messages, els, signal, hooks, session){
   const A = window.AIB36;
   const tools = await Compute.defs();
@@ -149,7 +159,7 @@ export async function handleAsk({q, settings, els, signal, prior, asDict}){
     if (chips.length) els.tools.innerHTML = chips.map(c => `<span class="chip">${c}</span>`).join(' ');
     rec.tools = chips.slice();
     const style = A ? A.answerAddendum(settings.answerStyle || 'detailed') : '';
-    const sys = `You are the AI assistant inside AI Browser (web). Reply in the user's language. ${style} ${kbHits.length? 'Knowledge-base snippets:\n'+kbHits.map(h=>h.text.slice(0,400)).join('\n---\n'):''} ${wiki.length? 'Offline wiki:\n'+wiki.map(h=>h.title+': '+h.text).join('\n'):''}`;
+    const sys = `You are the AI assistant inside AI Browser (web). Reply in the user's language. ${style} ${ANSWER_FORMAT} ${kbHits.length? 'Knowledge-base snippets:\n'+kbHits.map(h=>h.text.slice(0,400)).join('\n---\n'):''} ${wiki.length? 'Offline wiki:\n'+wiki.map(h=>h.title+': '+h.text).join('\n'):''}`;
     // earlier turns of the conversation go to the model as real chat messages
     const earlier = (prior || []).filter(m => m && (m.role === 'user' || m.role === 'assistant')).map(m => ({ role: m.role, content: String(m.content != null ? m.content : (m.text || '')) }));
     if (asDict || looksWord(text)) {

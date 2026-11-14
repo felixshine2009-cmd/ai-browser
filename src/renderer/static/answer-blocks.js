@@ -4,7 +4,7 @@
 //   ```word   English words (lines or commas)   → dictionary cards (phonetic, meaning); a click opens the full entry
 (function () {
   const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  const zh = () => !(window.I18N && I18N.lang === 'en');
+  const zh = () => !(window.I18N && I18N.lang === 'en') && !/^en/.test(document.documentElement.lang || '');
 
   // ------------------------------------------------------------ chemistry: formula parsing and balance check
   const ARROW = /\s*(<=>|<->|⇌|<-->|-->|->|→|⟶|==|=)(\[[^\]]*\])*\s*/;
@@ -86,6 +86,16 @@
     block.innerHTML = ''; block.appendChild(wrap);
   }
 
+  // the desktop / iPad pages call the main process; the web app sets window.AnswerBlocksHost = { graph, word, show }
+  function host() {
+    if (window.aib && window.aib.invoke) return {
+      graph: (cmds) => window.aib.invoke('answer:block', 'graph', { commands: cmds }),
+      word: (w) => window.aib.invoke('answer:block', 'word', { word: w }),
+      show: (w, pos) => window.aib.invoke('lookup:show', w, pos)
+    };
+    return window.AnswerBlocksHost || {};
+  }
+
   // ------------------------------------------------------------ GeoGebra
   function graphCommands(src) { return src.split('\n').map(s => s.replace(/^\s*\d+[.)]\s+/, '').replace(/;\s*$/, '').trim()).filter(s => s && !/^(#|\/\/)/.test(s)).slice(0, 80); }
   function renderGraph(block, live) {
@@ -98,7 +108,8 @@
     const run = async () => {
       btn.disabled = true; block.dataset.state = 'run'; stEl.textContent = zh() ? '正在作图…' : 'Drawing…';
       try {
-        const r = await window.aib.invoke('answer:block', 'graph', { commands: cmds });
+        const h = host(); if (!h.graph) throw new Error(zh() ? '此处无法作图' : 'graphing unavailable here');
+        const r = await h.graph(cmds);
         const res = (r && r.results) || [];
         const bad = res.filter(x => x && x.ok === false).length;
         block.dataset.state = r && r.error ? 'error' : (bad ? 'partial' : 'ok');
@@ -118,7 +129,7 @@
     words.forEach((w) => {
       const c = document.createElement('div'); c.setAttribute('role', 'button'); c.tabIndex = 0; c.className = 'ab-word';
       c.innerHTML = `<span class="ab-w">${esc(w)}</span><span class="ab-ph"></span><span class="ab-mean">${zh() ? '正在查询…' : 'Looking up…'}</span>`;
-      c.onclick = () => { const r = c.getBoundingClientRect(); window.aib.invoke('lookup:show', w, { x: Math.round(r.left), y: Math.round(r.bottom + 4) }); };
+      c.onclick = () => { const r = c.getBoundingClientRect(); const h = host(); if (h.show) h.show(w, { x: Math.round(r.left), y: Math.round(r.bottom + 4) }); };
       c.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.onclick(); } };
       wrap.appendChild(c);
     });
@@ -127,7 +138,7 @@
       for (const c of wrap.querySelectorAll('.ab-word')) {
         const w = c.querySelector('.ab-w').textContent;
         try {
-          const d = await window.aib.invoke('answer:block', 'word', { word: w });
+          const h = host(); const d = h.word ? await h.word(w) : null;
           c.querySelector('.ab-ph').textContent = (d && d.phonetic) || '';
           c.querySelector('.ab-mean').textContent = d && d.meaning ? (d.pos ? d.pos + ' ' : '') + d.meaning : (zh() ? '点击查看词典' : 'Open in dictionary');
         } catch { c.querySelector('.ab-mean').textContent = zh() ? '点击查看词典' : 'Open in dictionary'; }
