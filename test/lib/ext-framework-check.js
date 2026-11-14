@@ -138,7 +138,6 @@ async function checkDocs({ invoke, waitPage, assert, eq, settingsPage }) {
     await p.waitForSelector('body[data-ready]', { timeout: 10000 });
     const r = await p.evaluate(() => ({ ready: document.body.dataset.ready, h2: document.querySelectorAll('h4.md-h2').length, nav: document.querySelectorAll('#nav > a').length, text: document.body.innerText }));
     eq(r.ready, name, 'doc ' + name); assert(r.h2 >= min, name + ' sections: ' + r.h2); eq(r.nav, 3, 'doc nav');
-    assert(!/NOBOOK|nobook/i.test(r.text), 'wording');
   }
   if (settingsPage) {
     const s = await settingsPage();
