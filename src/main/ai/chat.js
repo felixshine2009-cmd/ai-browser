@@ -336,6 +336,10 @@ function follow(sid, text, extra) {
   return create(text, kind, Object.assign({ priorTurns, refs: (extra.refs || (old && old.refs) || []), images: (extra.images || []), threadId }, extra));
 }
 async function runTask(s) {
+  // v3.0.0: the unified tool registry (every browser capability; each call is shown as a card in the chat)
+  const ctx = { wcId: s.wcId, sid: s.sid, threadId: s.threadId || s.sid };
+  if (await agent.runTask(s, ctx, { emit, isLocal, today })) return;
+  // last resort for models that can not produce tool calls or JSON actions: the 2.x navigate / click / type / read loop
   const v36 = require('../v36/v36');
   const tabs = require('../tabs');
   const registry = require('./tools');

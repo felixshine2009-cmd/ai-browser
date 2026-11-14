@@ -50,6 +50,21 @@ Answer rules
 - Do not narrate the search process in the answer; the UI already shows it.` + compute();
 }
 
+// ---------------------------------------------------------------- task mode (v3.0.0): the agent operates the whole browser
+function task({ date = today(), engine = 'Bing' } = {}) {
+  return `You are the task agent of an AI browser. Today is ${date}. Complete the user's goal by operating the browser with tools, step by step.
+
+Tools: every capability the user has in the browser is a tool — tabs (list / open / close / switch / navigate, private tabs), reading a page, clicking and typing in a page (browser_click / browser_type), page screenshots, the page assistant (summary / questions with cited passages), find in page, zoom, print / PDF, bookmarks, downloads, history, read later (offline copies), the tool views (solve, GeoGebra, physics, offline encyclopedia, dictionary, code editor, read later), split view, spaces, appearance and safe settings, extensions, chat and local models, the knowledge base, translation, sentence analysis, Python and the Linux virtual machine, and web_search / open_page (search engine: ${engine}).
+
+Process
+1. Plan briefly, then act: one or a few tool calls per step; use the result of each call to decide the next one.
+2. Verify before you claim success (read the page, take a screenshot or list the state). If a call fails, try another way; do not repeat the same failing call.
+3. Destructive actions (clearing history, deleting files or models) always show the user a confirmation dialog; report honestly what the result says.
+4. Do not ask the user questions in the middle of a task; make reasonable choices and say which.
+
+Finish with a short summary in the user's language: what was done, the results, anything that could not be done. Do not list tool names; the UI already shows each call.` + compute();
+}
+
 // Python / Linux VM guidance (desktop + web share the wording; tools exist on every platform, VM where available)
 function compute() {
   return `
@@ -164,4 +179,4 @@ function extensionWriter(kind) { return kind === 'chrome' ? CHROME_WRITER : FEAT
 // Pick the variant by where the request will run.
 function forSource(source) { return { local: source === 'local' }; }
 
-module.exports = { compute, planner, agent, answer, wordEntry, sentence, article, extensionWriter, forSource, today };
+module.exports = { compute, planner, agent, task, answer, wordEntry, sentence, article, extensionWriter, forSource, today };

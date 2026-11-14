@@ -231,6 +231,61 @@ const BUILTIN = [
 
 ];
 try { for (const t of require('../v36/extra-tools')) BUILTIN.push(t); } catch (e) { console.error('v36 tools', e.message); }
+// v3.0.0 unified registry: every browser capability the user has in the UI is also a tool for task mode
+const ipc = (ch, ...a) => { if (typeof global.__aibIpc !== 'function') throw new Error('browser actions are not available'); return global.__aibIpc(ch, ...a); };
+const TOOL_VIEWS = ['solve', 'geogebra', 'physics', 'wiki', 'dict', 'code', 'readlater'];
+BUILTIN.push(
+  { name: 'tool_open', group: 'workspace', description: 'Open one of the browser\'s tool views next to the tabs: solve (step-by-step problem solver), geogebra, physics (simulations), wiki (offline encyclopedia), dict (dictionary), code (editor + files), readlater (saved pages). Optional url opens a specific page inside the tool.',
+    parameters: obj({ tool: { type: 'string', enum: TOOL_VIEWS }, url: str('optional aibrowser://tool?… URL') }, ['tool']),
+    run: async (a) => { const id = String(a.tool || ''); if (!TOOL_VIEWS.includes(id)) throw new Error('unknown tool view: ' + id); await ipc('tool:open', id, a.url || null); return { ok: true, opened: id }; } },
+  { name: 'tool_close', group: 'workspace', description: 'Close a tool view (or hide the visible one when tool is omitted) and return to the web page.',
+    parameters: obj({ tool: { type: 'string', enum: TOOL_VIEWS } }),
+    run: async (a) => { if (a.tool) await ipc('tool:close', a.tool); else await ipc('tool:hide'); return { ok: true }; } },
+  { name: 'split_view', group: 'workspace', description: 'Split view: show two tabs side by side. action toggle (optionally with other_tab_id), swap the two sides, ratio (0.2–0.8 width of the left side) or state.',
+    parameters: obj({ action: { type: 'string', enum: ['toggle', 'swap', 'ratio', 'state'] }, other_tab_id: { type: 'number' }, ratio: { type: 'number' } }, ['action']),
+    run: async (a) => {
+      if (a.action === 'toggle') await ipc('split:toggle', a.other_tab_id != null ? Number(a.other_tab_id) : undefined);
+      else if (a.action === 'swap') await ipc('split:swap');
+      else if (a.action === 'ratio') await ipc('split:ratio', Math.min(0.8, Math.max(0.2, Number(a.ratio) || 0.5)));
+      return { split: tabs().state().split };
+    } },
+  { name: 'spaces', group: 'workspace', description: 'Spaces group tabs by subject. action list | switch (id) | add (name) | remove (id) | move (tab_id to space id).',
+    parameters: obj({ action: { type: 'string', enum: ['list', 'switch', 'add', 'remove', 'move'] }, id: str('space id ("main" is the default space)'), name: str('new space name'), tab_id: { type: 'number' } }, ['action']),
+    run: async (a) => {
+      if (a.action === 'switch') await ipc('space:switch', a.id || 'main');
+      else if (a.action === 'add') await ipc('space:add', String(a.name || '').slice(0, 40) || '新空间');
+      else if (a.action === 'remove') await ipc('space:remove', a.id);
+      else if (a.action === 'move') await ipc('space:move', Number(a.tab_id), a.id);
+      return { spaces: tabs().state().spaces };
+    } },
+  { name: 'readlater', group: 'workspace', description: 'Read later / offline copies. action save (a tab, default active: stores an offline copy), list, search (query), open (id), remove (id).',
+    parameters: obj({ action: { type: 'string', enum: ['save', 'list', 'search', 'open', 'remove'] }, id: str('saved item id'), tab_id: { type: 'number' }, query: str('search text') }, ['action']),
+    run: async (a) => {
+      if (a.action === 'save') return ipc('readlater:save', a.tab_id != null ? Number(a.tab_id) : (tabs().activeTab() || {}).id);
+      if (a.action === 'search') return clip(await ipc('readlater:search', String(a.query || '')), 8000);
+      if (a.action === 'open') return { ok: await ipc('readlater:open', String(a.id || '')) };
+      if (a.action === 'remove') return { ok: !!(await ipc('readlater:remove', String(a.id || ''))) };
+      const l = await ipc('readlater:list'); return (Array.isArray(l) ? l : []).slice(0, 50).map(x => ({ id: x.id, title: x.title, url: x.url, read: !!x.read }));
+    } },
+  { name: 'page_assistant', group: 'browser', description: 'Page assistant on the active tab: kind summary (one-tap summary) or ask (question about the page). Answers cite numbered passages of the page.',
+    parameters: obj({ kind: { type: 'string', enum: ['summary', 'ask'] }, question: str('question for kind=ask') }, ['kind']),
+    run: async (a) => { const r = await ipc('siri:ask', a.kind === 'ask' ? 'ask' : 'summary', String(a.question || '')); return clip(r, 8000); } },
+  { name: 'page_screenshot', group: 'browser', description: 'Take a screenshot of a tab (default: active) and look at it (returned as an image).',
+    parameters: obj({ id: { type: 'number' } }),
+    run: async (a) => {
+      const t = needTab(a.id); const img = await t.wc.capturePage();
+      const sz = img.getSize ? img.getSize() : {}; const scaled = sz.width > 1280 && img.resize ? img.resize({ width: 1280 }) : img;
+      const url = 'data:image/png;base64,' + scaled.toPNG().toString('base64');
+      return { ok: true, tab: tabRow(t), size: sz, images: [{ name: 'tab.png', dataUrl: url }], modelImages: [url] };
+    } },
+  { name: 'appearance_set', group: 'settings', description: 'Switch the appearance: light, dark or follow the system.',
+    parameters: obj({ mode: { type: 'string', enum: ['light', 'dark', 'system'] } }, ['mode']),
+    run: async (a) => { const mode = ['light', 'dark', 'system'].includes(a.mode) ? a.mode : 'system'; await ipc('settings:patch', { appearance: Object.assign({}, store.getSettings().appearance, { mode }) }); return { ok: true, mode }; } },
+  { name: 'snap_solve', group: 'workspace', description: 'iPad: take a photo of a problem with the camera, recognise the text and solve it in the solve tool.',
+    parameters: obj({}), run: async () => ipc('snap:solve') },
+  { name: 'scan_qr', group: 'workspace', description: 'iPad: scan a QR code with the camera; web addresses are opened.',
+    parameters: obj({}), run: async () => ipc('scan:qr') }
+);
 try { for (const t of require('./compute-tools').TOOLS) BUILTIN.push(t); } catch (e) { console.error('compute tools', e.message); }
 
 // Declared here so every provider sees the same list; executed by agent.js with the page board.
@@ -269,4 +324,34 @@ function summarize(name, args, result) {
   return (name + (key !== '' ? ' · ' + j(key).replace(/\s+/g, ' ').slice(0, 48) : '')) + tail;
 }
 
-module.exports = { all, call, isExternal, summarize, BUILTIN, WEB, def, clip };
+// formal Chinese names for the chat UI's tool-call cards
+const LABELS = {
+  web_search: '网页搜索', open_page: '阅读网页', browser_list_tabs: '列出标签页', browser_open_tab: '打开标签页', browser_close_tab: '关闭标签页', browser_switch_tab: '切换标签页',
+  browser_navigate: '页面导航', browser_open_page: '打开内置页面', browser_read_page: '读取页面', browser_history_search: '搜索历史记录', browser_print: '打印', browser_save_pdf: '存储为 PDF',
+  code_propose_patch: '提出代码修改', code_pending_patch: '待确认修改', code_list_patches: '修改记录', code_rollback: '回滚修改', code_safe_mode: '安全模式',
+  vkeyboard_toggle: '数学 / 化学键盘', vkeyboard_insert: '输入符号', vkeyboard_catalog: '键盘符号表',
+  extensions_list: '功能拓展列表', extension_set_enabled: '启用 / 停用拓展', settings_get: '读取设置', settings_set: '修改设置',
+  dictionary_lookup: '查词典', translate_text: '翻译', analyze_sentence: '句子分析', kb_search: '知识库检索', kb_add_text: '存入知识库', kb_list: '知识库文档', kb_delete: '删除知识库文档', kb_clear: '清空知识库',
+  bookmarks_list: '书签列表', bookmark_add: '添加书签', bookmark_remove: '删除书签', downloads_list: '下载列表', download_open: '打开下载', download_clear: '清空下载列表',
+  find_in_page: '页面查找', find_stop: '关闭查找', zoom_set: '缩放页面', zoom_get: '读取缩放', history_clear: '清除历史记录',
+  chrome_ext_list: 'Chrome 扩展列表', chrome_ext_set_enabled: '启用 / 停用 Chrome 扩展', chrome_ext_remove: '卸载 Chrome 扩展', chrome_ext_install_store: '安装 Chrome 扩展',
+  local_models_download: '下载本地模型', local_models_pause: '暂停下载', local_models_resume: '继续下载', local_models_status: '模型下载状态', local_models_disk_usage: '模型占用空间',
+  local_models_clear_cache: '清理模型缓存', local_models_delete: '删除本地模型', models_list: '本地模型列表', model_download: '下载模型', model_cancel: '取消下载', model_delete: '删除模型', model_select: '选用本地模型',
+  chat_models_list: '对话模型列表', chat_models_refresh: '刷新模型列表', chat_model_use: '切换对话模型',
+  tool_open: '打开工具', tool_close: '关闭工具', split_view: '分屏', spaces: '空间', readlater: '稍后阅读', page_assistant: '页面助手', page_screenshot: '页面截图',
+  appearance_set: '外观', snap_solve: '拍题即解', scan_qr: '扫码',
+  python_run: '运行 Python', python_install: '安装 Python 包', vm_shell: '虚拟机命令', vm_read_file: '读取虚拟机文件', vm_write_file: '写入虚拟机文件', vm_pkg: '虚拟机软件包', vm_control: '虚拟机控制', vm_upload: '上传到虚拟机', vm_download: '从虚拟机下载', vm_status: '虚拟机状态', vm_click: '虚拟机点击', vm_desktop: '虚拟机桌面', vm_drag: '虚拟机拖动', vm_key: '虚拟机按键', vm_screenshot: '虚拟机截图', vm_scroll: '虚拟机滚动', vm_type: '虚拟机输入',
+  hs_calc: '计算器', wiki_search: '百科搜索', wiki_translate: '百科翻译', collab_note: '协作笔记', browser_click: '点击页面元素', browser_type: '在页面中输入', kernel_check: '运行环境检查',
+  ggb_eval: 'GeoGebra 作图', ggb_clear: '清空 GeoGebra', ggb_export_png: '导出 GeoGebra 图片', ggb_set_app: '切换 GeoGebra 应用', ggb_save: '保存 GeoGebra 文件', ggb_load: '载入 GeoGebra 文件', ggb_keyboard: 'GeoGebra 键盘', ggb_state: 'GeoGebra 对象',
+  phys_load: '载入物理场景', phys_play: '播放仿真', phys_pause: '暂停仿真', phys_step: '单步仿真', phys_state: '仿真状态', phys_validate: '检查物理场景', phys_reset: '重置仿真', phys_set_speed: '仿真速度', phys_list_examples: '物理示例列表', phys_load_example: '载入物理示例', phys_set_param: '设置物理参数', phys_update: '更新物理场景', phys_list_params: '物理参数列表', phys_add_element: '添加物理元件', phys_update_element: '修改物理元件', phys_remove_element: '删除物理元件', phys_list_element_types: '物理元件类型', phys_define_custom_element: '自定义物理元件', phys_new_scene: '新建物理场景', phys_get_elements: '物理场景元件'
+};
+const GROUP_LABELS = { web: '网页', browser: '浏览器', workspace: '工具与工作区', extensions: '拓展', settings: '设置', language: '语言', knowledge: '知识库', models: '模型', compute: '计算' };
+function label(name) {
+  if (LABELS[name]) return LABELS[name];
+  const t = features.listTools().find(x => x.name === name);
+  const zh = t && t.label; return zh || name;
+}
+/** what the agent can do, for the UI: [{ name, label, group, groupLabel, source }] */
+function catalog() { return all({ web: true }).map(t => ({ name: t.name, label: label(t.name), group: t.group, groupLabel: GROUP_LABELS[t.group] || t.group, source: t.source })); }
+
+module.exports = { all, call, isExternal, summarize, BUILTIN, WEB, def, clip, label, catalog, LABELS };

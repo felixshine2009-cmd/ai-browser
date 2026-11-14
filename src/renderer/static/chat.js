@@ -9,6 +9,10 @@
   const esc = MD.esc;
   const freshState = () => ({ kind: null, input: '', answer: '', sources: [], cites: {}, tools: [], queries: [], pages: [], done: false, error: null, direct: false, phase: 'init', pngs: [], think: '', thinkStart: 0, thinkEnd: 0 });
   let st = freshState();
+  // tool names in formal Chinese (ai/tools.js LABELS); unknown names are shown as they are
+  let TOOL_LABELS = {};
+  const toolLabel = (n) => (I18N.lang === 'en' ? n : (TOOL_LABELS[n] || n));
+  window.aib.invoke('tools:catalog').then(c => { (c || []).forEach(x => { TOOL_LABELS[x.name] = x.label; }); try { renderTools(); } catch {} document.querySelectorAll('.tool-card').forEach(d => { const n = d.querySelector('.tc-name'); if (n) n.textContent = toolLabel(d.dataset.name); }); }).catch(() => {});
   root.innerHTML = '<div class="chat-shell"><aside class="chat-drawer" id="drawer" hidden><div class="drawer-head"><b id="drawertitle"></b><button type="button" class="btn-ghost" id="drawerclose">✕</button></div><input type="search" id="threadq" spellcheck="false"/><div class="thread-list" id="threadlist"></div></aside>'
     + '<div class="chat-app"><div class="chat-head"><button type="button" class="chip" id="histbtn"></button><span class="chat-title" id="chattitle"></span></div><div class="chat-scroll" id="chatscroll"><div class="chat-turns" id="turns"></div></div><div id="followhost"></div></div></div>';
   const turnsEl = document.getElementById('turns'), scroller = document.getElementById('chatscroll');
@@ -176,7 +180,7 @@
       case 'tool-step': if (!(runs && runs.step(ev))) traceStep(ev); thinkStep(ev); break;
       case 'tool-stream': if (runs) runs.stream(ev); break;
       case 'notice': if (els.trace) { const d = el('div', 'trace-line notice'); d.textContent = ev.text; els.trace.appendChild(d); } break;
-      case 'tool': st.tools.push(ev); renderTools(); if (runs) runs.tool(ev); if (!replaying && (ev.name === 'ggb_eval' || ev.name === 'ggb_clear' || ev.name === 'ggb_export_png')) ensurePlotLayout(); break;
+      case 'tool': st.tools.push(ev); renderTools(); if (!(runs && runs.isRun(ev.name))) traceTool(ev); if (runs) runs.tool(ev); if (!replaying && (ev.name === 'ggb_eval' || ev.name === 'ggb_clear' || ev.name === 'ggb_export_png')) ensurePlotLayout(); break;
       case 'handler-result': renderHandlerResult(ev); break;
       case 'ai-entry-pending': els.dwrap.innerHTML = `<div class="status-line" style="padding:0 40px">${esc(t('dict.aiGenerating'))}</div>`; break;
       case 'ai-entry': {
@@ -215,7 +219,7 @@
   function thinkStep(ev) {
     if (ev.status === 'run' || !ev.label) return;
     st.thinkSteps = st.thinkSteps || [];
-    st.thinkSteps.push((ev.status === 'ok' ? '✓ ' : '✕ ') + ev.label + (ev.ms != null ? ` · ${(ev.ms / 1000).toFixed(1)} 秒` : ''));
+    st.thinkSteps.push((ev.status === 'ok' ? '✓ ' : '✕ ') + toolLabel(ev.name || String(ev.label || '').split(' · ')[0]) + (String(ev.label || '').includes(' · ') ? ' · ' + String(ev.label).split(' · ').slice(1).join(' · ') : '') + (ev.ms != null ? ` · ${(ev.ms / 1000).toFixed(1)} 秒` : ''));
     renderThinking();
   }
   function renderMeta(ev) {
@@ -231,12 +235,41 @@
     m.classList.toggle('stopped', stopped);
     if (!parts.length) m.remove();
   }
+  // v3.0.0: every tool call is a visible card (formal Chinese name, argument, state, time; details with arguments and result)
+  function toolCard(id, name) {
+    if (!els.trace) return null;
+    let d = id != null ? els.trace.querySelector(`.tool-card[data-step="${id}"]`) : null;
+    if (!d && id == null) d = Array.from(els.trace.querySelectorAll('.tool-card:not([data-filled])')).find(x => x.dataset.name === name) || null;
+    if (!d) {
+      d = el('div', 'tool-card'); if (id != null) d.dataset.step = id; d.dataset.name = name; d.dataset.status = 'run';
+      d.innerHTML = '<div class="tc-head"><span class="tc-dot" aria-hidden="true"></span><span class="tc-name"></span><span class="tc-arg"></span><span class="tc-time"></span></div><details class="tc-detail" hidden><summary></summary><pre class="tc-args"></pre><pre class="tc-result"></pre></details>';
+      d.querySelector('.tc-name').textContent = toolLabel(name);
+      d.querySelector('.tc-detail summary').textContent = I18N.lang === 'en' ? 'Details' : '详情';
+      els.trace.appendChild(d);
+    }
+    return d;
+  }
   function traceStep(ev) {
-    if (!els.trace) return;
-    let d = els.trace.querySelector(`[data-step="${ev.id}"]`);
-    if (!d) { d = el('div', 'trace-line step'); d.dataset.step = ev.id; els.trace.appendChild(d); }
+    const d = toolCard(ev.id, ev.name || String(ev.label || '').split(' · ')[0]); if (!d) return;
     d.dataset.status = ev.status;
-    d.textContent = (ev.status === 'run' ? t('chat.tool.run') : ev.status === 'ok' ? t('chat.tool.ok') : t('chat.tool.err')) + ' · ' + ev.label + (ev.ms != null && ev.status !== 'run' ? ` · ${ev.ms}ms` : '');
+    const arg = String(ev.label || '').split(' · ').slice(1).join(' · ').replace(/ ✕ .*$/, '');
+    d.querySelector('.tc-arg').textContent = arg;
+    const stateText = ev.status === 'run' ? (I18N.lang === 'en' ? 'running…' : '运行中…') : ev.status === 'ok' ? '' : (I18N.lang === 'en' ? 'failed' : '失败');
+    d.querySelector('.tc-time').textContent = ev.ms != null && ev.status !== 'run' ? `${(ev.ms / 1000).toFixed(1)} ${I18N.lang === 'en' ? 's' : '秒'}${stateText ? ' · ' + stateText : ''}` : stateText;
+    d.setAttribute('aria-label', toolLabel(d.dataset.name) + ' ' + arg + ' ' + stateText);
+  }
+  function traceTool(ev) {
+    const d = toolCard(ev.id != null ? ev.id : null, ev.name); if (!d) return;
+    d.dataset.filled = '1';
+    if (ev.error) d.dataset.status = 'error'; else if (d.dataset.status === 'run' && ev.result !== undefined) d.dataset.status = 'ok';
+    const det = d.querySelector('.tc-detail');
+    const fmt = (v) => { try { const j = typeof v === 'string' ? v : JSON.stringify(v, null, 1); return j.length > 1600 ? j.slice(0, 1600) + '…' : j; } catch { return String(v); } };
+    const args = ev.args && Object.keys(ev.args).length ? fmt(ev.args) : '';
+    const res = ev.error ? (I18N.lang === 'en' ? 'Error: ' : '错误：') + ev.error : (ev.result !== undefined ? fmt(ev.result) : '');
+    det.querySelector('.tc-args').textContent = args ? (I18N.lang === 'en' ? 'Arguments\n' : '参数\n') + args : '';
+    det.querySelector('.tc-result').textContent = res ? (I18N.lang === 'en' ? 'Result\n' : '结果\n') + res : '';
+    det.hidden = !(args || res);
+    if (!d.querySelector('.tc-arg').textContent && args) d.querySelector('.tc-arg').textContent = fmt(ev.args).replace(/\s+/g, ' ').slice(0, 60);
   }
   function addTrace(text) {
     if (!els.trace || !/^(用 |Searching |阅读：|Reading: |.*(不可用|没有找到相关结果|没有相关结果|已改用|nothing relevant|unavailable|had nothing))/.test(text || '')) return;
@@ -296,7 +329,7 @@
   function renderTools() {
     if (!els.toolsrow) return;
     const short = (a) => { try { if (a && a.code) return String(a.code).split('\n').find(l => l.trim() && !/^\s*(#|import |from )/.test(l)) || '…'; if (a && a.command) return a.command; if (a && a.packages) return [].concat(a.packages).join(' '); if (a && a.path) return a.path; const c = a && a.commands; return c ? c.join('; ') : JSON.stringify(a || {}); } catch { return ''; } };
-    els.toolsrow.innerHTML = `<div class="tools-row"><span>${esc(t('chat.toolsUsed'))}</span> ` + st.tools.map(x => `<span class="tool-chip ${x.error ? 'err' : ''}" title="${esc(x.error || '')}">${esc(x.name)}(${esc(short(x.args).slice(0, 80))})</span>`).join('') + '</div>';
+    els.toolsrow.innerHTML = `<div class="tools-row"><span>${esc(t('chat.toolsUsed'))}</span> ` + st.tools.map(x => `<span class="tool-chip ${x.error ? 'err' : ''}" title="${esc(x.error || x.name)}">${esc(toolLabel(x.name))}(${esc(short(x.args).slice(0, 80))})</span>`).join('') + '</div>';
   }
 
   // ----- GeoGebra / panels

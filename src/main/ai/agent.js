@@ -207,17 +207,18 @@ async function answerLoop(s, ctx, D, messages, tools, extra, maxRounds = 5) {
 }
 
 // ------------------------------------------------------------------ the agent
-async function runAgent(s, ctx, D) {
+async function runAgent(s, ctx, D, opts = {}) {
   const { emit, today } = D;
+  const task = !!opts.task; // task mode: operate the whole browser (all registry tools), larger step budget, no search bias
   const q = s.input;
   const board = makeBoard(s, emit, false);
   const queries = []; const used = { searches: 0, opens: 0 }; const t0 = Date.now(); const titles = new Map();
   const left = () => used.searches < LIMITS.searches || used.opens < LIMITS.opens;
   const timeUp = () => Date.now() - t0 > LIMITS.ms;
-  const extTools = registry.all({ web: false }).map(registry.def); let stepsUsed = 0; const stepCap = maxSteps();
+  const extTools = registry.all({ web: false }).map(registry.def); let stepsUsed = 0; const stepCap = task ? Math.max(24, maxSteps()) : maxSteps();
   const add = v36.answerAddendum(store.getSettings().answerStyle);
-  const bias = v36.route(q).kind === 'search' ? '\nDefault: call web_search before answering, unless the user asked for a specific tool such as drawing a graph.' : '';
-  const messages = [{ role: 'system', content: P.agent({ date: today(), engine: engineName(selectedEngine()), limits: LIMITS }) + '\n' + add + bias }];
+  const bias = !task && v36.route(q).kind === 'search' ? '\nDefault: call web_search before answering, unless the user asked for a specific tool such as drawing a graph.' : '';
+  const messages = [{ role: 'system', content: (task ? P.task({ date: today(), engine: engineName(selectedEngine()) }) : P.agent({ date: today(), engine: engineName(selectedEngine()), limits: LIMITS })) + '\n' + add + bias }];
   for (const m of s.prior || []) messages.push(m);
   if (s.refs && s.refs.length) messages.push({ role: 'user', content: v36.solverContext({ refs: s.refs, turns: [] }) });
   if (s.images && s.images.length && String(s.images[0].dataUrl || '').length < 400000) {
@@ -257,7 +258,7 @@ async function runAgent(s, ctx, D) {
   };
 
   let toolsOn = true; let nudged = false; let computeUsed = false;
-  for (let round = 0; round < LIMITS.rounds + (computeUsed ? 30 : 0); round++) {
+  for (let round = 0; round < LIMITS.rounds + (task ? 16 : 0) + (computeUsed ? 30 : 0); round++) {
     const out = (timeUp() && (used.searches || used.opens) && !computeUsed) || !left();
     const stepsOut = stepsUsed >= stepCap + (computeUsed ? 28 : 0);
     if (out && !nudged) { nudged = true; messages.push({ role: 'user', content: '(Budget used up — write the final answer now from the pages you opened. Cite only [n] of opened pages.)' }); }
@@ -298,10 +299,10 @@ const TOOL_HINT = /画|绘|函数|图像|图形|作图|几何|物理|模拟|仿�
 function actionSchema(defs) {
   return { anyOf: defs.map(d => ({ type: 'object', properties: { tool: { const: d.name }, args: d.parameters && d.parameters.properties && Object.keys(d.parameters.properties).length ? d.parameters : { type: 'object', properties: {} } }, required: ['tool', 'args'] })).concat([{ type: 'object', properties: { tool: { const: 'answer' } }, required: ['tool'] }]) };
 }
-async function runLocalTools(s, ctx, D, maxSteps = 4) {
+async function runLocalTools(s, ctx, D, maxSteps = 4, opts = {}) {
   const { emit, today } = D;
   const defs = registry.all({ web: false }).map(registry.def);
-  if (!defs.length || !TOOL_HINT.test(s.input)) return false;
+  if (!defs.length || (!opts.force && !TOOL_HINT.test(s.input))) return false;
   const catalog = defs.map(d => `- ${d.name}(${Object.keys((d.parameters && d.parameters.properties) || {}).join(', ')}): ${String(d.description).split(/(?<=[.。])\s/)[0].slice(0, 160)}`).join('\n');
   const sys = `You are the tool router of an AI browser. Today: ${today()}.\nTools:\n${catalog}\n\nReply with ONE JSON object: {"tool":"<name>","args":{...}} to call a tool, or {"tool":"answer"} when no (more) tool is needed. Use a tool only when the user's request needs it (draw/plot → GeoGebra, physics problem → physics tools, browser actions, translation, dictionary, notes). Otherwise {"tool":"answer"}.`;
   const msgs = [{ role: 'system', content: sys }, { role: 'user', content: s.input }];
@@ -343,4 +344,16 @@ async function run(s, ctx, D) {
   }
 }
 
-module.exports = { stopStep, forModel, toolMsg, slimForUi, run, runAgent, runPipeline, runLocalTools, runTool, planQueries, WEB_TOOLS, LIMITS };
+// task mode entry (v3.0.0): API / framework models drive the full registry with native tool calls; models without tool
+// calling use the grammar JSON action loop over the same registry. Returns false when neither applies (caller falls back).
+async function runTask(s, ctx, D) {
+  const local = D.isLocal();
+  const fwChat = local && /^fw:/.test(String(llm.activeModel().model || ''));
+  if (!local || fwChat) {
+    try { await runAgent(s, ctx, D, { task: true }); return true; }
+    catch (e) { if (e.code !== 'TOOLS_UNSUPPORTED') throw e; }
+  }
+  return runLocalTools(s, ctx, D, 8, { force: true }).catch(e => { if (s.ac.signal.aborted) throw e; console.error('task tool loop failed:', e && e.message); return false; });
+}
+
+module.exports = { runTask, stopStep, forModel, toolMsg, slimForUi, run, runAgent, runPipeline, runLocalTools, runTool, planQueries, WEB_TOOLS, LIMITS };

@@ -145,7 +145,15 @@ function callPanel(ctx, extId, panelId, method, args, opts = {}) {
 }
 
 // ------------------------------------------------------------ IPC
+// internal handlers, also reachable by the agent's browser tools (ai/tools.js → global.__aibIpc) without a renderer
+const ipcFns = new Map();
+global.__aibIpc = async (channel, ...args) => {
+  const fn = ipcFns.get(channel); if (!fn) throw new Error('unknown browser action: ' + channel);
+  const w = tabsMod.getWin && tabsMod.getWin();
+  return fn({ sender: w ? w.webContents : null, senderFrame: { url: 'aibrowser://chrome/' }, internal: true }, ...args);
+};
 function handle(channel, fn) {
+  ipcFns.set(channel, fn);
   ipcMain.handle(channel, async (e, ...args) => {
     const url = (e.senderFrame && e.senderFrame.url) || '';
     if (!url.startsWith('aibrowser://')) throw new Error('forbidden');
@@ -224,6 +232,7 @@ function registerIpc() {
   handle('tool:open', (e, id, url) => { tabsMod.openTool(String(id || ''), url || null); return true; });
   handle('tool:close', (e, id) => { tabsMod.closeTool(String(id || '')); return true; });
   handle('tool:hide', () => { tabsMod.hideTool(); return true; });
+  handle('tools:catalog', () => require('./ai/tools').catalog());
   // iPad glass tool popover (native host); desktop keeps the tool strip
   handle('tools:popover', async (e, rect, items, toolbarBottom) => {
     const nat = require('./native');

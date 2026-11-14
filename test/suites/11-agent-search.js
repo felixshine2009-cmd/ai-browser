@@ -88,7 +88,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
   await test('数学作图仍可用：ggb_eval 与 web 工具同时提供', async () => {
     const p = await ask('请画出 y = sin x 与 y = x^2/4 的图像，并标出交点');
     await until(async () => (await p.locator('.tool-chip').count()) >= 1, 40000, 'tool chip');
-    assert((await p.locator('.tool-chip').first().innerText()).startsWith('ggb_eval('));
+    assert((await p.locator('.tool-chip').first().innerText()).startsWith('GeoGebra 作图('));
   }, { timeout: 60000 });
   await test('引擎不可用 → 状态行提示并回退（Bing / 百度）；不会把不相关页面当作来源', async () => {
     await patchSettings(app, { search: { engine: 'custom', custom: 'http://127.0.0.1:1/search?q=%s' } });

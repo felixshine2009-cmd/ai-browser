@@ -128,7 +128,7 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     await patchSettings(app, {}); llm.state.slow = 10;
     const p = await ask('请画出 y = sin x 与 y = x^2/4 的图像，并标出交点');
     await until(async () => (await p.locator('.tool-chip').count()) >= 1, 40000, 'tool chip');
-    assert((await p.locator('.tool-chip').first().innerText()).startsWith('ggb_eval(f(x)=sin(x)'), 'tool chip text');
+    assert((await p.locator('.tool-chip').first().innerText()).startsWith('GeoGebra 作图(f(x)=sin(x)'), 'tool chip text');
     const frame = await until(() => p.frames().find(f => f.url().includes('aib.geogebra/panel.html')), 10000, 'ggb frame');
     const names = await until(async () => { const n = await frame.evaluate(() => window.ggbApplet ? window.ggbApplet.getAllObjectNames() : null); return n && n.length >= 3 ? n : null; }, 90000, 'ggb objects');
     assert(['f', 'g', 'A'].every(n => names.includes(n)), 'objects ' + names);
