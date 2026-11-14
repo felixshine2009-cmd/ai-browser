@@ -1,5 +1,6 @@
 import Foundation
 import Metal
+#if canImport(llama)
 import llama
 
 /// Native llama.cpp (llama.xcframework, Metal) behind the node-llama-cpp API used by the desktop code
@@ -182,3 +183,14 @@ final class LlamaBridge {
         reply(true, ["vector": v.map { Double($0) }], nil)
     }
 }
+#else
+/// Builds without llama.xcframework (the iOS Simulator test job: the release framework has no simulator slice).
+final class LlamaBridge {
+    static let shared = LlamaBridge()
+    typealias Reply = (_ ok: Bool, _ result: Any?, _ error: String?) -> Void
+    func handle(_ m: [String: Any], reply: @escaping Reply, partial: @escaping ([String: Any]) -> Void) {
+        if (m["cmd"] as? String) == "llama.info" { reply(true, ["available": false, "gpu": false], nil) }
+        else { reply(false, nil, "此版本未包含 llama.cpp") }
+    }
+}
+#endif

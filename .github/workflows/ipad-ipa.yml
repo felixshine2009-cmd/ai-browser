@@ -239,7 +239,7 @@ jobs:
           find ipad/build/aibapp -type l -print -delete
           mkdir -p "$RUNNER_TEMP/fxmods" && (cd "$RUNNER_TEMP/fxmods" && npm init -y >/dev/null && npm i --no-audit --no-fund adm-zip >/dev/null)
           NODE_PATH="$RUNNER_TEMP/fxmods/node_modules" node ipad/UITests/make-fixtures.js "$RUNNER_TEMP/uitest"
-      - name: Frameworks (nodejs-mobile, llama.cpp)
+      - name: Frameworks (nodejs-mobile)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -247,13 +247,17 @@ jobs:
           mkdir -p ipad/Frameworks "$RUNNER_TEMP/fw"
           gh release download "$NODE_MOBILE" -R nodejs-mobile/nodejs-mobile -p "nodejs-mobile-$NODE_MOBILE-ios.zip" -D "$RUNNER_TEMP/fw"
           unzip -q "$RUNNER_TEMP/fw/nodejs-mobile-$NODE_MOBILE-ios.zip" 'NodeMobile.xcframework/*' -d ipad/Frameworks
-          gh release download "$LLAMA_CPP" -R ggml-org/llama.cpp -p "llama-$LLAMA_CPP-xcframework.zip" -D "$RUNNER_TEMP/fw"
-          unzip -q "$RUNNER_TEMP/fw/llama-$LLAMA_CPP-xcframework.zip" -d "$RUNNER_TEMP/fw/llama"
-          cp -R "$(find "$RUNNER_TEMP/fw/llama" -name llama.xcframework -type d | head -1)" ipad/Frameworks/
           ls ipad/Frameworks/*.xcframework
-      - name: Generate the Xcode project
+      - name: Generate the Xcode project (without llama.xcframework, which has no simulator slice)
         run: |
           brew install xcodegen
+          python3 - <<'PY'
+          import re
+          p = 'ipad/project.yml'; s = open(p).read()
+          s = re.sub(r"      - framework: Frameworks/llama.xcframework\n        embed: true\n        codeSign: false\n", "", s)
+          open(p, 'w').write(s)
+          PY
+          ! grep -q llama.xcframework ipad/project.yml
           cd ipad && xcodegen generate
       - name: iPad simulator
         run: |
