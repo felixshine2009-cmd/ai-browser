@@ -2,6 +2,9 @@
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
+// console output to a closed stdout / stderr (EPIPE) is dropped instead of throwing and looping (safe-log.js)
+const safeLog = require('./safe-log');
+safeLog.wrapConsole();
 const { app, BrowserWindow, protocol, ipcMain, session, dialog, Menu, shell, webContents, net, systemPreferences } = require('electron');
 
 if (process.env.AIB_USER_DATA) app.setPath('userData', process.env.AIB_USER_DATA);
@@ -932,8 +935,9 @@ if (!gotLock) { app.quit(); } else {
       if (st.crashCount >= 2) selfmod.setSafeMode(true);
       // treat this boot as clean after a short settle; a crash before that increments crashCount via uncaught handlers
       setTimeout(() => selfmod.markCleanBoot(), 8000);
-      process.on('uncaughtException', (e) => { console.error(e); selfmod.markCrash(); });
-      process.on('unhandledRejection', (e) => { console.error(e); });
+      // a closed stdout / stderr (EPIPE) is not a crash and must not loop through console.error (safe-log.js)
+      process.on('uncaughtException', safeLog.guardedHandler((e) => { console.error(e); selfmod.markCrash(); }));
+      process.on('unhandledRejection', safeLog.guardedHandler((e) => { console.error(e); }));
     } catch (e) { console.error('selfmod boot', e); }
 
     try { if (process.platform === 'darwin' && app.dock) app.dock.setIcon(require('path').join(__dirname, '..', 'assets', 'icon.png')); } catch {}

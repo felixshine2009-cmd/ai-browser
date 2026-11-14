@@ -315,10 +315,12 @@ app.whenReady().then(async () => {
   nativeTheme.on('updated', () => event({ type: 'theme', dark: nativeTheme.shouldUseDarkColors }));
   const nodeBin = process.env.AIB_NODE || 'node';
   // like nodejs-mobile on iOS: V8 without a JIT, hence no WebAssembly (AIB_SIM_JIT=1 turns the JIT back on)
-  const child = spawn(nodeBin, [...(process.env.AIB_SIM_JIT === '1' ? [] : ['--jitless']), path.join(NP, 'main-ipad.js'), '--port', String(port), '--token', token, '--userdata', UD, '--documents', DOCS, '--tmp', TMP, '--resources', BUNDLE], { cwd: NP, stdio: ['ignore', 'pipe', 'pipe'], env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '' }) });
+  const child = spawn(nodeBin, [...(process.env.AIB_SIM_JIT === '1' ? [] : ['--jitless']), path.join(NP, 'main-ipad.js'), '--port', String(port), '--token', token, '--userdata', UD, '--documents', DOCS, '--tmp', TMP, '--resources', BUNDLE], { cwd: NP, stdio: ['ignore', 'pipe', 'pipe'], env: Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '', AIB_SIM_PARENT_PID: String(process.pid) }) });
   child.stdout.on('data', d => process.stdout.write('[node] ' + d)); child.stderr.on('data', d => process.stderr.write('[node] ' + d));
   child.on('exit', (c) => { console.log('[sim] node exited', c); app.quit(); });
   app.on('before-quit', () => { try { child.kill(); } catch {} });
+  process.on('exit', () => { try { child.kill('SIGKILL'); } catch {} });
+  for (const s of [process.stdout, process.stderr]) s.on('error', () => {}); // the test harness may close its pipes first
   connectStream(onCmd);
   // test control (simulator only): what the native side received, and native-originated events (rotation, OS theme)
   if (process.env.AIB_SIM_CTL) http.createServer(async (req, res) => {

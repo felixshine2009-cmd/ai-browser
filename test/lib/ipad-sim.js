@@ -2,6 +2,7 @@
 // Launches the iPad payload in the iPad host simulator (ipad/sim: the Swift host protocol re-implemented on Electron),
 // with the payload's Node side on Node 18 (= nodejs-mobile). Same app API as lib/app.js plus simulator controls.
 const { spawn, execFileSync } = require('child_process');
+const procs = require('./procs');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -35,9 +36,10 @@ async function launchIpad(opts = {}) {
   if (!fs.existsSync(sp)) { fs.mkdirSync(userData, { recursive: true }); fs.writeFileSync(sp, JSON.stringify({ onboarding: { completed: true, skipped: false, completedAt: 1 } })); }
   const [w, h] = opts.size || [1180, 820];
   const logs = [];
-  const proc = spawn(electronPath, [path.join(ROOT, 'ipad', 'sim'), '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', `--remote-debugging-port=${port}`], {
+  const proc = spawn(electronPath, [path.join(ROOT, 'ipad', 'sim'), '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', `--remote-debugging-port=${port}`], { detached: true,
     cwd: ROOT, env: Object.assign({ ...process.env, AIB_BUNDLE: bundleDir(), AIB_NODE: node18(), AIB_SIM_UD: userData, AIB_SIM_SIZE: `${w}x${h}`, AIB_SIM_CTL: String(ctl), AIB_SIM_DARK: opts.systemDark === false ? '0' : '1', AIB_SIM_TOOLS_PORT: String(toolsPort) }, opts.env || {})
   });
+  procs.track(proc);
   proc.stdout.on('data', d => logs.push(String(d))); proc.stderr.on('data', d => logs.push(String(d)));
   let exited = false; proc.on('exit', () => { exited = true; });
   const t0 = Date.now();
@@ -68,7 +70,7 @@ async function launchIpad(opts = {}) {
       execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'x11grab', '-video_size', `${app.size[0]}x${app.size[1]}`, '-i', (process.env.DISPLAY || ':99') + '+0,0', '-frames:v', '1', tmp]);
       fs.renameSync(tmp, file); return file;
     },
-    async close() { try { await browser.close(); } catch {} try { proc.kill(); } catch {} await sleep(500); }
+    async close() { try { await browser.close(); } catch {} procs.killTree(proc, 'SIGTERM'); await sleep(500); procs.killTree(proc, 'SIGKILL'); }
   };
   if (opts.waitHome !== false) await app.waitPage(u => u.startsWith('aibrowser://home'), 30000);
   return app;

@@ -25,16 +25,16 @@ const LOG = path.join(userData, 'logs', 'node.log');
 const DOC_LOG_DIR = documents ? path.join(documents, '日志') : '';
 const DOC_LOG = DOC_LOG_DIR ? path.join(DOC_LOG_DIR, 'node.log') : '';
 try { if (DOC_LOG_DIR) fs.mkdirSync(DOC_LOG_DIR, { recursive: true }); } catch {}
-for (const f of [LOG, DOC_LOG]) { try { if (f && fs.statSync(f).size > 2 * 1024 * 1024) fs.renameSync(f, f + '.1'); } catch {} }
+// Never loops on a closed stdout (EPIPE) and never fills the disk: each log is capped at 5 MB with one older file kept
+// (node.log + node.log.1). See src/main/safe-log.js.
+const SL = require('./src/main/safe-log.js');
 const util = require('util');
-for (const lvl of ['log', 'info', 'warn', 'error']) {
-  const orig = console[lvl].bind(console);
-  console[lvl] = (...a) => {
-    const line = `[${new Date().toISOString()}] ${lvl} ${util.format(...a)}\n`;
-    try { fs.appendFileSync(LOG, line); } catch {}
-    if (DOC_LOG) { try { fs.appendFileSync(DOC_LOG, line); } catch {} }
-    try { orig(...a); } catch {}
-  };
+const logs = [LOG, DOC_LOG].filter(Boolean).map(f => SL.rotatingLog(f, { maxBytes: 5 * 1024 * 1024, keep: 2 }));
+SL.wrapConsole({ sink: (lvl, a) => { const line = `[${new Date().toISOString()}] ${lvl} ${util.format(...a)}\n`; for (const w of logs) w(line); } });
+// host simulator only (never set on a device): exit when the simulator process is gone instead of running on unseen
+if (process.env.AIB_SIM_PARENT_PID) {
+  const ppid = Number(process.env.AIB_SIM_PARENT_PID);
+  setInterval(() => { try { process.kill(ppid, 0); } catch { process.exit(0); } }, 2000).unref();
 }
 let host = null, windowShown = false;
 // startup problems go to the native shell at once, which shows them in its diagnostics panel (BrowserViewController)
@@ -42,8 +42,8 @@ function diag(stage, err, fatal) {
   const text = String(err && err.stack || err);
   try { host && host.cmd('app.diag', { stage, error: text.slice(0, 8000), fatal: !!fatal }); } catch {}
 }
-process.on('uncaughtException', (e) => { console.error('uncaught', e && e.stack || e); if (!windowShown) diag('uncaught', e, false); });
-process.on('unhandledRejection', (e) => { console.error('unhandled rejection', e && e.stack || e); if (!windowShown) diag('unhandled', e, false); });
+process.on('uncaughtException', SL.guardedHandler((e) => { console.error('uncaught', e && e.stack || e); if (!windowShown) diag('uncaught', e, false); }));
+process.on('unhandledRejection', SL.guardedHandler((e) => { console.error('unhandled rejection', e && e.stack || e); if (!windowShown) diag('unhandled', e, false); }));
 { const W = globalThis.WebAssembly; console.log('[aib] start', process.version, process.platform, process.arch, 'webassembly:', W ? (W.__aibPolyfill ? 'polywasm (no JIT)' : 'native') : 'none'); }
 if (wasmShimError) console.error('wasm shim failed', wasmShimError && wasmShimError.stack || wasmShimError);
 console.log('[aib] intl:', typeof Intl === 'undefined' ? 'none' : 'icu', 'textdecoder:', globalThis.TextDecoder && globalThis.TextDecoder.__aibPolyfill ? 'iconv-lite fallback' : 'native');

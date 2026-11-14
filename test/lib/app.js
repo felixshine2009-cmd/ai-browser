@@ -1,6 +1,7 @@
 'use strict';
 // Test harness: launches the real Electron app (under xvfb), attaches Playwright over CDP.
 const { spawn, execFileSync } = require('child_process');
+const procs = require('./procs');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -32,9 +33,10 @@ async function launch(opts = {}) {
   }
   const dlDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aib-dl-'));
   const logs = [];
-  const proc = spawn(electronPath, ['.', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', `--remote-debugging-port=${port}`, ...(opts.args || [])], {
+  const proc = spawn(electronPath, ['.', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', `--remote-debugging-port=${port}`, ...(opts.args || [])], { detached: true,
     cwd: ROOT, env: { ...process.env, AIB_USER_DATA: userData, AIB_DOWNLOAD_DIR: dlDir, ELECTRON_ENABLE_LOGGING: '1', ...(opts.env || {}) }
   });
+  procs.track(proc);
   proc.stdout.on('data', d => logs.push(String(d)));
   proc.stderr.on('data', d => logs.push(String(d)));
   let exited = false; proc.on('exit', () => { exited = true; });
@@ -104,7 +106,7 @@ async function launch(opts = {}) {
     },
     async close() {
       try { await browser.close(); } catch {}
-      if (!exited) { proc.kill('SIGTERM'); await sleep(500); if (!exited) proc.kill('SIGKILL'); }
+      if (!exited) { procs.killTree(proc, 'SIGTERM'); await sleep(500); } procs.killTree(proc, 'SIGKILL');
     }
   };
   return app;

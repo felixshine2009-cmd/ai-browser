@@ -22,7 +22,7 @@ module.exports = async (h) => {
   let xvfb = false; try { execFileSync('Xvfb', ['-help'], { stdio: 'ignore' }); xvfb = true; } catch { try { execFileSync('which', ['Xvfb'], { stdio: 'ignore' }); xvfb = true; } catch {} }
   if (xvfb) await test('截图脚本：解析 Xvfb 帧缓冲（XWD）为 PNG，像素颜色正确', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aib-fb-')); const disp = ':' + (90 + Math.floor(Math.random() * 9));
-    const x = spawn('Xvfb', [disp, '-screen', '0', '320x200x24', '-fbdir', dir, '-noreset', '-nolisten', 'tcp'], { stdio: 'ignore' });
+    const x = require('../lib/procs').track(spawn('Xvfb', [disp, '-screen', '0', '320x200x24', '-fbdir', dir, '-noreset', '-nolisten', 'tcp'], { stdio: 'ignore' }));
     try {
       for (let i = 0; i < 50 && !fs.existsSync(path.join(dir, 'Xvfb_screen0')); i++) await new Promise(r => setTimeout(r, 100));
       await new Promise(r => setTimeout(r, 300));
