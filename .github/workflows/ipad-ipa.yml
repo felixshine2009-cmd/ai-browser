@@ -104,6 +104,10 @@ jobs:
           AIB_IPAD_BUNDLE: ${{ github.workspace }}/dist/ipad-bundle
           AIB_IPAD_SHOTS: ${{ github.workspace }}/shots/ipad2
         run: node scripts/run-tests.js 53-ipad-ext
+      - name: Logging safety (EPIPE, log size cap) - desktop + iPad runtime
+        env:
+          AIB_IPAD_BUNDLE: ${{ github.workspace }}/dist/ipad-bundle
+        run: node scripts/run-tests.js 54-log-safety
       - uses: actions/upload-artifact@v4
         if: always()
         with:

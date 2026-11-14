@@ -37,6 +37,7 @@ function zipDir(dir, out, keepParent) {
   });
   const appDir = path.join(paths[0], APP_NAME + '.app');
   if (!fs.existsSync(appDir)) throw new Error('app bundle not produced: ' + paths[0]);
+  require('./stage').assertNoModels(appDir); // models are downloaded on first use, never shipped in the zip
   const zip = path.join(DIST, 'AI-Browser-mac-arm64.zip');
   zipDir(appDir, zip, true);
   console.log('wrote', zip, (fs.statSync(zip).size / 1048576).toFixed(1) + ' MB');

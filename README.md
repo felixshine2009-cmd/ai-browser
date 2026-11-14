@@ -102,7 +102,7 @@ See the [iPad release](https://github.com/felixshine2009-cmd/ai-browser/releases
 
 | File | Description |
 |---|---|
-| `AI-Browser-mac-arm64.zip` | Unsigned `AI Browser.app` (macOS arm64) — includes EmbeddingGemma (knowledge base); the HY-MT translation model downloads on first use |
+| `AI-Browser-mac-arm64.zip` | Unsigned `AI Browser.app` (macOS arm64) — models are not included: EmbeddingGemma (knowledge base) and the HY-MT translation model download on first use |
 | `install.command` / `install.sh` | Unzip → copy to `/Applications` → `xattr -cr` → launch |
 | `AI-Browser-source.zip` | Source (no `node_modules`, no model files) |
 | `README.md` / `README-zh.md` | English / Chinese README |
@@ -136,7 +136,7 @@ Without a configured model, asking gives a friendly error — the app does not c
 ## Models and licences
 
 * Built-in catalog (GGUF for llama.cpp, plus `mlx-community` MLX variants): **Qwen3**, **Qwen2.5**, **Gemma 4** (E2B / E4B / 12B / 26B-A4B / 31B, Apache-2.0), **Gemma 3n**, **Gemma 3**, **Hunyuan-MT**, Seed-X, **EmbeddingGemma**. Size and estimated RAM are shown for every entry.
-* **Gemma 3 / 3n / EmbeddingGemma** are covered by the [Gemma Terms of Use](https://ai.google.dev/gemma/terms) and prohibited-use policy; **Gemma 4** is Apache-2.0. The bundled EmbeddingGemma file is distributed under the Gemma terms.
+* **Gemma 3 / 3n / EmbeddingGemma** are covered by the [Gemma Terms of Use](https://ai.google.dev/gemma/terms) and prohibited-use policy; **Gemma 4** is Apache-2.0. The downloaded EmbeddingGemma file is used under the Gemma terms.
 * **HY-MT1.5** is under the Tencent Hunyuan Community License (**not licensed in the EU, UK and South Korea**); check it before redistributing.
 * Qwen models are Apache-2.0 (Qwen3, most Qwen2.5 sizes — see each model card).
 

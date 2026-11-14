@@ -102,7 +102,7 @@ IPA **未签名**，请使用 AltStore、Sideloadly 等工具以您自己的 App
 
 | 文件 | 说明 |
 |---|---|
-| `AI-Browser-mac-arm64.zip` | 未签名的 `AI Browser.app`（macOS arm64）— 已含 EmbeddingGemma（知识库）；HY-MT 翻译模型在第一次使用时下载 |
+| `AI-Browser-mac-arm64.zip` | 未签名的 `AI Browser.app`（macOS arm64）— 不含模型：EmbeddingGemma（知识库）与 HY-MT 翻译模型在第一次使用时下载 |
 | `install.command` / `install.sh` | 解压 → 拷贝到 `/Applications` → `xattr -cr` → 启动 |
 | `AI-Browser-source.zip` | 源码（不含 `node_modules` 和模型文件） |
 | `README.md` / `README-zh.md` | 英文 / 中文说明 |
@@ -136,7 +136,7 @@ IPA **未签名**，请使用 AltStore、Sideloadly 等工具以您自己的 App
 ## 模型与许可
 
 * 内置目录（llama.cpp 用 GGUF，另有 `mlx-community` 的 MLX 版本）：**Qwen3**、**Qwen2.5**、**Gemma 4**（E2B / E4B / 12B / 26B-A4B / 31B，Apache-2.0）、**Gemma 3n**、**Gemma 3**、**Hunyuan-MT**、Seed-X、**EmbeddingGemma**。每项都显示体积和预估内存。
-* **Gemma 3 / 3n / EmbeddingGemma** 适用 [Gemma 使用条款](https://ai.google.dev/gemma/terms)及禁止用途政策；**Gemma 4** 为 Apache-2.0。内置的 EmbeddingGemma 文件按 Gemma 条款分发。
+* **Gemma 3 / 3n / EmbeddingGemma** 适用 [Gemma 使用条款](https://ai.google.dev/gemma/terms)及禁止用途政策；**Gemma 4** 为 Apache-2.0。下载的 EmbeddingGemma 文件按 Gemma 条款使用。
 * **HY-MT1.5** 使用腾讯混元社区许可（**不适用于欧盟、英国和韩国**），再分发前请自行确认。
 * Qwen 系列多为 Apache-2.0（以各模型卡为准）。
 

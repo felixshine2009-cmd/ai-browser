@@ -1,5 +1,6 @@
 'use strict';
-// Bundled GGUF models (shipped inside the app under <app>/models/) with lazy load + idle unload.
+// GGUF models used by built-in features, with lazy load + idle unload. Since v6.1.0 none ship in the app: each is
+// downloaded on first use into userData/models.
 //   * translation:  Tencent HY-MT1.5-1.8B (Q4_K_M)  — ONLY used by translate.js
 //   * embedding:    Google EmbeddingGemma-300M (Q8_0) — ONLY used by kb.js
 // If a file is missing (e.g. running from the source zip) it is downloaded on first use into userData/models
@@ -19,7 +20,9 @@ function userModelsDir() {
   return path.join(base, 'models');
 }
 function candidates(entry) {
-  const dirs = [process.env.AIB_BUNDLED_MODELS_DIR, path.join(ROOT, 'models'), process.resourcesPath && path.join(process.resourcesPath, 'models'), userModelsDir()].filter(Boolean);
+  // <repo>/models: source checkouts only (AIB_NO_LOCAL_MODELS=1 ignores it, as in a packaged app, where no models ship)
+  const local = process.env.AIB_NO_LOCAL_MODELS === '1' ? [] : [path.join(ROOT, 'models'), process.resourcesPath && path.join(process.resourcesPath, 'models')];
+  const dirs = [process.env.AIB_BUNDLED_MODELS_DIR, ...local, userModelsDir()].filter(Boolean);
   return dirs.map(d => path.join(d, entry.file));
 }
 function locate(kind) {

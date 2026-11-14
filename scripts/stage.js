@@ -28,9 +28,9 @@ function stage(target = 'mac-arm64') {
   delete pkg.devDependencies; delete pkg.scripts;
   fs.writeFileSync(path.join(STAGE, 'package.json'), JSON.stringify(pkg, null, 2));
   copy('src'); copy('extensions'); copy('docs');
-  // bundled GGUF: EmbeddingGemma only (knowledge base). HY-MT1.5 is downloaded on first translation (hf-mirror, resumable). Symlinks are dereferenced.
-  const md = path.join(ROOT, 'models');
-  if (fs.existsSync(md)) { fs.mkdirSync(path.join(STAGE, 'models'), { recursive: true }); for (const f of fs.readdirSync(md)) if (/\.gguf$/.test(f) && !/^HY-MT/i.test(f))  /* HY-MT translation model is NOT bundled: downloaded on first translation */ fs.copyFileSync(fs.realpathSync(path.join(md, f)), path.join(STAGE, 'models', f)); }
+  // No model files in the app (v6.1.0): EmbeddingGemma (knowledge base) and HY-MT1.5 (translation) are downloaded on
+  // first use into userData/models (resumable, mirror fallback). A local models/ directory or symlink is never staged;
+  // assertNoModels() also checks the packaged app.
   // resolve with the same lockfile (ignoring devDependencies), but for the target OS/CPU
   fs.copyFileSync(path.join(ROOT, 'package-lock.json'), path.join(STAGE, 'package-lock.json'));
   const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -44,8 +44,15 @@ function stage(target = 'mac-arm64') {
   // embedded CPython + scientific libraries + vfkit (Apple Silicon only)
   if (target === 'mac-arm64' && !process.env.AIB_SKIP_RUNTIME) execFileSync('python3', [path.join(__dirname, 'stage-runtime.py'), STAGE], { stdio: 'inherit' });
   console.log('staged', STAGE, 'node-llama-cpp natives:', fs.readdirSync(nl));
+  assertNoModels(STAGE);
   return STAGE;
 }
 
-module.exports = { stage, STAGE, TARGETS };
+function assertNoModels(dir) {
+  const bad = [];
+  const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const f = path.join(d, e.name); if (e.isDirectory() && !e.isSymbolicLink()) { if (e.name === 'models' && path.basename(d) === 'app') bad.push(f); walk(f); } else if (/\.gguf$/i.test(e.name)) bad.push(f); } };
+  walk(dir);
+  if (bad.length) throw new Error('model files must not be packaged: ' + bad.slice(0, 5).join(', '));
+}
+module.exports = { assertNoModels, stage, STAGE, TARGETS };
 if (require.main === module) stage(process.argv[2] || 'mac-arm64');
