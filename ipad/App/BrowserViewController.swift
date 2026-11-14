@@ -11,6 +11,8 @@ import Security
 final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate, UIDocumentPickerDelegate, UIDocumentInteractionControllerDelegate {
     private var hosts = [Int: WebHost]()
     var windowHostId = 0
+    /// the window page's web view (chrome); UI tests drive the page's own buttons through it
+    var windowWebView: WKWebView? { hosts[windowHostId]?.webView }
     private let container = UIView()
     private let parking = UIView() // hidden helper web views (offscreen windows, Pyodide / VM hosts) live here
     private var lastSize = CGSize.zero

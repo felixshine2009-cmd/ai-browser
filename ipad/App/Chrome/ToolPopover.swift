@@ -68,6 +68,7 @@ final class ToolPopoverController: UIViewController {
         panel.layer.shadowColor = UIColor.black.cgColor
         panel.layer.shadowOpacity = 0.28; panel.layer.shadowRadius = 24; panel.layer.shadowOffset = CGSize(width: 0, height: 12)
         panel.accessibilityViewIsModal = true
+        panel.accessibilityIdentifier = "tools.popover"
         view.addSubview(panel)
         let content = Glass.contentView(of: panel)
 
@@ -79,6 +80,7 @@ final class ToolPopoverController: UIViewController {
 
         expandButton = Glass.plainButton(symbol: "arrow.up.left.and.arrow.down.right", accessibility: "展开到整个区域",
                                          action: UIAction { [weak self] _ in self?.toggleExpanded() })
+        expandButton.accessibilityIdentifier = "tools.expand"
         content.addSubview(expandButton)
 
         scroll.showsHorizontalScrollIndicator = false
@@ -87,7 +89,8 @@ final class ToolPopoverController: UIViewController {
         content.addSubview(scroll)
         for it in items {
             let t = ToolTile(item: it)
-            t.addAction(UIAction { [weak self] _ in Haptics.play("select"); self?.finish(it.id) }, for: .primaryActionTriggered)
+            // v3.0.1: a plain UIControl only sends touch events; .primaryActionTriggered (3.0.0) never fired on a tap
+            t.addAction(UIAction { [weak self] _ in Haptics.play("select"); self?.finish(it.id) }, for: .touchUpInside)
             tiles.append(t); scroll.addSubview(t)
         }
     }
@@ -152,6 +155,7 @@ final class ToolPopoverController: UIViewController {
 
     @objc func toggleExpanded() {
         expanded.toggle()
+        if UITest.enabled { UITest.event(expanded ? "tools:expanded" : "tools:compact") }
         var c = expandButton.configuration
         c?.image = Glass.symbol(expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
         expandButton.configuration = c
@@ -165,6 +169,7 @@ final class ToolPopoverController: UIViewController {
     private func finish(_ id: String?) {
         guard !finished else { return }
         finished = true
+        if UITest.enabled { UITest.event("tile:\(id ?? "none")") }
         UIView.animate(withDuration: 0.18, delay: 0, options: [.curveEaseIn, .beginFromCurrentState], animations: {
             self.panel.alpha = 0
             self.panel.transform = CGAffineTransform(translationX: 0, y: -self.panel.bounds.height * 0.12).scaledBy(x: 0.96, y: 0.8)
@@ -212,6 +217,7 @@ final class ToolTile: UIControl {
         ring.isHidden = !item.active
         layer.addSublayer(ring)
         isAccessibilityElement = true
+        accessibilityIdentifier = "tool.\(item.id)"
         accessibilityLabel = item.label
         accessibilityHint = item.tip
         accessibilityTraits = item.active ? [.button, .selected] : .button
@@ -240,6 +246,8 @@ final class ToolTile: UIControl {
         label.frame = CGRect(x: 0, y: g.maxY + 6, width: bounds.width, height: 18)
         tip.frame = CGRect(x: 4, y: label.frame.maxY + 3, width: bounds.width - 8, height: 44)
     }
+    // VoiceOver / Full Keyboard Access activation sends the same event as a tap
+    override func accessibilityActivate() -> Bool { sendActions(for: .touchUpInside); return true }
     override var isHighlighted: Bool {
         didSet {
             UIView.animate(withDuration: 0.16, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {

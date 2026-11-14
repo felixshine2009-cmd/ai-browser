@@ -45,3 +45,5 @@ html.aib-ipad .ticon.labeled { min-width: 42px; min-height: 42px; height: 42px; 
 html.aib-ipad .split-bar { width: 6px; }
 html.aib-ipad .split-bar::before { content: ''; position: absolute; left: -10px; right: -10px; top: 0; bottom: 0; }
 html.aib-ipad .space-chip { height: 30px; }
+/* v3.0.1: on iPad the tools live in the toolbar's glass popover; the home page's tool icon row is not shown */
+html.aib-ipad #hometools { display: none !important; }

@@ -40,6 +40,7 @@ final class ServiceRegistry {
     /// false when no service owns the command
     func handle(_ cmd: String, _ m: [String: Any], ctx: ServiceContext, ok: @escaping (Any?) -> Void, fail: @escaping (String) -> Void) -> Bool {
         guard let s = byCommand[cmd] else { return false }
+        if UITest.enabled { UITest.event("cmd:\(cmd)") }
         s.handle(cmd, m, ctx: ctx, ok: ok, fail: fail)
         return true
     }

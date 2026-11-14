@@ -316,6 +316,15 @@ jobs:
           xcodebuild -project ipad/AIBrowser.xcodeproj -scheme AIBrowser -configuration Debug -destination "id=$UDID" \
             -derivedDataPath build/dd -resultBundlePath build/realpicker.xcresult CODE_SIGNING_ALLOWED=NO \
             -only-testing:AIBrowserUITests/ImportTests/testRealFilesPickerOpensDictionary test-without-building | tee sim-test-real.log | grep -E "Test Case|error|passed|failed|XCTAssert"
+      - name: Glass tool popover (every tile with a real tap, expand button)
+        if: always()
+        env:
+          TEST_RUNNER_AIB_UITEST_SHOTS: ${{ github.workspace }}/shots/ios-sim
+        run: |
+          set -o pipefail
+          xcodebuild -project ipad/AIBrowser.xcodeproj -scheme AIBrowser -configuration Debug -destination "id=$UDID" \
+            -derivedDataPath build/dd -resultBundlePath build/tools.xcresult CODE_SIGNING_ALLOWED=NO \
+            -only-testing:AIBrowserUITests/ToolPopoverTests/testEveryToolTileOpensItsTool test-without-building | tee sim-test-tools.log | grep -E "Test Case|error|passed|failed|XCTAssert"
       - name: Logs
         if: always()
         run: |

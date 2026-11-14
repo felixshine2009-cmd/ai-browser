@@ -1,4 +1,5 @@
 import UIKit
+import WebKit
 
 /// iOS Simulator test hooks (CI job "ios-sim-test", ipad/UITests). Active only when the app is launched with -AIBUITest.
 ///
@@ -60,6 +61,13 @@ enum UITest {
             b.accessibilityIdentifier = "uitest.import.\(e.id)"
             panel.addArrangedSubview(b)
         }
+        // glass tool popover (v3.0.1): open it through the chrome page's own button, and read which tool is open
+        for (title, id, act) in [("工具面板", "uitest.tools.open", { openTools() }), ("工具状态", "uitest.tools.state", { toolState() })] as [(String, String, () -> Void)] {
+            var c = UIButton.Configuration.filled(); c.title = title; c.buttonSize = .mini
+            let b = UIButton(configuration: c, primaryAction: UIAction { _ in act() })
+            b.accessibilityIdentifier = id
+            panel.addArrangedSubview(b)
+        }
         vc.view.addSubview(panel)
         NSLayoutConstraint.activate([
             panel.trailingAnchor.constraint(equalTo: vc.view.safeAreaLayoutGuide.trailingAnchor, constant: -8),
@@ -98,6 +106,24 @@ enum UITest {
         }
     }
     private static var current = ""
+
+    /// Clicks the toolbar's glass tool button in the chrome page (the same JavaScript path as a tap on it).
+    static func openTools() {
+        guard let vc = host, let w = vc.windowWebView else { return }
+        event("open:tools")
+        w.evaluateJavaScript("(() => { const b = document.getElementById('toolglass'); if (!b) return 'missing'; b.click(); return 'clicked'; })()", in: nil, in: .page) { r in
+            if case .success(let v) = r { event("toolglass:\(v ?? "nil")") } else { event("toolglass:error") }
+        }
+    }
+    /// result = "tool:<active tool id or none>" from the Node core's tab state.
+    static func toolState() {
+        guard let vc = host else { return }
+        Host.shared.invoke(["wcId": vc.windowHostId, "channel": "tabs:state", "args": [Any](), "url": "aibrowser://chrome/"]) { r in
+            let st = (r as? [String: Any])?["result"] as? [String: Any]
+            let t = (st?["activeTool"] as? String) ?? "none"
+            result.text = "tool:\(t)"; result.accessibilityValue = result.text
+        }
+    }
     private static func verdict(_ id: String, _ v: Any?) -> Bool {
         let d = v as? [String: Any]
         switch id {
