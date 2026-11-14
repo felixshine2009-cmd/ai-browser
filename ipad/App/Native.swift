@@ -78,7 +78,14 @@ final class NativeServices: NSObject, UIImagePickerControllerDelegate, UINavigat
         p.delegate = self
         p.modalPresentationStyle = .fullScreen
         cameraDone = done
-        top.present(p, animated: true)
+        top.present(p, animated: true) {
+            if UITest.enabled {
+                UITest.imagePickerPresented { [weak self, weak p] img in
+                    guard let self = self, let p = p, p.presentingViewController != nil else { return }
+                    if let i = img { self.imagePickerController(p, didFinishPickingMediaWithInfo: [.originalImage: i]) } else { self.imagePickerControllerDidCancel(p) }
+                }
+            }
+        }
     }
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
         let img = (info[.editedImage] as? UIImage) ?? (info[.originalImage] as? UIImage)

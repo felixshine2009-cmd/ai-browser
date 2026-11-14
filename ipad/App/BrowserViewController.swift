@@ -10,7 +10,7 @@ import Security
 /// downloads, notifications, biometrics and llama.cpp. ipad/sim/main.js is the JavaScript twin used on Linux CI.
 final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate, UIDocumentPickerDelegate, UIDocumentInteractionControllerDelegate {
     private var hosts = [Int: WebHost]()
-    private var windowHostId = 0
+    var windowHostId = 0
     private let container = UIView()
     private let parking = UIView() // hidden helper web views (offscreen windows, Pyodide / VM hosts) live here
     private var lastSize = CGSize.zero
@@ -199,6 +199,7 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
         case "window.attach":
             guard let w = h else { break }
             windowHostId = id
+            if UITest.enabled { UITest.windowReady(self) }
             w.webView.frame = container.bounds
             container.insertSubview(w.webView, at: 0)
             StartupLog.log("主窗口已创建（web contents \(id)）")
@@ -474,7 +475,7 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
     ///           progress panel. When both are allowed (dictionaries: .mdx files or a whole folder) the user chooses first.
     /// 2.3.1: 2.3.0 mixed folders and files in one picker opened in place; on devices the picker's 打开 button then did
     /// nothing for some providers, and files that were not downloaded failed silently.
-    private enum PickMode { case files, folder }
+    enum PickMode { case files, folder }
     private var pickMode = PickMode.files
     private func openPicker(_ m: [String: Any], completion: @escaping (Bool, [String]) -> Void) {
         let props = (m["properties"] as? [String]) ?? ["openFile"]
@@ -486,7 +487,7 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
             a.addAction(UIAlertAction(title: "选择整个文件夹", style: .default) { [weak self] _ in self?.presentPicker(m, props: props, mode: .folder, completion: completion) })
             a.addAction(UIAlertAction(title: "取消", style: .cancel) { _ in completion(true, []) })
             if let pop = a.popoverPresentationController { pop.sourceView = container; pop.sourceRect = CGRect(x: container.bounds.midX, y: container.bounds.midY, width: 1, height: 1); pop.permittedArrowDirections = [] }
-            topController.present(a, animated: true)
+            topController.present(a, animated: true) { if UITest.enabled { UITest.event("sheet") } }
             return
         }
         presentPicker(m, props: props, mode: dirs ? .folder : .files, completion: completion)
@@ -510,7 +511,9 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
         pickMode = mode
         pickerReply?(true, []) // a picker that was never answered
         pickerReply = completion
-        topController.present(picker, animated: true)
+        topController.present(picker, animated: true) {
+            if UITest.enabled { UITest.pickerPresented(self, picker: picker, folder: mode == .folder, filters: m["filters"] as? [[String: Any]] ?? []) }
+        }
     }
     func documentPicker(_ c: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         let fm = FileManager.default

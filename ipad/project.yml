@@ -56,3 +56,35 @@ targets:
         CODE_SIGN_STYLE: Manual
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
+  # iOS Simulator import tests (CI job ios-sim-test): launches the app with -AIBUITest, see App/UITest.swift
+  AIBrowserUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: UITests
+        excludes: ["*.js"]
+    dependencies:
+      - target: AIBrowser
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.felixshine2009.aibrowser.ipad.uitests
+        TEST_TARGET_NAME: AIBrowser
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "2"
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+schemes:
+  AIBrowser:
+    build:
+      targets:
+        AIBrowser: all
+        AIBrowserUITests: [test]
+    archive:
+      config: Release
+    test:
+      config: Debug
+      targets:
+        - AIBrowserUITests

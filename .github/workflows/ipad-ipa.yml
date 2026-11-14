@@ -201,3 +201,116 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.release_tag || github.ref_name }}
         run: gh release upload "$TAG" AI-Browser-iPad-unsigned.ipa --clobber
+
+  # The app on a real iOS Simulator: every file import entry goes through UIDocumentPickerViewController and the Swift
+  # import code (the Linux host simulator above fakes the picker). Screenshots and the result bundle are uploaded.
+  ios-sim-test:
+    if: inputs.release_tag == '' || inputs.release_tag == null
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            xcode: '16'
+          - runner: macos-26
+            xcode: '26'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Xcode
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode*.app || true
+          X=""
+          for c in $(ls -d /Applications/Xcode_${{ matrix.xcode }}*.app 2>/dev/null | sort -V -r) $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V -r); do
+            if [[ -d "$c/Contents/Developer" ]]; then X="$c"; break; fi
+          done
+          if [[ -n "$X" ]]; then sudo xcode-select -s "$X/Contents/Developer"; fi
+          xcodebuild -version
+          xcrun simctl list runtimes
+      - name: Payload and fixtures
+        run: |
+          set -euo pipefail
+          node scripts/build-ipad-bundle.js ipad/build/aibapp
+          find ipad/build/aibapp -type l -print -delete
+          mkdir -p "$RUNNER_TEMP/fxmods" && (cd "$RUNNER_TEMP/fxmods" && npm init -y >/dev/null && npm i --no-audit --no-fund adm-zip >/dev/null)
+          NODE_PATH="$RUNNER_TEMP/fxmods/node_modules" node ipad/UITests/make-fixtures.js "$RUNNER_TEMP/uitest"
+      - name: Frameworks (nodejs-mobile, llama.cpp)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p ipad/Frameworks "$RUNNER_TEMP/fw"
+          gh release download "$NODE_MOBILE" -R nodejs-mobile/nodejs-mobile -p "nodejs-mobile-$NODE_MOBILE-ios.zip" -D "$RUNNER_TEMP/fw"
+          unzip -q "$RUNNER_TEMP/fw/nodejs-mobile-$NODE_MOBILE-ios.zip" 'NodeMobile.xcframework/*' -d ipad/Frameworks
+          gh release download "$LLAMA_CPP" -R ggml-org/llama.cpp -p "llama-$LLAMA_CPP-xcframework.zip" -D "$RUNNER_TEMP/fw"
+          unzip -q "$RUNNER_TEMP/fw/llama-$LLAMA_CPP-xcframework.zip" -d "$RUNNER_TEMP/fw/llama"
+          cp -R "$(find "$RUNNER_TEMP/fw/llama" -name llama.xcframework -type d | head -1)" ipad/Frameworks/
+          ls ipad/Frameworks/*.xcframework
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          cd ipad && xcodegen generate
+      - name: iPad simulator
+        run: |
+          set -euo pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)["devices"]
+          c=[(rt,x) for rt,l in d.items() if "iOS" in rt for x in l if x["name"].startswith("iPad")]
+          c.sort(key=lambda t:(t[0], "Pro" in t[1]["name"], "13" in t[1]["name"]), reverse=True)
+          print(c[0][1]["udid"]); print(c[0][0], c[0][1]["name"], file=sys.stderr)')
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+      - name: Build for testing (simulator)
+        run: |
+          set -o pipefail
+          xcodebuild -project ipad/AIBrowser.xcodeproj -scheme AIBrowser -configuration Debug -destination "id=$UDID" \
+            -derivedDataPath build/dd CODE_SIGNING_ALLOWED=NO build-for-testing | tee sim-build.log | grep -E "error:|BUILD|TEST BUILD" || true
+          test -d build/dd/Build/Products/Debug-iphonesimulator/AIBrowser.app || { grep -E "error" -A3 sim-build.log | head -80; exit 1; }
+      - name: Install the app and put the fixtures into its Documents folder (visible in Files ▸ On My iPad)
+        run: |
+          set -euo pipefail
+          xcrun simctl install "$UDID" build/dd/Build/Products/Debug-iphonesimulator/AIBrowser.app
+          C=$(xcrun simctl get_app_container "$UDID" io.github.felixshine2009.aibrowser.ipad data)
+          mkdir -p "$C/Documents/uitest" && cp -R "$RUNNER_TEMP/uitest/." "$C/Documents/uitest/"
+          find "$C/Documents/uitest" | head -40
+      - name: Import tests (every entry, picker answered like the system)
+        env:
+          TEST_RUNNER_AIB_UITEST_SHOTS: ${{ github.workspace }}/shots/ios-sim
+          TEST_RUNNER_AIB_UITEST_FIXTURES: ${{ runner.temp }}/uitest
+        run: |
+          set -o pipefail
+          xcodebuild -project ipad/AIBrowser.xcodeproj -scheme AIBrowser -configuration Debug -destination "id=$UDID" \
+            -derivedDataPath build/dd -resultBundlePath build/import.xcresult CODE_SIGNING_ALLOWED=NO \
+            -only-testing:AIBrowserUITests/ImportTests/testEveryImportEntry test-without-building | tee sim-test.log | grep -E "Test Case|error|passed|failed|XCTAssert" 
+      - name: Real Files picker (browse, select, Open)
+        continue-on-error: true
+        env:
+          TEST_RUNNER_AIB_UITEST_SHOTS: ${{ github.workspace }}/shots/ios-sim
+          TEST_RUNNER_AIB_UITEST_FIXTURES: ${{ runner.temp }}/uitest
+        run: |
+          set -o pipefail
+          xcodebuild -project ipad/AIBrowser.xcodeproj -scheme AIBrowser -configuration Debug -destination "id=$UDID" \
+            -derivedDataPath build/dd -resultBundlePath build/realpicker.xcresult CODE_SIGNING_ALLOWED=NO \
+            -only-testing:AIBrowserUITests/ImportTests/testRealFilesPickerOpensDictionary test-without-building | tee sim-test-real.log | grep -E "Test Case|error|passed|failed|XCTAssert"
+      - name: Logs
+        if: always()
+        run: |
+          mkdir -p shots/ios-sim
+          xcrun simctl spawn "$UDID" log show --last 60m --style compact --predicate 'eventMessage CONTAINS "[aib"' > shots/ios-sim/app-log.txt 2>&1 || true
+          C=$(xcrun simctl get_app_container "$UDID" io.github.felixshine2009.aibrowser.ipad data 2>/dev/null) && find "$C" -name '*.log' -size -5M -exec cp {} shots/ios-sim/ \; || true
+          cp sim-*.log shots/ios-sim/ 2>/dev/null || true
+          ls -la shots/ios-sim
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-sim-${{ matrix.runner }}
+          path: |
+            shots/ios-sim
+            build/*.xcresult

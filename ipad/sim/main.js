@@ -210,7 +210,17 @@ async function onCmd(m) {
       case 'menu.app': sim.appKeys = m.keys || []; break;
       case 'menu.popup': sim.lastMenu = m.items; { const c = sim.menuChoice; sim.menuChoice = null; ok({ id: typeof c === 'function' ? c(m.items) : c || null }); } break;
       case 'dialog.message': sim.lastDialog = m; { const c = sim.dialogChoice; sim.dialogChoice = null; ok({ response: c == null ? (m.defaultId || 0) : c }); } break;
-      case 'dialog.open': ok({ paths: sim.openPaths.splice(0) }); break;
+      case 'dialog.open': {
+        // like the Swift host: picked items are copied into tmp/picked/<id>/ before Node sees them
+        sim.lastOpen = { title: m.title || '', properties: m.properties || [], filters: m.filters || [] }; sim.opens = (sim.opens || 0) + 1;
+        const src = sim.openPaths.splice(0);
+        if (!src.length) { ok({ paths: [] }); break; }
+        const base = path.join(require('os').tmpdir(), 'aib-sim-picked', 'picked', Math.random().toString(16).slice(2, 10));
+        fs.mkdirSync(base, { recursive: true });
+        const out = [];
+        for (const f of src) { try { const d = path.join(base, path.basename(f)); fs.cpSync(f, d, { recursive: true }); out.push(d); } catch (e) { console.error('[sim] pick copy failed', f, e.message); } }
+        ok({ paths: out }); break;
+      }
       case 'auth.biometric': ok({ ok: true }); break;
       case 'clipboard.write': clipboard.writeText(m.text || ''); break;
       case 'clipboard.image': break;
@@ -311,7 +321,7 @@ app.whenReady().then(async () => {
     else if (req.url === '/wake') { const f = path.join(TMP, 'aib-wake'); fs.writeFileSync(f, String(Date.now())); const t = new Date(Date.now() + 2000); fs.utimesSync(f, t, t); out = true; }
     else if (req.url === '/drop-stream') { const r = stream.res; if (r) r.destroy(); out = !!r; }
     else if (req.url === '/open-paths') { sim.openPaths.push(...((body && body.paths) || [])); out = true; }
-    else if (req.url === '/state') out = { diag: sim.diag, windowShown: sim.windowShown, lastMenu: sim.lastMenu || null, lastDialog: sim.lastDialog || null, lastShell: sim.lastShell || null, appKeys: (sim.appKeys || []).length, themeSource: nativeTheme.themeSource, views: Array.from(hosts.values()).map(h => ({ id: h.id, kind: h.kind, url: h.view.webContents.getURL(), attached: h.attached, visible: h.visible, bounds: h.id === winHostId ? { x: 0, y: 0, width: W, height: H } : h.bounds })) };
+    else if (req.url === '/state') out = { diag: sim.diag, windowShown: sim.windowShown, lastMenu: sim.lastMenu || null, lastDialog: sim.lastDialog || null, lastShell: sim.lastShell || null, lastOpen: sim.lastOpen || null, opens: sim.opens || 0, appKeys: (sim.appKeys || []).length, themeSource: nativeTheme.themeSource, views: Array.from(hosts.values()).map(h => ({ id: h.id, kind: h.kind, url: h.view.webContents.getURL(), attached: h.attached, visible: h.visible, bounds: h.id === winHostId ? { x: 0, y: 0, width: W, height: H } : h.bounds })) };
     else if (req.url === '/resize') { const b = body || {}; win.setContentSize(b.w, b.h); W = b.w; H = b.h; for (const h of hosts.values()) layoutHost(h); out = await event({ type: 'window', w: b.w, h: b.h }); }
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(out));
   }).listen(Number(process.env.AIB_SIM_CTL), '127.0.0.1');

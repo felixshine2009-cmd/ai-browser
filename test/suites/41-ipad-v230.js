@@ -145,25 +145,70 @@ module.exports = async ({ test, group, assert, eq, until }) => {
       await app.invoke('tool:hide');
     });
 
-    await test('2.3.1：从“文件”导入整个词典文件夹（.mdx、.mdd 及样式），导入后清理临时副本', async () => {
-      const fx = path.join(__dirname, '..', 'fixtures', 'dict');
-      const base = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'aib-pick-')), 'picked', 'ab12cd34');
-      const folder = path.join(base, '测试词典包');
-      const sub = path.join(folder, 'OALD');
-      fs.mkdirSync(sub, { recursive: true });
-      for (const n of ['test.mdx', 'test.mdd']) fs.copyFileSync(path.join(fx, n), path.join(sub, n));
-      for (const n of fs.readdirSync(path.join(fx, 'res'))) fs.copyFileSync(path.join(fx, 'res', n), path.join(sub, n));
-      const before = (await app.invoke('ext:rpc', 'aib.dictionary', 'list', {})).length;
-      await app.openPaths([folder]).catch(() => {});
-      const r = await app.invoke('ext:rpc', 'aib.dictionary', 'pickAndAdd', {});
-      assert(r && r.added && r.added.length === 1 && !r.errors.length, JSON.stringify(r));
-      const l = await app.invoke('ext:rpc', 'aib.dictionary', 'list', {});
-      eq(l.length, before + 1);
-      assert(!fs.existsSync(base), 'temporary copy removed');
-      const d = l.find(x => x.name === r.added[0]);
-      const hits = await app.invoke('ext:rpc', 'aib.dictionary', 'lookup', { word: 'abandon' });
-      assert(hits.some(h => d && h.dictId === d.id), JSON.stringify(hits).slice(0, 300));
-      if (d) await app.invoke('ext:rpc', 'aib.dictionary', 'remove', { id: d.id });
+    await test('2.3.1：每个导入入口都经过原生“文件”选择流程（词典文件与文件夹、ZIM、系统镜像、模型、资料、拓展、密码 CSV、照片），临时副本导入后清理', async () => {
+      const fxd = fs.mkdtempSync(path.join(os.tmpdir(), 'aib-uif-'));
+      require('child_process').execFileSync(process.execPath, [path.join(__dirname, '..', '..', 'ipad', 'UITests', 'make-fixtures.js'), fxd]);
+      const F = (n) => path.join(fxd, 'files', n);
+      const rpc = (name, a) => app.invoke('ext:rpc', 'aib.dictionary', name, a || {});
+      const pickedRoot = path.join(os.tmpdir(), 'aib-sim-picked', 'picked');
+      const opened = async (expectProps) => { const s = await app.state(); assert(s.lastOpen && expectProps.every(p => s.lastOpen.properties.includes(p)), JSON.stringify(s.lastOpen)); return s.lastOpen; };
+      const before = (await rpc('list')).length;
+      // dictionary: files (.mdx with its .mdd and style picked together)
+      await app.openPaths([F('test.mdx'), F('test.mdd'), F('test.css'), F('logo.png')]);
+      let r = await rpc('pickAndAdd');
+      assert(r.added.length === 1 && !r.errors.length, JSON.stringify(r));
+      const lo = await opened(['openFile', 'openDirectory']);
+      assert(lo.filters[0].extensions.includes('mdx') && lo.filters[0].extensions.includes('mdd'), JSON.stringify(lo));
+      // dictionary: a whole folder
+      await app.openPaths([path.join(fxd, 'dictfolder', '测试词典包')]);
+      r = await rpc('pickAndAdd');
+      assert(r.added.length === 1 && !r.errors.length, JSON.stringify(r));
+      const l = await rpc('list');
+      eq(l.length, before + 2);
+      const hits = await rpc('lookup', { word: 'abandon' });
+      assert(hits.length >= 2, JSON.stringify(hits).slice(0, 300));
+      for (const d of l.slice(before)) await rpc('remove', { id: d.id });
+      // a folder without dictionaries is reported, not ignored
+      await app.openPaths([path.join(fxd, 'files')].map(p => { const e = path.join(fxd, 'empty'); fs.mkdirSync(e, { recursive: true }); fs.writeFileSync(path.join(e, 'a.txt'), 'x'); return e; }));
+      r = await rpc('pickAndAdd');
+      assert(r.errors.length === 1 && /没有 .mdx/.test(r.errors[0]), JSON.stringify(r));
+      // ZIM
+      await app.openPaths([F('small.zim')]);
+      r = await app.invoke('wiki:openZim');
+      assert(r && !r.cancelled && r.open, JSON.stringify(r));
+      await opened(['openFile']);
+      // custom system image
+      await app.openPaths([F('disk.img')]);
+      r = await app.invoke('vmimg:import');
+      assert(r.ok, JSON.stringify(r));
+      await app.invoke('vmimg:remove', r.image.id);
+      // local model file
+      await app.openPaths([F('model.gguf')]);
+      r = await app.invoke('lm:pick');
+      assert(typeof r === 'string' && r.endsWith('model.gguf'), JSON.stringify(r));
+      // knowledge base text file
+      await app.openPaths([F('notes.txt')]);
+      r = await app.invoke('kb:addFiles');
+      assert(r.ok && r.results.length === 1 && /notes\.txt$/.test(r.results[0].file), JSON.stringify(r).slice(0, 300)); // embedding needs llama.cpp (device only)
+      // feature extension package
+      await app.openPaths([F('extension.zip')]);
+      r = await app.invoke('ext:installZip');
+      assert(r && r.id, JSON.stringify(r));
+      await app.invoke('ext:uninstall', r.id);
+      // password CSV
+      await app.openPaths([F('passwords.csv')]);
+      r = await app.invoke('pw:import');
+      assert(r && typeof r.added === 'number', JSON.stringify(r));
+      // cancelling the picker returns nothing and does not throw
+      r = await app.invoke('wiki:openZim');
+      assert(r && r.cancelled, JSON.stringify(r));
+      // photo for 拍题 (system photo picker on the device)
+      r = await app.invoke('camera:capture', { source: 'library' });
+      assert(r && (r.cancelled || /^data:image/.test(r.dataUrl || '')), JSON.stringify(r).slice(0, 200));
+      // dictionary copies taken from Files are removed after import
+      const left = fs.existsSync(pickedRoot) ? fs.readdirSync(pickedRoot).filter(n => fs.readdirSync(path.join(pickedRoot, n)).some(x => /\.md[xd]$/.test(x) || x === '测试词典包')) : [];
+      eq(left.length, 0, 'dictionary copies removed: ' + left.join(','));
+      eq((await app.state()).opens >= 9, true);
     });
 
     await test('F6：自定义系统镜像：导入 IMG（原始格式）与 QCOW2（转换），iPad 以 v86 启动', async () => {
