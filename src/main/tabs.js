@@ -319,7 +319,7 @@ function openInternal(name, { reuse = true } = {}) {
 }
 
 // ---------------- overlays
-function menuBounds() { const [w] = win.getContentSize(); return { x: w - 256, y: CHROME_H - 10, width: 248, height: 484 }; }
+function menuBounds() { const [w] = win.getContentSize(); return { x: w - 256, y: CHROME_H - 10, width: 248, height: 526 }; }
 function findBounds() { const [w] = win.getContentSize(); return { x: w - 400, y: CHROME_H + 6, width: 392, height: 48 }; }
 
 function openOverlay(kind, bounds, query) {

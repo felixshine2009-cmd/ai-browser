@@ -48,24 +48,50 @@
     if (!ex.math.length) return html;
     return html.replace(/\u0001(\d+)\u0002/g, (m, n) => { const x = ex.math[Number(n)]; return x ? texHtml(x.tex, x.display) : ''; });
   }
+  // v3.0.0 answer format: GFM tables, ##/### headings, > quotes, --- rules, fenced code with a language, and answer
+  // blocks (```graph → GeoGebra, ```chem → chemical equations, ```word → dictionary cards) that chat.js turns into
+  // live widgets (static/answer-blocks.js). Without that script the blocks stay readable as code.
+  const BLOCK_KINDS = { graph: 'graph', ggb: 'graph', geogebra: 'graph', chem: 'chem', chemistry: 'chem', ce: 'chem', word: 'word', words: 'word', vocab: 'word' };
+  function fenceHtml(lang, body) {
+    const kind = BLOCK_KINDS[String(lang || '').toLowerCase()];
+    if (kind) return `<div class="ablock ablock-${kind}" data-kind="${kind}" data-src="${esc(body)}"><pre><code>${esc(body)}</code></pre></div>`;
+    return `<pre><code${lang ? ` class="lang-${esc(lang)}" data-lang="${esc(lang)}"` : ''}>${esc(body)}</code></pre>`;
+  }
+  const cellsOf = (ln) => ln.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
   function renderBlocks(text, cites) {
     const lines = String(text || '').replace(/\r/g, '').split('\n');
-    const out = []; let list = null, para = [];
+    const out = []; let list = null, para = [], quote = null;
     const flushPara = () => { if (para.length) { out.push('<p>' + inline(para.join('<br>'), cites).replace(/&lt;br&gt;/g, '<br>') + '</p>'); para = []; } };
     const flushList = () => { if (list) { out.push(`<${list.t}>` + list.items.map(i => '<li>' + inline(i, cites) + '</li>').join('') + `</${list.t}>`); list = null; } };
+    const flushQuote = () => { if (quote) { out.push('<blockquote>' + renderBlocks(quote.join('\n'), cites) + '</blockquote>'); quote = null; } };
+    const flushAll = () => { flushPara(); flushList(); flushQuote(); };
     let fence = null;
-    for (const ln of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i];
       let m;
-      if (/^\s*```/.test(ln)) { if (fence) { out.push('<pre><code>' + esc(fence.join('\n')) + '</code></pre>'); fence = null; } else { flushPara(); flushList(); fence = []; } continue; }
-      if (fence) { fence.push(ln); continue; }
+      if ((m = ln.match(/^\s*```\s*([\w+-]*)/))) { if (fence) { out.push(fenceHtml(fence.lang, fence.lines.join('\n'))); fence = null; } else { flushAll(); fence = { lang: m[1] || '', lines: [] }; } continue; }
+      if (fence) { fence.lines.push(ln); continue; }
+      if (quote && !/^\s*>/.test(ln)) flushQuote();
+      if ((m = ln.match(/^\s*>\s?(.*)/))) { flushPara(); flushList(); (quote = quote || []).push(m[1]); continue; }
+      if (/^\s*\|.*\|\s*$/.test(ln) && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(lines[i + 1])) {
+        flushAll();
+        const head = cellsOf(ln); const aligns = cellsOf(lines[i + 1]).map(c => /^:-+:$/.test(c) ? 'center' : /-:$/.test(c) ? 'right' : '');
+        const rows = []; i += 2;
+        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(cellsOf(lines[i++]));
+        i--;
+        const td = (tag, c, k) => `<${tag}${aligns[k] ? ` style="text-align:${aligns[k]}"` : ''}>${inline(c, cites)}</${tag}>`;
+        out.push('<div class="md-table"><table><thead><tr>' + head.map((c, k) => td('th', c, k)).join('') + '</tr></thead><tbody>' + rows.map(r => '<tr>' + head.map((_, k) => td('td', r[k] == null ? '' : r[k], k)).join('') + '</tr>').join('') + '</tbody></table></div>');
+        continue;
+      }
+      if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(ln)) { flushAll(); out.push('<hr>'); continue; }
       if ((m = ln.match(/^\s*[-*•]\s+(.*)/))) { flushPara(); if (!list || list.t !== 'ul') { flushList(); list = { t: 'ul', items: [] }; } list.items.push(m[1]); }
       else if ((m = ln.match(/^\s*\d+[.)]\s+(.*)/))) { flushPara(); if (!list || list.t !== 'ol') { flushList(); list = { t: 'ol', items: [] }; } list.items.push(m[1]); }
-      else if ((m = ln.match(/^(#{1,4})\s+(.*)/))) { flushPara(); flushList(); out.push(`<h4>${inline(m[2], cites)}</h4>`); }
-      else if (!ln.trim()) { flushPara(); flushList(); }
+      else if ((m = ln.match(/^(#{1,4})\s+(.*)/))) { flushAll(); out.push(`<h4 class="md-h${m[1].length}">${inline(m[2], cites)}</h4>`); }
+      else if (!ln.trim()) { flushAll(); }
       else { flushList(); para.push(ln); }
     }
-    if (fence) out.push('<pre><code>' + esc(fence.join('\n')) + '</code></pre>');
-    flushPara(); flushList();
+    if (fence) out.push(fenceHtml(fence.lang, fence.lines.join('\n')));
+    flushAll();
     return out.join('');
   }
   window.MD = { render, esc, extractMath, texHtml, hasKatex: () => !!katexOf() };

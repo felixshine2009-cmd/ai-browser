@@ -233,6 +233,23 @@ function registerIpc() {
   handle('tool:close', (e, id) => { tabsMod.closeTool(String(id || '')); return true; });
   handle('tool:hide', () => { tabsMod.hideTool(); return true; });
   handle('tools:catalog', () => require('./ai/tools').catalog());
+  // v3.0.0 documents from the layout engine (document cards in chat)
+  const docSvc = require('./doc');
+  docSvc.setOnExported((r) => { try { store.downloads().unshift({ id: 'dl' + Date.now() + Math.random().toString(36).slice(2, 6), url: 'aibrowser://document', filename: r.file, path: r.path, received: r.bytes, total: r.bytes, state: 'completed', time: Date.now() }); store.saveDownloads(); broadcast('downloads:changed'); } catch {} });
+  // answer blocks (```graph / ```word) from the chat page
+  handle('answer:block', async (e, kind, payload) => {
+    const p = payload || {};
+    if (kind === 'graph') { const cmds = (Array.isArray(p.commands) ? p.commands : []).map(String).slice(0, 80); if (!cmds.length) return { error: 'no commands' }; try { return await require('./ai/tools').call('ggb_eval', { commands: cmds }, { wcId: e.sender.id }); } catch (err) { return { error: err.message }; } }
+    if (kind === 'word') { const w = String(p.word || '').trim().slice(0, 60); if (!/^[A-Za-z][A-Za-z' -]*$/.test(w)) return null; return require('./ai/doc-tools').lookupWord(w); }
+    return null;
+  });
+  handle('doc:html', (e, id) => docSvc.html(String(id), { bare: false, inlineFonts: true }));
+  handle('doc:info', (e, id) => docSvc.E.summary(docSvc.get(String(id))));
+  handle('doc:list', () => docSvc.list());
+  handle('doc:open', (e, id) => { const u = docSvc.openFile(String(id)); tabsMod.createTab(u, { activate: true }); return { ok: true }; });
+  handle('doc:export', async (e, id, format) => { const r = await docSvc.exportDoc(String(id), format === 'html' ? 'html' : 'pdf'); return r; });
+  handle('doc:reveal', (e, p) => { const f = String(p || ''); if (store.downloads().some(d => d.path === f)) shell.showItemInFolder(f); });
+  handle('doc:openFile', (e, p) => { const f = String(p || ''); if (store.downloads().some(d => d.path === f)) shell.openPath(f); });
   // iPad glass tool popover (native host); desktop keeps the tool strip
   handle('tools:popover', async (e, rect, items, toolbarBottom) => {
     const nat = require('./native');

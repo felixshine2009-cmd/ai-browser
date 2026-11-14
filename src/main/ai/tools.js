@@ -231,6 +231,9 @@ const BUILTIN = [
 
 ];
 try { for (const t of require('../v36/extra-tools')) BUILTIN.push(t); } catch (e) { console.error('v36 tools', e.message); }
+// v3.0.0 layout engine + generator agents (排版助手 / 幻灯片 / 表格与图表 / 错题本与试卷 / 单词卡 / 思维导图)
+const DOC_TOOLS = require('./doc-tools');
+for (const t of DOC_TOOLS.TOOLS) BUILTIN.push(t);
 // v3.0.0 unified registry: every browser capability the user has in the UI is also a tool for task mode
 const ipc = (ch, ...a) => { if (typeof global.__aibIpc !== 'function') throw new Error('browser actions are not available'); return global.__aibIpc(ch, ...a); };
 const TOOL_VIEWS = ['solve', 'geogebra', 'physics', 'wiki', 'dict', 'code', 'readlater'];
@@ -350,9 +353,10 @@ const LABELS = {
   ggb_eval: 'GeoGebra 作图', ggb_clear: '清空 GeoGebra', ggb_export_png: '导出 GeoGebra 图片', ggb_set_app: '切换 GeoGebra 应用', ggb_save: '保存 GeoGebra 文件', ggb_load: '载入 GeoGebra 文件', ggb_keyboard: 'GeoGebra 键盘', ggb_state: 'GeoGebra 对象',
   phys_load: '载入物理场景', phys_play: '播放仿真', phys_pause: '暂停仿真', phys_step: '单步仿真', phys_state: '仿真状态', phys_validate: '检查物理场景', phys_reset: '重置仿真', phys_set_speed: '仿真速度', phys_list_examples: '物理示例列表', phys_load_example: '载入物理示例', phys_set_param: '设置物理参数', phys_update: '更新物理场景', phys_list_params: '物理参数列表', phys_add_element: '添加物理元件', phys_update_element: '修改物理元件', phys_remove_element: '删除物理元件', phys_list_element_types: '物理元件类型', phys_define_custom_element: '自定义物理元件', phys_new_scene: '新建物理场景', phys_get_elements: '物理场景元件'
 };
-const GROUP_LABELS = { web: '网页', browser: '浏览器', workspace: '工具与工作区', extensions: '拓展', settings: '设置', language: '语言', knowledge: '知识库', models: '模型', compute: '计算' };
+const GROUP_LABELS = { web: '网页', browser: '浏览器', workspace: '工具与工作区', extensions: '拓展', settings: '设置', language: '语言', knowledge: '知识库', models: '模型', compute: '计算', document: '文档与排版' };
 function label(name) {
   if (LABELS[name]) return LABELS[name];
+  if (DOC_TOOLS.LABELS[name]) return DOC_TOOLS.LABELS[name];
   const t = features.listTools().find(x => x.name === name);
   const zh = t && t.label; return zh || name;
 }

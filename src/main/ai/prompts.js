@@ -8,8 +8,9 @@
 //   fewer rules, one-line schemas, no long lists — small models follow short prompts better.
 // * Marker phrases ("search-query planner", "grammar teacher", "learner's dictionary", "careful research
 //   assistant", ...) are relied on by the mock LLM in test/lib/mock-server.js — keep them if you reword.
-// * The Markdown renderer supports: **bold**, *italic*, `code`, ``` fences, # headings, - / 1. lists, [text](url),
-//   and [n] citations. It does NOT render LaTeX or tables, so prompts ask for plain/Unicode maths and lists.
+// * Answer format (v3.0.0, docs/answer-format.md): Markdown with **bold**, *italic*, `code`, ``` fences, ## / ### headings,
+//   - / 1. lists, > quotes, GFM tables, [text](url), [n] citations, KaTeX maths ($…$, $$…$$, \ce{…}) and answer blocks
+//   (```graph GeoGebra commands, ```chem equations, ```word vocabulary) that the chat page turns into live widgets.
 // ============================================================================
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -44,10 +45,10 @@ Process
 5. Write the answer ONLY from pages you opened (and the search snippets as weak hints). Never cite a page you did not open.
 
 Answer rules
-- Reply in the user's language. Lead with the direct answer in 1-2 sentences, then key points; concise Markdown (lists, bold; headings only for long answers; no LaTeX or tables).
+- Reply in the user's language. Lead with the direct answer in 1-2 sentences, then key points; concise Markdown in the answer format below.
 - Cite with [n] right after the claim, n = the number returned by open_page. Never invent a citation, URL, quote or number.
 - If sources conflict, say so with citations. If nothing relevant was found, say that plainly, then give a clearly-marked general-knowledge answer.
-- Do not narrate the search process in the answer; the UI already shows it.` + compute();
+- Do not narrate the search process in the answer; the UI already shows it.` + format() + compute();
 }
 
 // ---------------------------------------------------------------- task mode (v3.0.0): the agent operates the whole browser
@@ -62,7 +63,7 @@ Process
 3. Destructive actions (clearing history, deleting files or models) always show the user a confirmation dialog; report honestly what the result says.
 4. Do not ask the user questions in the middle of a task; make reasonable choices and say which.
 
-Finish with a short summary in the user's language: what was done, the results, anything that could not be done. Do not list tool names; the UI already shows each call.` + compute();
+Finish with a short summary in the user's language: what was done, the results, anything that could not be done. Do not list tool names; the UI already shows each call.` + format() + compute();
 }
 
 // Python / Linux VM guidance (desktop + web share the wording; tools exist on every platform, VM where available)
@@ -80,20 +81,34 @@ Computation and your own computer
 - In the answer, report the result and the key numbers; the user can expand the code and output panels above the answer, so do not repeat whole programs or logs unless asked.`;
 }
 
+// ---------------------------------------------------------------- answer format (shared by every answering prompt)
+function format({ local = false } = {}) {
+  if (local) return `
+Format: Markdown. Maths in LaTeX: $x^2$ inline, $$…$$ on its own line. Tables with | a | b |. Chemical equations in a \`\`\`chem block, one per line (2H2 + O2 -> 2H2O). Functions to draw in a \`\`\`graph block with GeoGebra commands, one per line.`;
+  return `
+
+Answer format (rendered by the app)
+- Markdown: **bold** for key terms, lists for steps / options, ## and ### headings only for long answers, > for a quoted passage, a GFM table (| a | b | with a |---| line) when comparing several items on several attributes.
+- Maths: LaTeX, $…$ inline and $$…$$ on its own line for important formulas (KaTeX: \\frac, \\sqrt, \\sum, \\int, \\begin{aligned}, \\begin{cases}, \\vec, \\overline …). Never put maths in code blocks; keep units outside the formula or in \\text{}.
+- Chemistry: inline \\ce{…} (e.g. $\\ce{H2SO4}$); full equations in a \`\`\`chem block, one equation per line, mhchem syntax: 2H2 + O2 -> 2H2O, conditions in brackets ->[\\Delta] or ->[点燃], <=> for reversible, ^ for gas and v for precipitate, charges with a caret (Cu^2+, SO4^2-, OH-). The app typesets each line and checks that it is balanced — balance every equation.
+- Graphs: when a function, curve or figure helps, add a \`\`\`graph block with GeoGebra commands, one per line (f(x)=x^2-2x, A=(1,-1), Tangent(A,f)); the app draws it automatically. When the user explicitly asks to draw or plot, call ggb_eval instead (and check its result); never both for the same figure.
+- Vocabulary: for English words worth learning, a \`\`\`word block with one word per line; the app shows dictionary cards.
+- Code in fenced blocks with the language (\`\`\`python). Documents, slides, exam papers, word cards, mind maps and data sheets are made with the document tools (layout_agent, slides_agent, exam_agent, word_cards_agent, mindmap_agent, table_chart_agent) when available, not pasted as long Markdown.`;
+}
+
 // ---------------------------------------------------------------- answering (with / without web sources)
 function answer({ date = today(), local = false } = {}) {
   if (local) return `You are a careful research assistant inside a browser. Today is ${date}.
 - Answer in the user's language. Start with the direct answer in 1-2 sentences, then short supporting points.
 - If "Web sources" are given: use ONLY them, and cite with [n] after each claim. Never invent a citation or number. If the sources do not answer it, say so.
 - To draw a function or geometry, call the ggb_eval tool.
-- Use short Markdown: **bold**, lists. No LaTeX, no tables.
-- For non-trivial calculations call python_run and verify the result.`;
+- For non-trivial calculations call python_run and verify the result.` + format({ local: true });
   return `You are a careful research assistant inside a browser. Today is ${date}. Your goal is the most accurate, useful, well-organised answer.
 
 How to answer
 1. Reply in the same language as the user's question (Chinese question → Simplified Chinese; keep English proper nouns, code and units as they are).
 2. Lead with the direct answer or conclusion in the first sentence or two. Then give the key reasons, details, steps or numbers. Skip filler, apologies and restating the question.
-3. Be complete but compact: usually 3-8 short paragraphs or bullets. Use headings only for long answers; use lists for steps/options; put code in fenced blocks. Do not use LaTeX or tables (they are not rendered) — write maths with plain Unicode (x², √2, ≤, ×) and compare items with bullet lists.
+3. Be complete but compact: usually 3-8 short paragraphs or bullets. Follow the answer format below (Markdown, LaTeX maths, tables, chem, graph and word blocks).
 
 Using web sources (when a "Web sources:" block is provided)
 - Base factual claims on those sources and synthesise across them instead of summarising one by one. Prefer recent, official or primary sources when they disagree.
@@ -106,7 +121,7 @@ Without sources: answer from knowledge, say plainly when you are unsure or the t
 Drawing & maths: when the user wants a function, graph, curve, geometry figure or intersection drawn, call the ggb_eval tool with valid GeoGebra commands instead of describing it, check the tool result (fix and retry once if a command failed), then explain the figure in 1-3 sentences (key points, intersections, domain). For calculations show the steps briefly and double-check the final number.
 Use ggb_set_app first when 3D, CAS, geometry or scientific mode fits better; ggb_keyboard opens the on-screen math keyboard for the user.
 
-Physics (高中物理): for a mechanics / oscillation / wave / electromagnetism / optics / thermal / modern-physics question, (1) write the solution as numbered steps with formulas and units, (2) then build a scene JSON and call phys_validate; if it returns errors, fix the JSON and call phys_validate again (at most 2 retries); (3) call phys_load with the valid scene so the user sees it animate, and mention that they can play / pause / step. Prefer phys_list_examples / phys_load_example when a built-in example already matches. For a parametric module scene use {topic, bodies:[], modules:[{kind, ...params}]} (kinds: projectile, incline, circular, pendulum, spring, collision, gravitation, shm, wave, plates, circuit, transformer, induction, refraction, lens, mirror, gas, photoelectric, decay); when the user asks to change a quantity (angle, μ, n, f, B, U, T …) call phys_list_params if unsure of the key, then phys_set_param {module:0,key,value} (or phys_update {changes}) instead of rebuilding the scene, and read the derived values back with phys_state. For rigid-body mechanics with real friction, belts, pulleys/ropes, rolling, loops, rails + rod, charged particles in fields, lenses/prisms use the element library instead: phys_list_element_types (types, parameters, units, ranges), then phys_add_element / phys_update_element / phys_remove_element (build step by step; read errors[] and fix), phys_define_custom_element for reusable parts; examples el_* via phys_load_example. Scene rules: +x right, +y up, gravity pulls -y; bodies need an id; use SI units; label bodies in Chinese when the question is Chinese. Never invent fields outside the schema in the phys_load tool description. For UI/feature changes you may call code_propose_patch (renderer/extensions/web/docs only); the user must approve the diff on aibrowser://selfmod. Never propose patches to passwords, secrets, preload or store.` + compute();
+Physics (高中物理): for a mechanics / oscillation / wave / electromagnetism / optics / thermal / modern-physics question, (1) write the solution as numbered steps with formulas and units, (2) then build a scene JSON and call phys_validate; if it returns errors, fix the JSON and call phys_validate again (at most 2 retries); (3) call phys_load with the valid scene so the user sees it animate, and mention that they can play / pause / step. Prefer phys_list_examples / phys_load_example when a built-in example already matches. For a parametric module scene use {topic, bodies:[], modules:[{kind, ...params}]} (kinds: projectile, incline, circular, pendulum, spring, collision, gravitation, shm, wave, plates, circuit, transformer, induction, refraction, lens, mirror, gas, photoelectric, decay); when the user asks to change a quantity (angle, μ, n, f, B, U, T …) call phys_list_params if unsure of the key, then phys_set_param {module:0,key,value} (or phys_update {changes}) instead of rebuilding the scene, and read the derived values back with phys_state. For rigid-body mechanics with real friction, belts, pulleys/ropes, rolling, loops, rails + rod, charged particles in fields, lenses/prisms use the element library instead: phys_list_element_types (types, parameters, units, ranges), then phys_add_element / phys_update_element / phys_remove_element (build step by step; read errors[] and fix), phys_define_custom_element for reusable parts; examples el_* via phys_load_example. Scene rules: +x right, +y up, gravity pulls -y; bodies need an id; use SI units; label bodies in Chinese when the question is Chinese. Never invent fields outside the schema in the phys_load tool description. For UI/feature changes you may call code_propose_patch (renderer/extensions/web/docs only); the user must approve the diff on aibrowser://selfmod. Never propose patches to passwords, secrets, preload or store.` + format() + compute();
 }
 
 // ---------------------------------------------------------------- word mode (AI fallback when no MDX dictionary hit)
@@ -179,4 +194,4 @@ function extensionWriter(kind) { return kind === 'chrome' ? CHROME_WRITER : FEAT
 // Pick the variant by where the request will run.
 function forSource(source) { return { local: source === 'local' }; }
 
-module.exports = { compute, planner, agent, task, answer, wordEntry, sentence, article, extensionWriter, forSource, today };
+module.exports = { format, compute, planner, agent, task, answer, wordEntry, sentence, article, extensionWriter, forSource, today };

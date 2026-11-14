@@ -270,6 +270,39 @@
     det.querySelector('.tc-result').textContent = res ? (I18N.lang === 'en' ? 'Result\n' : '结果\n') + res : '';
     det.hidden = !(args || res);
     if (!d.querySelector('.tc-arg').textContent && args) d.querySelector('.tc-arg').textContent = fmt(ev.args).replace(/\s+/g, ' ').slice(0, 60);
+    if (!ev.error && ev.result && ev.result.doc && ev.result.doc.id) docCard(d, ev.result);
+  }
+  // v3.0.0 document card (layout engine / generator agents): live thumbnail, open, export PDF / HTML
+  const DOC_KINDS = { slides: '幻灯片', 'table-chart': '表格与图表', exam: '试卷', mistakes: '错题本', 'word-cards': '单词卡', mindmap: '思维导图' };
+  function docCard(toolEl, r) {
+    const info = r.doc; const en = I18N.lang === 'en';
+    (els.trace || document).querySelectorAll(`.doc-card[data-doc="${CSS.escape(info.id)}"]`).forEach(x => x.remove()); // only the latest state of a document is shown
+    const c = el('div', 'doc-card'); c.dataset.doc = info.id;
+    const kind = DOC_KINDS[info.kind] || (en ? 'Document' : '文档');
+    c.innerHTML = '<div class="dc-thumb"><iframe sandbox="" tabindex="-1" aria-hidden="true"></iframe></div><div class="dc-body"><div class="dc-title"></div><div class="dc-meta"></div><div class="dc-actions"><button type="button" class="chip dc-open"></button><button type="button" class="chip dc-pdf"></button><button type="button" class="chip dc-html"></button></div><div class="dc-file"></div></div>';
+    c.querySelector('.dc-title').textContent = info.title || kind;
+    c.querySelector('.dc-meta').textContent = en ? `${kind} · ${info.pages} page(s) · ${info.size}` : `${kind} · 共 ${info.pages} 页 · ${String(info.size || '').replace(/^slide16x9$/, '16:9').replace(/^slide4x3$/, '4:3')}`;
+    c.querySelector('.dc-open').textContent = en ? 'Open' : '打开预览';
+    c.querySelector('.dc-pdf').textContent = en ? 'Export PDF' : '导出 PDF';
+    c.querySelector('.dc-html').textContent = en ? 'Export HTML' : '导出 HTML';
+    const fileRow = c.querySelector('.dc-file');
+    const showFile = (x) => {
+      fileRow.innerHTML = ''; if (!x || !x.path) return;
+      const n = el('span', 'dc-filename'); n.textContent = (en ? 'Saved: ' : '已保存：') + x.file; fileRow.appendChild(n);
+      const o = el('button', 'btn-ghost dc-openfile'); o.type = 'button'; o.textContent = en ? 'Open file' : '打开文件'; o.onclick = () => window.aib.invoke('doc:openFile', x.path); fileRow.appendChild(o);
+      const f = el('button', 'btn-ghost dc-reveal'); f.type = 'button'; f.textContent = en ? 'Show in folder' : '在文件夹中显示'; f.onclick = () => window.aib.invoke('doc:reveal', x.path); fileRow.appendChild(f);
+    };
+    if (r.exported) showFile(r.exported);
+    const exp = (fmt, b) => async () => {
+      b.disabled = true; const old = b.textContent; b.textContent = en ? 'Exporting…' : '正在导出…';
+      try { showFile(await window.aib.invoke('doc:export', info.id, fmt)); } catch (e) { fileRow.textContent = (en ? 'Export failed: ' : '导出失败：') + (e && e.message || e); }
+      b.disabled = false; b.textContent = old;
+    };
+    c.querySelector('.dc-open').onclick = () => window.aib.invoke('doc:open', info.id);
+    const pb = c.querySelector('.dc-pdf'), hb = c.querySelector('.dc-html'); pb.onclick = exp('pdf', pb); hb.onclick = exp('html', hb);
+    c.querySelector('.dc-thumb').onclick = () => window.aib.invoke('doc:open', info.id);
+    window.aib.invoke('doc:html', info.id).then(h => { const f = c.querySelector('iframe'); if (f && h) f.srcdoc = h; }).catch(() => { c.querySelector('.dc-thumb').hidden = true; });
+    toolEl.after(c);
   }
   function addTrace(text) {
     if (!els.trace || !/^(用 |Searching |阅读：|Reading: |.*(不可用|没有找到相关结果|没有相关结果|已改用|nothing relevant|unavailable|had nothing))/.test(text || '')) return;
@@ -287,7 +320,7 @@
   // ----- question rendering
   function queueRender() { if (renderQueued) return; renderQueued = true; requestAnimationFrame(() => { renderQueued = false; const stick = nearBottom(); renderAnswer(); if (stick) toBottom(true); }); }
   function renderAnswer() { if (els.answer) els.answer.innerHTML = MD.render(String(st.answer || '').replace(/(^|\n).*((调用了|使用了).{0,16}工具|I used the \w+ tool).*/gi, '$1'), st.cites); }
-  function finalizeQuestion() { renderAnswer(); renderAnswerActions(); }
+  function finalizeQuestion() { renderAnswer(); renderAnswerActions(); if (window.AnswerBlocks) AnswerBlocks.enhance(els.answer, { live: !replaying }); }
   function renderAnswerActions() {
     if (!st.answer || qs('actions')) return;
     const a = el('div', 'turn-actions'); a.id = 'actions'; a.style.cssText = 'display:flex;gap:8px;margin-top:12px';
