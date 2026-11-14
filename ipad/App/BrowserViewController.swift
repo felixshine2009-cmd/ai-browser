@@ -336,7 +336,8 @@ final class BrowserViewController: UIViewController, UIGestureRecognizerDelegate
             }
         default:
             if cmd.hasPrefix("native.") {
-                if !NativeServices.shared.handle(cmd, m, vc: self, top: topController, ok: ok, fail: fail), seq > 0 { fail("unsupported command \(cmd)") }
+                let ctx = ServiceContext(controller: self, top: topController, sourceView: container)
+                if !ServiceRegistry.shared.handle(cmd, m, ctx: ctx, ok: ok, fail: fail), seq > 0 { fail("unsupported command \(cmd)") }
             } else if cmd.hasPrefix("llama.") {
                 LlamaBridge.shared.handle(m, reply: { success, result, err in
                     DispatchQueue.main.async { success ? ok(result) : fail(err ?? "llama.cpp error") }

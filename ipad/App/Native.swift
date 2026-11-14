@@ -9,13 +9,17 @@ import PDFKit
 /// recognition, QR code scanning (VisionKit DataScanner, AVFoundation fallback), PDF text for page summaries (PDFKit)
 /// and offline web archives (read later). Commands are `native.*` from ipad/node/electron (electron.__ipad.native()).
 @MainActor
-final class NativeServices: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+final class NativeServices: NSObject, NativeService, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+    let commands = ["native.caps", "native.camera", "native.ocr", "native.qrscan", "native.qrimage", "native.pdftext"]
+    func handle(_ cmd: String, _ m: [String: Any], ctx: ServiceContext, ok: @escaping (Any?) -> Void, fail: @escaping (String) -> Void) {
+        _ = handle(cmd, m, top: ctx.top, ok: ok, fail: fail)
+    }
     static let shared = NativeServices()
     private var cameraDone: ((UIImage?) -> Void)?
     private var scanner: QRScanSession?
 
     /// Returns false when the command is not a native service command.
-    func handle(_ cmd: String, _ m: [String: Any], vc: BrowserViewController, top: UIViewController, ok: @escaping (Any?) -> Void, fail: @escaping (String) -> Void) -> Bool {
+    func handle(_ cmd: String, _ m: [String: Any], top: UIViewController, ok: @escaping (Any?) -> Void, fail: @escaping (String) -> Void) -> Bool {
         switch cmd {
         case "native.caps":
             var dataScanner = false
