@@ -56,15 +56,18 @@ module.exports = async ({ test, group, assert, eq, until }) => {
     await until(async () => (await inv('settings:get')).ai.local.roles.chat === 'llama:' + q.id, 3000, 'switched');
     eq(await p.locator('#mlist .model-row.selected').count(), 1);
   });
-  await test('下载源：默认 hf-mirror；可切换 huggingface.co / 自定义；“测试连接”显示每个源的结果', async () => {
-    const p = await local(); eq(await p.locator('#hubep').inputValue(), 'mirror');
-    assert((await p.locator('#hubep option:checked').innerText()).includes('hf-mirror.com'));
+  await test('下载源：默认“自动（测速）”；可切换魔搭 / hf-mirror / huggingface.co / 自定义；“测试连接与速度”显示每个源的结果', async () => {
+    const p = await local(); eq(await p.locator('#hubep').inputValue(), 'auto');
+    assert((await p.locator('#hubep option:checked').innerText()).includes('自动'));
+    const opts = await p.locator('#hubep option').evaluateAll(o => o.map(x => x.value)); eq(opts, ['auto', 'modelscope', 'mirror', 'official', 'custom']);
+    eq(await p.locator('#hubconns').inputValue(), '8');
     await p.selectOption('#hubep', 'custom'); await until(async () => !(await p.locator('#hubcustom').isHidden()), 2000, 'custom input');
     await p.fill('#hubcustom', hf.base); await p.press('#hubcustom', 'Enter'); await p.locator('#hubcustom').blur(); await sleep(300);
     let h = (await inv('settings:get')).ai.local.hub; eq(h.endpoint, 'custom'); eq(h.custom, hf.base);
-    await p.click('#hubprobe'); await until(async () => (await p.locator('.probe-row').count()) >= 1, 6000, 'probe rows');
+    await p.click('#hubprobe'); await until(async () => (await p.locator('.probe-row').count()) >= 1, 30000, 'probe rows');
     assert((await p.locator('.probe-row').first().innerText()).includes('127.0.0.1'));
-    await p.selectOption('#hubep', 'mirror'); await sleep(300); eq((await inv('settings:get')).ai.local.hub.endpoint, 'mirror');
+    await p.selectOption('#hubep', 'mirror'); await sleep(300); h = (await inv('settings:get')).ai.local.hub; eq(h.endpoint, 'mirror'); eq(h.chosen, true, 'an explicit choice is kept');
+    await p.selectOption('#hubep', 'modelscope'); await sleep(300); eq((await inv('settings:get')).ai.local.hub.endpoint, 'modelscope');
   });
   await test('HF 搜索（GGUF）：按家族分组显示 repo / 下载量 / 点赞 / 引擎；展开文件列表显示量化、大小、内存', async () => {
     const p = await local(); await p.fill('#hfq', 'tiny'); await p.click('#hfgo');

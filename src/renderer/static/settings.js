@@ -372,14 +372,16 @@
     models = await window.aib.invoke('lm:list');
     try { diskInfo = await window.aib.invoke('lm:disk'); diskMap = {}; diskInfo.models.forEach(r => { diskMap[r.id] = r; }); } catch { diskInfo = null; }
     const L = S.ai.local; const body = document.getElementById('aibody'); if (!body) return;
-    const hub = L.hub || { endpoint: 'mirror', custom: '' };
+    const hub = L.hub || { endpoint: 'auto', custom: '', connections: 8 };
+    const hubEp = hub.endpoint === 'mirror' && !hub.chosen ? 'auto' : (hub.endpoint || 'auto');
     body.innerHTML = `<div class="engine-note">${esc(t('ai.local.note'))}</div>
       <div class="form-row"><label>${esc(T('推理引擎', 'Inference engine'))}</label><div class="mode-seg" id="engseg">${[['auto', T('自动', 'Auto')], ['llama', 'llama.cpp (GGUF)'], ['mlx', 'MLX (Apple)']].filter(x => x[0] !== 'mlx' || showMlx()).map(([v, l]) => `<div class="seg ${(L.engine || 'auto') === v ? 'active' : ''}" data-eng="${v}">${esc(l)}</div>`).join('')}</div>
         <div class="hint" id="engnote"></div></div>
-      <div class="form-row"><label>${esc(T('Hugging Face 下载源', 'Hugging Face endpoint'))}</label>
-        <div class="inline"><select id="hubep"><option value="mirror" ${hub.endpoint === 'mirror' ? 'selected' : ''}>hf-mirror.com (${esc(T('默认', 'default'))})</option><option value="official" ${hub.endpoint === 'official' ? 'selected' : ''}>huggingface.co</option><option value="custom" ${hub.endpoint === 'custom' ? 'selected' : ''}>${esc(T('自定义地址', 'Custom URL'))}</option></select>
-        <input type="text" id="hubcustom" placeholder="https://" value="${esc(hub.custom || '')}" ${hub.endpoint === 'custom' ? '' : 'hidden'} spellcheck="false"/><button class="btn-secondary" id="hubprobe">${esc(T('测试连接', 'Test'))}</button></div>
-        <div class="hint">${esc(T('某个源失败时会自动切换到其他源。', 'If one endpoint fails the others are tried automatically.'))}</div><div id="huberes"></div></div>
+      <div class="form-row"><label>${esc(T('模型下载源', 'Model download source'))}</label>
+        <div class="inline"><select id="hubep">${[['auto', T('自动（测速选择最快的源）', 'Auto (fastest source by speed test)')], ['modelscope', T('魔搭 ModelScope（modelscope.cn）', 'ModelScope (modelscope.cn)')], ['mirror', 'hf-mirror.com'], ['official', 'huggingface.co'], ['custom', T('自定义地址', 'Custom URL')]].map(([v, l]) => `<option value="${v}" ${hubEp === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+        <input type="text" id="hubcustom" placeholder="https://" value="${esc(hub.custom || '')}" ${hubEp === 'custom' ? '' : 'hidden'} spellcheck="false"/><button class="btn-secondary" id="hubprobe">${esc(T('测试连接与速度', 'Test sources'))}</button></div>
+        <div class="inline" style="margin-top:6px"><label for="hubconns" style="min-width:0">${esc(T('同时连接数', 'Connections per file'))}</label><select id="hubconns">${[1, 4, 8, 16].map(n => `<option value="${n}" ${Number(hub.connections || 8) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+        <div class="hint">${esc(T('大文件会分成多段同时下载，每段可单独续传；某个源失败时会自动切换到其他源。搜索和文件列表仍使用 Hugging Face。', 'Large files are downloaded in several segments at once, each resumable on its own; if one source fails the others are tried automatically. Search and file lists still use Hugging Face.'))}</div><div id="huberes"></div></div>
       <h3 class="sec-h">${esc(T('模型', 'Models'))}</h3><div class="model-list" id="mlist"></div><div id="diskbox"></div>
       <div class="inline" style="margin:8px 0 12px"><button class="btn-secondary" id="pickgguf">${esc(t('ai.local.pick'))}</button></div>
       <div class="engine-note" id="lmpath"></div>
@@ -404,13 +406,16 @@
     document.querySelectorAll('[data-eng]').forEach(b => b.onclick = async () => { await patchLocal({ engine: b.dataset.eng }); await refresh(); renderLocal(); toast(); });
     // hub endpoint
     const ep = document.getElementById('hubep'), cu = document.getElementById('hubcustom');
-    ep.onchange = async () => { cu.hidden = ep.value !== 'custom'; await patchLocal({ hub: { endpoint: ep.value, custom: cu.value } }); toast(); };
-    cu.onchange = async () => { await patchLocal({ hub: { endpoint: ep.value, custom: cu.value.trim() } }); toast(); };
+    const hubPatch = () => ({ hub: { endpoint: ep.value, custom: cu.value.trim(), chosen: true, connections: Number(document.getElementById('hubconns').value) || 8 } });
+    ep.onchange = async () => { cu.hidden = ep.value !== 'custom'; await patchLocal(hubPatch()); toast(); };
+    cu.onchange = async () => { await patchLocal(hubPatch()); toast(); };
+    document.getElementById('hubconns').onchange = async () => { await patchLocal(hubPatch()); toast(); };
     document.getElementById('hubprobe').onclick = async () => {
       const box = document.getElementById('huberes'); box.innerHTML = `<div class="hint">…</div>`;
-      await patchLocal({ hub: { endpoint: ep.value, custom: cu.value.trim() } });
+      await patchLocal(hubPatch());
       const res = await window.aib.invoke('hub:probe');
-      box.innerHTML = res.map(r => `<div class="probe-row ${r.ok ? 'ok' : 'bad'}"><b>${esc(r.base)}</b> — ${r.ok ? esc(T('可连接', 'reachable') + ' · ' + r.ms + ' ms') : esc(r.error || '')}</div>`).join('');
+      const mbs = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB/s' : Math.round(b / 1024) + ' KB/s');
+      box.innerHTML = res.map(r => `<div class="probe-row ${r.ok ? 'ok' : 'bad'}"><b>${esc(r.base.replace(/^https?:\/\//, ''))}</b>${r.kind === 'ms' ? ' ' + esc(T('（魔搭）', '(ModelScope)')) : ''} — ${r.ok ? esc(T('可连接', 'reachable') + ' · ' + r.ms + ' ms' + (r.speed ? ' · ' + T('下载约 ', 'download ≈ ') + mbs(r.speed) : '')) : esc(r.error || '')}</div>`).join('');
     };
     // HF search
     const go = async () => {

@@ -40,7 +40,7 @@ function entryUsage(m) {
     walk(p, (f) => { const b = sz(f); if (isCacheName(f)) { cache += b; parts.push({ path: f, bytes: b, kind: 'part' }); } else files += b; });
   } else {
     files = sz(p);
-    for (const f of [p + '.part', p + '.part.json']) { const b = sz(f); if (b) { cache += b; parts.push({ path: f, bytes: b, kind: 'part' }); } }
+    for (const f of [p + '.part', p + '.part.json']) { const b = f.endsWith('.part') && sz(f) ? require('./dl').partialBytes(p) : sz(f); if (b) { cache += b; parts.push({ path: f, bytes: b, kind: 'part' }); } }
     try { for (const n of fs.readdirSync(path.dirname(p))) if (n.startsWith(path.basename(p)) && /\.tmp$/.test(n)) { const f = path.join(path.dirname(p), n); const b = sz(f); cache += b; parts.push({ path: f, bytes: b, kind: 'tmp' }); } } catch {}
   }
   const cd = cacheDirOf(m.id); const cb = dirBytes(cd); if (cb) { cache += cb; parts.push({ path: cd, bytes: cb, kind: 'runtime' }); }

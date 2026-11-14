@@ -6,6 +6,10 @@
 //  * pause (abort, keeps the .part) / cancel (abort, deletes the .part) through an AbortSignal reason
 //  * size + sha256 verification at the end; mismatch -> delete, redownload (bounded) and report the reason
 //  * progress with speed (EMA) and ETA, state machine: downloading | retrying | paused | verifying | verify-failed | restart | done
+//  * v3.0.0 (iPad) / segmented: large files are fetched over several connections at once (default 8 Range segments).
+//    The .part is preallocated, every segment resumes on its own (progress kept in .part.json), a stalled connection is
+//    dropped and retried, idle connections split the largest remaining segment, and segments rotate across mirrors.
+//    Servers without Range support fall back to the single stream above.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -47,6 +51,130 @@ function speedTracker() {
   };
 }
 
+
+// ---------------------------------------------------------------- segmented (multi-connection) download
+const SEG_MIN_SPLIT = 1024 * 1024; // never split a remaining range below 2 × 1 MB
+function segCfg(o) {
+  const n = Math.max(1, Math.min(16, Math.floor(num(o.segments != null ? o.segments : process.env.AIB_DL_SEGMENTS, 8))));
+  const min = num(o.segMinBytes != null ? o.segMinBytes : process.env.AIB_DL_SEG_MIN, 16 * 1024 * 1024);
+  const stall = num(o.stallMs != null ? o.stallMs : process.env.AIB_DL_STALL_MS, 20000);
+  const split = Math.max(64 * 1024, num(o.minSplitBytes, SEG_MIN_SPLIT));
+  return { n, min, stall, split };
+}
+function readMeta(metaF) { try { return JSON.parse(fs.readFileSync(metaF, 'utf8')); } catch { return null; } }
+function writeMeta(metaF, m) { try { const t = metaF + '.tmp'; fs.writeFileSync(t, JSON.stringify(m)); fs.renameSync(t, metaF); } catch {} }
+/** bytes really downloaded for <dest> (a segmented .part is preallocated to the full size) */
+function partialBytes(dest) {
+  const m = readMeta(dest + '.part.json');
+  if (m && Array.isArray(m.segs)) return m.segs.reduce((a, g) => a + Math.max(0, Math.min(g.p, g.e + 1) - g.s), 0);
+  return sizeOf(dest + '.part');
+}
+// one Range request (bytes=from-to) -> { status, total, start } ; 206 with a parsable Content-Range means ranges work
+async function rangeProbe(fetchImpl, url, signal) {
+  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 15000);
+  const onA = () => ac.abort(); if (signal) signal.addEventListener('abort', onA, { once: true });
+  try {
+    const res = await fetchImpl(url, { headers: { Range: 'bytes=0-0' }, signal: ac.signal, redirect: 'follow' });
+    try { res.body && res.body.cancel(); } catch {}
+    const m = (res.headers.get('content-range') || '').match(/bytes\s+0-0\/(\d+)/);
+    return { status: res.status, total: m ? Number(m[1]) : 0, url: res.url || url };
+  } finally { clearTimeout(t); if (signal) signal.removeEventListener('abort', onA); }
+}
+
+async function fetchSegments(o, st) {
+  const { id, urls, signal, fetchImpl = fetch } = o; const { part, metaF, total, cfg, emit, sp, badEp, tried } = st;
+  let meta = readMeta(metaF);
+  if (!meta || !Array.isArray(meta.segs) || meta.total !== total || sizeOf(part) !== total) {
+    // fresh: preallocate and split into N equal ranges
+    const fd0 = fs.openSync(part, 'w'); try { fs.ftruncateSync(fd0, total); } finally { fs.closeSync(fd0); }
+    const n = Math.max(1, Math.min(cfg.n, Math.ceil(total / cfg.split)));
+    const size = Math.ceil(total / n); const segs = [];
+    for (let i = 0; i < n; i++) { const s0 = i * size, e0 = Math.min(total, (i + 1) * size) - 1; if (s0 <= e0) segs.push({ s: s0, e: e0, p: s0 }); }
+    meta = { id, expectBytes: o.expectBytes || 0, sha256: o.sha256 || '', total, segs, at: Date.now() };
+    writeMeta(metaF, meta);
+  }
+  const segs = meta.segs;
+  const got = () => segs.reduce((a, g) => a + Math.max(0, Math.min(g.p, g.e + 1) - g.s), 0);
+  const fd = fs.openSync(part, 'r+');
+  let lastSave = 0; const save = (force) => { const now = Date.now(); if (force || now - lastSave > 500) { lastSave = now; meta.at = now; writeMeta(metaF, meta); } };
+  let failures = 0, retries = 0, fatal = null, noRange = false, active = 0, ep = 0;
+  const pickUrl = (k) => { for (let i = 0; i < urls.length; i++) { const j = (ep + k + i) % urls.length; if (!badEp.has(j)) return j; } return -1; };
+  const stopAll = new AbortController(); const onOuter = () => stopAll.abort(); if (signal) signal.addEventListener('abort', onOuter, { once: true });
+  // next range for an idle worker: an untouched segment, else half of the largest one still running
+  const take = () => {
+    const free = segs.find(g => !g.busy && g.p <= g.e); if (free) { free.busy = true; return free; }
+    let big = null; for (const g of segs) if (g.busy && g.e - g.p + 1 > 2 * cfg.split && (!big || g.e - g.p > big.e - big.p)) big = g;
+    if (!big) return null;
+    const mid = big.p + Math.floor((big.e - big.p + 1) / 2);
+    const n = { s: mid, e: big.e, p: mid, busy: true }; big.e = mid - 1; segs.push(n); return n;
+  };
+  async function runSeg(g, k) {
+    let segFail = 0;
+    while (g.p <= g.e && !stopAll.signal.aborted && !fatal && !noRange) {
+      const ui = pickUrl(segFail); // all connections use the best source; a failing segment moves on to the next one if (ui < 0) { fatal = fatal || Object.assign(new Error('all sources failed'), { tried }); return; }
+      const url = urls[ui]; st.via = url;
+      const ac = new AbortController(); const link = () => ac.abort(); stopAll.signal.addEventListener('abort', link, { once: true });
+      let stallT = null; const arm = () => { clearTimeout(stallT); stallT = setTimeout(() => ac.abort('stall'), cfg.stall); };
+      const startP = g.p;
+      try {
+        arm();
+        const res = await fetchImpl(url, { headers: { Range: `bytes=${g.p}-${g.e}` }, signal: ac.signal, redirect: 'follow' });
+        if (res.status === 200) { try { res.body.cancel(); } catch {} noRange = true; return; }
+        if (res.status !== 206) throw httpErr(res.status, url);
+        const m = (res.headers.get('content-range') || '').match(/bytes\s+(\d+)-(\d+)?\/(\d+|\*)/);
+        if (!m || Number(m[1]) !== g.p || (m[3] !== '*' && Number(m[3]) !== total)) { try { res.body.cancel(); } catch {} throw Object.assign(new Error('bad content-range'), { retryable: true }); }
+        const reader = res.body.getReader(); const cancel = () => { try { reader.cancel().catch(() => {}); } catch {} };
+        ac.signal.addEventListener('abort', cancel, { once: true });
+        for (;;) {
+          const { value, done } = await reader.read(); if (done) break;
+          arm();
+          // another worker may have taken the tail of this segment: write only up to g.e
+          const room = g.e - g.p + 1; if (room <= 0) { cancel(); break; }
+          const buf = value.length > room ? value.subarray(0, room) : value;
+          await new Promise((res2, rej) => fs.write(fd, buf, 0, buf.length, g.p, (e) => (e ? rej(e) : res2())));
+          g.p += buf.length; sp.add(buf.length); save(false);
+          emit('downloading', { _got: got(), conns: active }, false);
+          if (g.p > g.e) { cancel(); break; }
+        }
+        if (ac.signal.aborted && ac.signal.reason !== 'stall' && !(g.p > g.e)) throw abortErr(signal);
+        if (g.p <= g.e) throw Object.assign(new Error(ac.signal.reason === 'stall' ? 'stalled' : 'truncated response'), { retryable: true });
+      } catch (e) {
+        if (signal && signal.aborted) return;
+        if (/ENOSPC/.test(String(e.code || e.message))) { fatal = e; stopAll.abort(); return; }
+        if (ac.signal.reason === 'stall') e = Object.assign(new Error('stalled: no data for ' + Math.round(cfg.stall / 1000) + ' s'), { retryable: true });
+        tried.push({ base: url, error: String(e.message || e), status: e.status || 0 });
+        if (e.fatal) { badEp.add(ui); if (badEp.size >= urls.length) { fatal = Object.assign(new Error(e.status ? `HTTP ${e.status}` : String(e.message || e)), { tried }); stopAll.abort(); return; } continue; }
+        if (g.p > startP) segFail = 0;
+        segFail++; failures++; retries++;
+        if (segFail > (o.maxFailures || 8)) { fatal = Object.assign(new Error(String(e.message || e)), { tried }); stopAll.abort(); return; }
+        const wait = backoffMs(segFail);
+        emit('retrying', { retry: segFail, max: o.maxFailures || 8, waitMs: wait, error: String(e.message || e).slice(0, 160), _got: got(), conns: active });
+        try { await sleep(wait, stopAll.signal); } catch { return; }
+      } finally { clearTimeout(stallT); stopAll.signal.removeEventListener('abort', link); }
+    }
+  }
+  async function worker(k) {
+    for (;;) {
+      if (stopAll.signal.aborted || fatal || noRange) return;
+      const g = take(); if (!g) return;
+      active++;
+      try { await runSeg(g, k); } finally { g.busy = false; active--; }
+    }
+  }
+  sp.reset(); emit('downloading', { _got: got(), conns: Math.min(cfg.n, segs.length) });
+  try { await Promise.all(Array.from({ length: cfg.n }, (_, k) => worker(k))); }
+  finally {
+    if (signal) signal.removeEventListener('abort', onOuter);
+    segs.forEach(g => { delete g.busy; });
+    meta.segs = segs; meta.done = got(); save(true);
+    try { fs.closeSync(fd); } catch {}
+  }
+  if (signal && signal.aborted) throw abortErr(signal);
+  if (fatal) throw fatal;
+  if (noRange) return { noRange: true, retries };
+  return { done: segs.every(g => g.p > g.e), retries };
+}
+
 /**
  * fetchResumable({ id, urls: string[], dest, expectBytes?, sha256?, signal?, onStatus?, maxFailures?, redownloads?, fetchImpl? })
  * resolves { via, bytes, sha, restarts, retries } ; rejects with err.paused / err.cancelled / Error (err.tried = [{url,error}])
@@ -58,18 +186,59 @@ async function fetchResumable(o) {
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   // stale .part belonging to a different file version -> discard
   try { const m = JSON.parse(fs.readFileSync(metaF, 'utf8')); if (sizeOf(part) && ((m.expectBytes && expectBytes && m.expectBytes !== expectBytes) || (m.sha256 && sha256 && m.sha256 !== sha256))) rm(part); } catch {}
-  try { fs.writeFileSync(metaF, JSON.stringify({ id, expectBytes: expectBytes || 0, sha256: sha256 || '', at: Date.now() })); } catch {}
+  { const m0 = readMeta(metaF); if (!(m0 && Array.isArray(m0.segs) && sizeOf(part))) { try { fs.writeFileSync(metaF, JSON.stringify({ id, expectBytes: expectBytes || 0, sha256: sha256 || '', at: Date.now() })); } catch {} } }
 
   const sp = speedTracker(); let total = expectBytes || 0, lastEmit = 0, via = urls[0];
   const emit = (state, extra = {}, force = true) => {
     const now = Date.now(); if (!force && now - lastEmit < 400) return; lastEmit = now;
-    const got = sizeOf(part) + (extra._live || 0);
+    const got = extra._got != null ? extra._got : sizeOf(part) + (extra._live || 0);
     const speed = state === 'downloading' ? sp.speed : 0;
     const eta = speed > 0 && total > got ? Math.round((total - got) / speed) : 0;
-    const ev = { id, state, got: extra._got != null ? extra._got : got, total, speed: Math.round(speed), eta, via, ...extra }; delete ev._live; delete ev._got;
+    const ev = { id, state, got, total, speed: Math.round(speed), eta, via, ...extra }; delete ev._live; delete ev._got;
     try { onStatus && onStatus(ev); } catch {}
   };
   let epIdx = 0, failures = 0, redl = 0, restarts = 0, retries = 0; const tried = []; const badEp = new Set();
+
+  // ---- multi-connection mode for large files on servers that accept Range requests
+  const cfg = segCfg(o);
+  let segmented = false;
+  {
+    const m = readMeta(metaF);
+    if (m && Array.isArray(m.segs) && m.total && sizeOf(part) === m.total && (!expectBytes || m.total === expectBytes)) { segmented = true; total = m.total; }
+    else if (cfg.n > 1 && (!sizeOf(part)) && (expectBytes ? expectBytes >= cfg.min : o.segments > 1)) {
+      for (let i = 0; i < urls.length && !segmented; i++) {
+        try {
+          const r = await rangeProbe(fetchImpl, urls[i], signal);
+          if (r.status === 206 && r.total && r.total >= cfg.min && (!expectBytes || r.total === expectBytes)) { segmented = true; total = r.total; epIdx = i; }
+          else if (r.status >= 400 && r.status < 500 && ![408, 425, 429].includes(r.status)) { tried.push({ base: urls[i], error: 'HTTP ' + r.status, status: r.status }); badEp.add(i); }
+          else break; // reachable but no ranges (or too small): single stream
+        } catch (e) { if (signal && signal.aborted) throw abortErr(signal); tried.push({ base: urls[i], error: String(e.message || e), status: 0 }); }
+      }
+      if (badEp.size >= urls.length) { const er = new Error(tried.length ? tried[tried.length - 1].error : 'unreachable'); er.tried = tried; throw er; }
+    }
+  }
+  if (segmented) {
+    const ordered = urls.slice(epIdx).concat(urls.slice(0, epIdx));
+    const st = { part, metaF, total, cfg, emit, sp, badEp: new Set([...badEp].map(i => (i - epIdx + urls.length) % urls.length)), tried, via };
+    for (;;) {
+      if (signal && signal.aborted) throw abortErr(signal);
+      const r = await fetchSegments(Object.assign({}, o, { urls: ordered, fetchImpl }), st);
+      retries += r.retries || 0; via = st.via;
+      if (r.noRange) { rm(part); rm(metaF); try { fs.writeFileSync(metaF, JSON.stringify({ id, expectBytes: expectBytes || 0, sha256: sha256 || '', at: Date.now() })); } catch {} restarts++; emit('restart', { reason: 'no-range', _got: 0 }); break; }
+      emit('verifying', { _got: total });
+      let bad = '';
+      if (sha256) { const h = await sha256File(part); if (h !== sha256) bad = `sha256 ${h.slice(0, 12)}… != ${sha256.slice(0, 12)}…`; }
+      if (bad) {
+        rm(part); rm(metaF); redl++;
+        emit('verify-failed', { reason: bad, attempt: redl, _got: 0 });
+        if (redl > maxRedl) { const er = new Error('verification failed: ' + bad); er.verify = true; er.tried = tried; throw er; }
+        continue;
+      }
+      fs.renameSync(part, dest); rm(metaF);
+      emit('done', { _got: total, total });
+      return { via, bytes: total, sha: !!sha256, restarts, retries, redownloads: redl, segments: true };
+    }
+  }
 
   for (;;) {
     if (signal && signal.aborted) throw abortErr(signal);
@@ -156,4 +325,4 @@ async function fetchResumable(o) {
   }
 }
 
-module.exports = { fetchResumable, sha256File, backoffMs, sizeOf, abortErr };
+module.exports = { fetchResumable, sha256File, backoffMs, sizeOf, abortErr, partialBytes, rangeProbe, segCfg };

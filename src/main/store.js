@@ -13,7 +13,7 @@ const DEFAULTS = {
     api: { preset: 'openai', format: 'openai', baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini', temperature: 0.3 },
     // per provider: { baseUrl, format, apiKey, models:[{id,enabled,manual?,ctx?,vision?,reasoning?}], fetchedAt, listSource, listError }
     providers: {},
-    local: { modelPath: '', modelId: '', translateModelId: '', hfMirror: false, contextSize: 4096, engine: 'auto', hub: { endpoint: 'mirror', custom: '' }, custom: [], roles: {}, frameworks: { overrides: {}, custom: [] } }
+    local: { modelPath: '', modelId: '', translateModelId: '', hfMirror: false, contextSize: 4096, engine: 'auto', hub: { endpoint: 'auto', custom: '', connections: 8 }, custom: [], roles: {}, frameworks: { overrides: {}, custom: [] } }
   },
   dicts: [], // {id,name,mdx,mdd:[],enabled}
   extensions: {}, // id -> {enabled, settings}

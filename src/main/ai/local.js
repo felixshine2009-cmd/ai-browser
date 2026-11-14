@@ -34,7 +34,7 @@ function haveEntry(m) {
 function listModels(settingsLocal) {
   const out = allEntries().map(m => {
     const p = modelPathOf(m);
-    let partial = 0; if (m.engine !== 'mlx') { try { partial = fs.statSync(p + '.part').size; } catch {} }
+    let partial = 0; if (m.engine !== 'mlx') { partial = require('./dl').partialBytes(p); }
     return { ...m, path: p, downloaded: haveEntry(m), partial };
   });
   return out;

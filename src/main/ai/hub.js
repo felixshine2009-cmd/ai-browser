@@ -1,27 +1,81 @@
 'use strict';
-// Hugging Face hub client: endpoint selection with automatic fallback (hf-mirror.com default), model search,
-// repo file listing (quants, sizes, sha256), resumable downloads with progress / cancel / sha verification.
+// Model hub client: Hugging Face (hf-mirror.com / huggingface.co / custom) for search and file lists, and for downloads
+// also ModelScope (魔搭, modelscope.cn) — fast inside mainland China. Download sources are tried in order with automatic
+// fallback; in 自动 (auto) mode they are ranked by a short speed test first. Downloads are resumable and use several
+// connections at once (dl.js).
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const store = require('../store');
 const { familyOf, ramFor, fmtSize } = require('./catalog');
 
-const BASES = { mirror: 'https://hf-mirror.com', official: 'https://huggingface.co' };
+const BASES = { mirror: 'https://hf-mirror.com', official: 'https://huggingface.co', modelscope: 'https://modelscope.cn' };
+const ENDPOINTS = ['auto', 'modelscope', 'mirror', 'official', 'custom'];
+// Hugging Face repo -> ModelScope repo when the names differ (most GGUF repos use the same id on both)
+const MS_REPOS = { 'tencent/HY-MT1.5-1.8B-GGUF': 'Tencent-Hunyuan/HY-MT1.5-1.8B-GGUF' };
+const msRepo = (repo) => MS_REPOS[repo] || repo;
 const isEn = () => { try { return store.getSettings().lang === 'en'; } catch { return false; } };
 const L = (zh, en) => (isEn() ? en : zh);
 
-function hubCfg() { let h = {}; try { h = (store.getSettings().ai.local || {}).hub || {}; } catch {} return { endpoint: ['mirror', 'official', 'custom'].includes(h.endpoint) ? h.endpoint : 'mirror', custom: String(h.custom || '').replace(/\/+$/, '') }; }
-// ordered list of base URLs to try: the chosen one first, then the others (auto-fallback)
+// 2.x settings stored endpoint 'mirror' as the default; until the user picks a source themselves, v3 uses auto
+function hubCfg() {
+  let h = {}; try { h = (store.getSettings().ai.local || {}).hub || {}; } catch {}
+  let endpoint = ENDPOINTS.includes(h.endpoint) ? h.endpoint : 'auto';
+  if (endpoint === 'mirror' && !h.chosen) endpoint = 'auto';
+  const conns = Math.max(1, Math.min(16, Number(h.connections) || 8));
+  return { endpoint, custom: String(h.custom || '').replace(/\/+$/, ''), connections: conns };
+}
+// Hugging Face API endpoints (search / file lists): the chosen one first, then the others (auto-fallback)
 function endpoints() {
-  if (process.env.AIB_HF_BASE) return process.env.AIB_HF_BASE.split(',').map((b, i) => ({ id: 'env' + i, base: b.trim().replace(/\/+$/, '') }));
+  if (process.env.AIB_HF_BASE) return process.env.AIB_HF_BASE.split(',').map((b, i) => ({ id: 'env' + i, base: b.trim().replace(/\/+$/, ''), kind: 'hf' }));
   const c = hubCfg(); const all = [];
-  const add = (id, base) => { if (base && !all.some(x => x.base === base)) all.push({ id, base }); };
+  const add = (id, base) => { if (base && !all.some(x => x.base === base)) all.push({ id, base, kind: 'hf' }); };
   if (c.endpoint === 'custom') add('custom', c.custom);
   add(c.endpoint === 'official' ? 'official' : 'mirror', c.endpoint === 'official' ? BASES.official : BASES.mirror);
   add(c.endpoint === 'official' ? 'mirror' : 'official', c.endpoint === 'official' ? BASES.mirror : BASES.official);
   if (c.endpoint !== 'custom' && c.custom) add('custom', c.custom);
   return all;
+}
+// download sources: ModelScope + the Hugging Face endpoints, in the order of the chosen source
+function sources() {
+  if (process.env.AIB_HF_BASE) return endpoints();
+  const c = hubCfg(); const hf = endpoints(); const ms = { id: 'modelscope', base: process.env.AIB_MS_BASE || BASES.modelscope, kind: 'ms' };
+  if (c.endpoint === 'modelscope' || c.endpoint === 'auto') return [ms].concat(hf);
+  return hf.concat([ms]);
+}
+function sourceUrl(src, repo, file) {
+  const f = file.split('/').map(encodeURIComponent).join('/');
+  return src.kind === 'ms' ? `${src.base}/models/${msRepo(repo)}/resolve/master/${f}` : `${src.base}/${repo}/resolve/main/${f}`;
+}
+// auto mode: a short ranged read (512 KB) from every source at once; the fastest goes first, unreachable ones last.
+// Rankings are kept for 10 minutes per host.
+const rankCache = new Map();
+async function speedTest(url, bytes = 512 * 1024, ms = 6000) {
+  const t0 = Date.now(); const ac = new AbortController(); const timer = setTimeout(() => ac.abort(), ms);
+  try {
+    const res = await fetch(url, { headers: { Range: `bytes=0-${bytes - 1}` }, redirect: 'follow', signal: ac.signal });
+    if (res.status !== 206 && res.status !== 200) { try { res.body && res.body.cancel(); } catch {} return { ok: false, error: 'HTTP ' + res.status, status: res.status }; }
+    const reader = res.body.getReader(); let got = 0;
+    for (;;) { const { value, done } = await reader.read(); if (done) break; got += value.length; if (got >= bytes) { try { reader.cancel().catch(() => {}); } catch {} break; } }
+    const sec = Math.max(0.05, (Date.now() - t0) / 1000);
+    return { ok: got > 0, bps: got / sec, ms: Date.now() - t0, bytes: got };
+  } catch (e) { return { ok: false, error: reason(e) }; } finally { clearTimeout(timer); }
+}
+async function orderedUrls(repo, file) {
+  const srcs = sources(); const urls = srcs.map(x => sourceUrl(x, repo, file));
+  if (process.env.AIB_HF_BASE || hubCfg().endpoint !== 'auto' || srcs.length < 2) return urls;
+  const key = repo + '|' + file; const hit = rankCache.get(key);
+  if (hit && Date.now() - hit.at < 600000) return hit.urls;
+  const r = await rankUrls(urls);
+  rankCache.set(key, { at: Date.now(), urls: r.urls, detail: r.detail });
+  return r.urls;
+}
+/** fastest first; sources answering 4xx (file not on that hub) are left out unless nothing else works */
+async function rankUrls(urls, opts = {}) {
+  const res = await Promise.all(urls.map(u => speedTest(u, opts.bytes, opts.ms)));
+  const order = urls.map((u, i) => ({ u, r: res[i], i })).sort((a, b) => (b.r.ok - a.r.ok) || ((b.r.bps || 0) - (a.r.bps || 0)) || (a.i - b.i));
+  const out = order.filter(x => x.r.ok || !(x.r.status >= 400 && x.r.status < 500)).map(x => x.u);
+  return { urls: out.length ? out : urls, detail: order.map(x => ({ url: x.u, ...x.r })) };
 }
 
 // readable, localized reason for any failure
@@ -102,11 +156,12 @@ async function repoFiles(repo) {
 const dl = require('./dl');
 const sha256File = dl.sha256File;
 const active = new Map(); // id -> { ac, promise, state }
-const urlsFor = (repo, file) => endpoints().map(ep => `${ep.base}/${repo}/resolve/main/${file.split('/').map(encodeURIComponent).join('/')}`);
+const urlsFor = (repo, file) => sources().map(src => sourceUrl(src, repo, file));
 
 async function fetchToFile(repo, file, dest, { expectBytes, sha256, signal, onStatus, id }) {
   try {
-    return await dl.fetchResumable({ id, urls: urlsFor(repo, file), dest, expectBytes: process.env.AIB_HF_BASE ? 0 : expectBytes, sha256, signal, onStatus });
+    const urls = await orderedUrls(repo, file);
+    return await dl.fetchResumable({ id, urls, dest, expectBytes: process.env.AIB_HF_BASE ? 0 : expectBytes, sha256, signal, onStatus, segments: hubCfg().connections });
   } catch (e) {
     if (e.paused || e.cancelled) throw e;
     const tried = (e.tried || []).map(t => ({ base: String(t.base).replace(/^(https?:\/\/[^/]+).*$/, '$1'), error: reason(new Error(t.error)) }));
@@ -168,15 +223,20 @@ function pause(id) { const a = active.get(id); if (a) { a.ac.abort('pause'); ret
 function cancel(id) { const a = active.get(id); if (a) { a.ac.abort('cancel'); return true; } return false; }
 const isActive = (id) => active.has(id);
 
-// connectivity probe for the settings UI: which endpoints answer, and why not
+// connectivity + speed probe for the settings UI: which sources answer, how fast a model file arrives, and why not
+const PROBE_FILE = { repo: 'Qwen/Qwen2.5-0.5B-Instruct-GGUF', file: 'qwen2.5-0.5b-instruct-q4_k_m.gguf' };
 async function probe() {
-  const out = [];
-  for (const ep of endpoints()) {
+  return Promise.all(sources().map(async (ep) => {
     const t0 = Date.now();
-    try { const r = await fetch(ep.base + '/api/models?limit=1', { redirect: 'follow', signal: AbortSignal.timeout(8000) }); if (!r.ok) throw new Error('HTTP ' + r.status); out.push({ id: ep.id, base: ep.base, ok: true, ms: Date.now() - t0 }); }
-    catch (e) { out.push({ id: ep.id, base: ep.base, ok: false, error: reason(e), ms: Date.now() - t0 }); }
-  }
-  return out;
+    try {
+      const api = ep.kind === 'ms' ? `${ep.base}/api/v1/models/${PROBE_FILE.repo}` : ep.base + '/api/models?limit=1';
+      const r = await fetch(api, { redirect: 'follow', signal: AbortSignal.timeout(8000) }); try { r.body && r.body.cancel(); } catch {}
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const ms = Date.now() - t0;
+      const sp = process.env.AIB_HF_BASE ? { ok: false } : await speedTest(sourceUrl(ep, PROBE_FILE.repo, PROBE_FILE.file), 1024 * 1024, 8000);
+      return { id: ep.id, base: ep.base, kind: ep.kind, ok: true, ms, speed: sp.ok ? Math.round(sp.bps) : 0 };
+    } catch (e) { return { id: ep.id, base: ep.base, kind: ep.kind, ok: false, error: reason(e), ms: Date.now() - t0 }; }
+  }));
 }
 
-module.exports = { endpoints, search, repoFiles, repoFromInput, download, setSink, pause, cancel, fetchToFile, sha256File, isActive, probe, reason, quantOf, brief, BASES };
+module.exports = { endpoints, sources, sourceUrl, orderedUrls, rankUrls, speedTest, hubCfg, msRepo, ENDPOINTS, search, repoFiles, repoFromInput, download, setSink, pause, cancel, fetchToFile, sha256File, isActive, probe, reason, quantOf, brief, BASES };
