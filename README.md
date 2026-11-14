@@ -31,6 +31,9 @@
 * Quick model switcher next to the input on the home page, in chat, in problem solving and in the web version: grouped by provider, searchable and keyboard friendly. In chat, a choice can apply to the current conversation only
 * Answer style (concise or detailed — both stay structured), thinking levels, and a live status line. Tool names stay above the answer
 * Chat titles and a chat history kept apart from browsing history. Follow-ups, especially problem solving, keep the earlier turns
+* Conversations continue as threads: follow-ups appear below the last answer and are kept after a restart, and a searchable conversation list lets you reopen, rename or delete them. Model thinking is shown collapsed while it streams. The send button turns into a Stop button (Esc / ⌘.) that ends the answer, any running tools and agent steps, and keeps the partial answer
+* Structured answers: headings, tables, quotations and LaTeX formulas; chemical equations are typeset and checked for atom and charge balance; functions can be graphed in GeoGebra straight from the answer; word cards open the dictionary entry
+* Documents: a layout engine with fixed page sizes, flowing and absolutely positioned elements, rotation, automatic page breaks and overlap checks. Assistants produce articles, handouts, slides, tables and charts, exam papers and mistake notebooks, word cards and mind maps; each document appears as a card with a preview and PDF / HTML export
 * Sensitive actions (clearing history, deleting models) always ask for confirmation; passwords are never exposed to the AI
 
 **Python & Linux VM**
@@ -42,7 +45,7 @@
 
 **Local models**
 * MLX and llama.cpp on desktop, including an MTP-capable MLX LM path, plus WebGPU in the web version; auto-detects LM Studio, Ollama, oMLX and other OpenAI-compatible servers
-* Resumable downloads (pause / resume, mirror fallback, sha256 check), Hugging Face search, per-model disk usage with separate cache / file cleaning
+* Multi-connection downloads (parallel segments, each resumable, with stall detection), Hugging Face and ModelScope as sources ranked by speed with automatic fallback, pause / resume and sha256 check, Hugging Face search, per-model disk usage with separate cache / file cleaning
 
 **Language**
 * Hunyuan HY-MT translation, sentence analysis, dictionary lookup (MDX/MDD). In search mode the Siri sidebar summarizes the page, shows a side-by-side translation, and answers questions about it. A selected word offers the dictionary; a selected sentence offers translation
@@ -56,7 +59,7 @@
 * First-run onboarding wizard
 * Frosted-glass chrome, a collapsible tool tray (GeoGebra, physics, problem solving, and the rest), and icon shortcuts under the home box
 * Color themes (each swatch shows the whole palette), plus a custom home background and layout
-* Feature extensions can change layout and browser settings. Task mode lets the assistant drive the browser toward a goal you type
+* Feature extensions can change layout and browser settings. Task mode lets the assistant drive the browser toward a goal you type, using every browser tool (tabs, tool views, split view, spaces, read later, page assistant, screenshots, appearance), with each step shown as a tool card
 
 **Math**
 * Full GeoGebra (graphing, geometry, 3D, CAS, scientific) with its math keyboard
@@ -84,14 +87,16 @@ The iPad app is the desktop app ported to iPadOS: a native host runs the same ma
 * **Page assistant**: one-tap summaries of web pages and PDFs, and questions answered with numbered citations that jump to the cited passage.
 * **Read later**: save pages with full offline copies and search them together with the offline encyclopedia.
 * **Code editor**: a file manager for your code folder, the Python working directory and the Linux VM shared folder, with syntax highlighting and one-tap running of Python, shell and HTML files.
-* **Python and Linux**: built-in Python (Pyodide) and an Alpine Linux virtual machine (v86) the AI can use offline; custom ISO, IMG and QCOW2 system images can be imported and booted.
+* **Python and Linux**: built-in Python (Pyodide) and an Alpine Linux virtual machine (v86) the AI can use offline; custom ISO, IMG and QCOW2 system images can be imported and booted. The Linux image (about 121 MB) is downloaded the first time the VM is used, so the app itself stays small.
 * **Importing from Files**: dictionaries can be added as individual files or as a whole folder (several dictionaries with their .mdd resources, styles and fonts at once); items not yet downloaded from iCloud Drive are fetched during import, with progress shown.
+* **Liquid Glass**: on iPadOS 26 the toolbar and the tool panel use the system Liquid Glass material, with icons drawn natively; earlier iPadOS versions show frosted glass.
+* **Documents**: the same layout engine and assistants as the desktop version; PDF export keeps one page per document page.
 * **Local models**: llama.cpp with Metal acceleration.
 * **Reliability**: the connection between the pages and the main program recovers on its own after long use, suspension or a web content process restart.
 
 The IPA is **unsigned**. Install it by sideloading with a tool such as AltStore or Sideloadly and your own Apple ID. Free Apple Developer accounts must re-sign the app every 7 days.
 
-See the [iPad release](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v2.3.1).
+See the [iPad release](https://github.com/felixshine2009-cmd/ai-browser/releases/tag/ipad-v3.0.0).
 
 ## Install (recommended)
 
